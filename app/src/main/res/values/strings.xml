@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PDF Scanner</string>
+
+    <!-- Common actions -->
+    <string name="action_back">Back</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_save">Save</string>
+    <string name="action_delete">Delete</string>
+    <string name="action_discard">Discard</string>
+    <string name="action_rename">Rename</string>
+    <string name="action_share">Share</string>
+    <string name="action_open">Open</string>
+    <string name="action_done">Done</string>
+    <string name="action_resume">Resume</string>
+    <string name="action_keep_draft">Keep draft</string>
+    <string name="action_scan">Scan</string>
+    <string name="action_scan_document">Scan a document</string>
+    <string name="action_import_photos">Import photos</string>
+    <string name="action_clear_search">Clear search</string>
+    <string name="action_more_for">More actions for %1$s</string>
+    <string name="label_name">Name</string>
+    <string name="label_file_name">File name</string>
+    <string name="label_page_size">Page size</string>
+
+    <!-- Home -->
+    <string name="home_empty_title">No documents yet</string>
+    <string name="home_empty_message">Scan a document with the camera or import photos. Everything stays on this device.</string>
+    <string name="search_hint">Search documents</string>
+    <string name="search_no_results_title">No matches</string>
+    <string name="search_no_results_message">No document is named “%1$s”.</string>
+    <string name="rename_title">Rename document</string>
+    <string name="delete_title">Delete document?</string>
+    <string name="delete_message">“%1$s” and all of its pages will be permanently deleted from this device.</string>
+    <string name="draft_title">Unfinished scan</string>
+    <string name="discard_draft_title">Discard this scan?</string>
+    <string name="discard_draft_message">The pages you have captured will be permanently deleted.</string>
+    <string name="document_row_description">%1$s, %2$s, modified %3$s</string>
+    <string name="msg_document_deleted">Document deleted</string>
+    <plurals name="pages_count">
+        <item quantity="one">%d page</item>
+        <item quantity="other">%d pages</item>
+    </plurals>
+
+    <!-- Camera -->
+    <string name="action_capture">Capture page</string>
+    <string name="action_flash_on">Turn flash on</string>
+    <string name="action_flash_off">Turn flash off</string>
+    <string name="camera_hint">Place the page on a contrasting surface and fill the frame</string>
+    <plurals name="camera_done_description">
+        <item quantity="one">Done, %d page captured</item>
+        <item quantity="other">Done, %d pages captured</item>
+    </plurals>
+    <string name="camera_permission_title">Camera access needed</string>
+    <string name="camera_permission_message">PDF Scanner uses the camera only to photograph your pages. Photos never leave your device.</string>
+    <string name="camera_permission_denied_message">Camera access was denied. You can grant it, or import existing photos instead.</string>
+    <string name="camera_unavailable_title">Camera unavailable</string>
+    <string name="camera_unavailable_message">The camera could not be started. You can still import photos from your library.</string>
+    <string name="action_grant_camera">Allow camera</string>
+    <string name="action_open_settings">Open app settings</string>
+    <string name="msg_capture_failed">Could not capture the photo. Please try again.</string>
+    <string name="msg_some_images_failed">%d image(s) could not be added</string>
+
+    <!-- Document -->
+    <string name="action_save_to_library">Save</string>
+    <string name="action_add_page_camera">Add page with camera</string>
+    <string name="action_export_pdf">Export PDF</string>
+    <string name="action_edit_page">Edit page</string>
+    <string name="action_move_earlier">Move earlier</string>
+    <string name="action_move_later">Move later</string>
+    <string name="document_empty_title">No pages</string>
+    <string name="document_empty_message">Add pages with the camera or import photos.</string>
+    <string name="pages_hint">tap a page to edit</string>
+    <string name="page_of">Page %1$d of %2$d</string>
+    <string name="delete_page_title">Remove page?</string>
+    <string name="delete_page_message">Page %1$d will be removed from this document.</string>
+    <string name="leave_draft_title">Unfinished scan</string>
+    <string name="leave_draft_message">Save this scan to your library, keep it as a draft to finish later, or discard it.</string>
+
+    <!-- Export -->
+    <string name="export_title">Export PDF</string>
+    <string name="size_a4">A4</string>
+    <string name="size_letter">US Letter</string>
+    <string name="size_match">Match image</string>
+    <string name="action_save_to_device">Save to device</string>
+    <string name="export_progress">Rendering page %1$d of %2$d…</string>
+    <plurals name="export_summary">
+        <item quantity="one">%d page will be exported as one PDF.</item>
+        <item quantity="other">%d pages will be exported as one PDF.</item>
+    </plurals>
+    <string name="msg_pdf_saved">PDF saved</string>
+    <string name="msg_save_cancelled">Save cancelled</string>
+    <string name="msg_export_cancelled">Export cancelled</string>
+    <string name="msg_export_failed">Export failed: %1$s</string>
+    <string name="msg_no_share_target">No app available to share the PDF</string>
+    <string name="share_chooser_title">Share PDF</string>
+
+    <!-- Editor -->
+    <string name="edit_title">Edit page</string>
+    <string name="step_crop">Crop</string>
+    <string name="step_enhance">Enhance</string>
+    <string name="crop_hint">Drag the corners to match the page edges.</string>
+    <string name="action_auto_detect">Auto-detect</string>
+    <string name="action_full_page">Full image</string>
+    <string name="filter_original">Original</string>
+    <string name="filter_grayscale">Grayscale</string>
+    <string name="filter_bw">Black &amp; white</string>
+    <string name="action_rotate_left">Rotate left</string>
+    <string name="action_rotate_right">Rotate right</string>
+    <string name="edit_preview_description">Preview of the corrected page</string>
+    <string name="edit_failed_title">Page unavailable</string>
+    <string name="edit_failed_message">This page’s image could not be loaded.</string>
+    <string name="discard_changes_title">Discard changes?</string>
+    <string name="discard_changes_message">Your edits to this page have not been saved.</string>
+    <string name="corner_top_left">Top left corner</string>
+    <string name="corner_top_right">Top right corner</string>
+    <string name="corner_bottom_right">Bottom right corner</string>
+    <string name="corner_bottom_left">Bottom left corner</string>
+    <string name="move_left">Move left</string>
+    <string name="move_right">Move right</string>
+    <string name="move_up">Move up</string>
+    <string name="move_down">Move down</string>
+    <string name="msg_no_edges_found">No page edges found. Adjust the corners manually.</string>
+    <string name="msg_invalid_crop">The corners must form a convex shape that covers part of the page.</string>
+    <string name="msg_preview_failed">Could not render the preview</string>
+
+    <string name="msg_generic_error">Something went wrong. Please try again.</string>
+</resources>

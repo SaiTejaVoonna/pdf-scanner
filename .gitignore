@@ -1,0 +1,35 @@
+# Gradle / build output
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local machine config (SDK paths, signing, credentials)
+local.properties
+*.jks
+*.keystore
+keystore.properties
+google-services.json
+.env
+
+# IDE
+.idea/
+*.iml
+.vscode/
+captures/
+.externalNativeBuild/
+.cxx/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Scans and generated documents must never be committed
+*.pdf
+scans/
+app/release/
+*.apk
+*.aab
+*.hprof
+
+# Kotlin compiler session data
+.kotlin/
