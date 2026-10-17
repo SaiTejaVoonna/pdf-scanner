@@ -195,8 +195,11 @@ Generated PDFs were additionally validated with `pdfinfo` (Poppler) and `pypdf` 
 ## Continuous integration
 
 `.github/workflows/android.yml` runs on every push and pull request (JDK 17, Android SDK 35, Gradle
-caching): unit tests, lint, `assembleDebug` and `assembleRelease`, then verifies the debug APK exists and
-uploads it (30-day retention) plus test/lint reports (14 days). It uses no secrets.
+caching) as two parallel jobs: **Build debug APK** (assemble, verify, upload with 30-day retention, then
+refresh the `latest-debug` release) and **Tests, lint and release build** (unit tests, lint,
+`assembleRelease`, reports kept 14 days). The rolling release publishes as soon as the APK is built and does
+not wait for the checks, so check the *Tests, lint and release build* job before trusting a build. Version
+tag releases (`vX.Y.Z`) additionally require the checks to pass. No secrets are used.
 
 ## License
 

@@ -14,10 +14,11 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    name: Test, lint and assemble
+  # Fast path: build the installable debug APK and publish it as soon as it exists.
+  apk:
+    name: Build debug APK
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.meta.outputs.version }}
     steps:
@@ -46,11 +47,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "short_sha=${GITHUB_SHA::7}" >> "$GITHUB_OUTPUT"
 
-      - name: Unit tests and lint
-        run: ./gradlew --no-daemon testDebugUnitTest lintDebug
-
-      - name: Assemble debug and release
-        run: ./gradlew --no-daemon assembleDebug assembleRelease
+      - name: Assemble debug APK
+        run: ./gradlew --no-daemon assembleDebug
 
       - name: Verify the debug APK exists
         run: |
@@ -67,6 +65,30 @@ jobs:
           if-no-files-found: error
           retention-days: 30
 
+  # Runs in parallel with the APK build: unit tests, lint and the minified release build.
+  checks:
+    name: Tests, lint and release build
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install Android SDK packages
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses > /dev/null || true
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle (with caching)
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Unit tests, lint and release assemble
+        run: ./gradlew --no-daemon testDebugUnitTest lintDebug assembleRelease
+
       - name: Upload test and lint reports
         if: always()
         uses: actions/upload-artifact@v4
@@ -78,47 +100,13 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
-  # Runs only when the owner pushes an explicit version tag such as v1.0.0.
-  # Attaches the *debug* APK (installable, signed with the debug key). The unsigned
-  # release APK is deliberately not published: it cannot be installed and is not
-  # production-ready. No signing secrets are used anywhere in this workflow.
-  release:
-    name: Publish GitHub Release
-    if: startsWith(github.ref, 'refs/tags/v')
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - name: Check tag matches app version
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          if [ "$tag" != "${{ needs.build.outputs.version }}" ]; then
-            echo "::error::Tag $GITHUB_REF_NAME does not match versionName ${{ needs.build.outputs.version }} in app/build.gradle.kts"
-            exit 1
-          fi
-
-      - uses: actions/download-artifact@v4
-        with:
-          pattern: pdf-scanner-*-debug-apk
-          merge-multiple: true
-
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "$GITHUB_REF_NAME" pdf-scanner-*-debug.apk \
-            --repo "$GITHUB_REPOSITORY" \
-            --title "PDF Scanner $GITHUB_REF_NAME" \
-            --notes "Debug-signed APK for testing and sideloading. Not a Play Store build." \
-            --prerelease
-
   # Rolling pre-release holding one plain .apk at a stable URL, refreshed on every push to the
-  # development branch. Debug-signed, for testing/sideloading only. Uses only the built-in token.
+  # development branch as soon as the APK is built. Debug-signed, for testing/sideloading only.
+  # Uses only the built-in token. (It does not wait for `checks`; see that job for test results.)
   latest:
     name: Update latest-debug release
     if: github.event_name == 'push' && github.ref == 'refs/heads/claude/amazing-babbage-qr2tmb'
-    needs: build
+    needs: apk
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -141,3 +129,37 @@ jobs:
             --prerelease \
             --title "Latest debug build (${GITHUB_SHA::7})" \
             --notes "Debug-signed APK built from commit $GITHUB_SHA ($src). For testing and sideloading only; not a Play Store build."
+
+  # Runs only when the owner pushes an explicit version tag such as v1.0.0, and only after tests
+  # and lint pass. Attaches the *debug* APK (installable). The unsigned release APK is deliberately
+  # not published. No signing secrets are used anywhere in this workflow.
+  release:
+    name: Publish GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [apk, checks]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Check tag matches app version
+        run: |
+          tag="${GITHUB_REF_NAME#v}"
+          if [ "$tag" != "${{ needs.apk.outputs.version }}" ]; then
+            echo "::error::Tag $GITHUB_REF_NAME does not match versionName ${{ needs.apk.outputs.version }} in app/build.gradle.kts"
+            exit 1
+          fi
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pdf-scanner-*-debug-apk
+          merge-multiple: true
+
+      - name: Create release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" pdf-scanner-*-debug.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "PDF Scanner $GITHUB_REF_NAME" \
+            --notes "Debug-signed APK for testing and sideloading. Not a Play Store build." \
+            --prerelease
