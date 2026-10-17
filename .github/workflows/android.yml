@@ -111,3 +111,32 @@ jobs:
             --title "PDF Scanner $GITHUB_REF_NAME" \
             --notes "Debug-signed APK for testing and sideloading. Not a Play Store build." \
             --prerelease
+
+  # Rolling pre-release holding one plain .apk at a stable URL, refreshed on every push to the
+  # development branch. Debug-signed, for testing/sideloading only. Uses only the built-in token.
+  latest:
+    name: Update latest-debug release
+    if: github.event_name == 'push' && github.ref == 'refs/heads/claude/amazing-babbage-qr2tmb'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: pdf-scanner-*-debug-apk
+          merge-multiple: true
+
+      - name: Publish rolling release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          src=$(ls pdf-scanner-*-debug.apk)
+          cp "$src" pdf-scanner-debug.apk
+          gh release delete latest-debug --cleanup-tag --yes --repo "$GITHUB_REPOSITORY" || true
+          gh release create latest-debug pdf-scanner-debug.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Latest debug build (${GITHUB_SHA::7})" \
+            --notes "Debug-signed APK built from commit $GITHUB_SHA ($src). For testing and sideloading only; not a Play Store build."

@@ -38,7 +38,19 @@ Add them under `docs/screenshots/` and reference them here._
 These are **not** part of the app today: OCR and searchable PDFs, cloud sync (Drive or otherwise),
 custom page sizes and margins, a signed release / Play Store build, and on-device (instrumented) UI tests.
 
-## Download the APK from GitHub Actions
+## Download the APK (simplest way)
+
+Every push to `claude/amazing-babbage-qr2tmb` refreshes a rolling pre-release with a plain APK:
+
+- Open **Releases → Latest debug build** on the repository page and tap **`pdf-scanner-debug.apk`**, or use
+  `https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk`.
+- Open the file on your phone and allow *Install unknown apps* when asked.
+- If the repository is private, you must be signed in to GitHub with access to it.
+
+This is a debug-signed build for testing only (not a Play Store build). The `latest-debug` tag is created
+and moved by the workflow itself; it is not a version release.
+
+## Download the APK from GitHub Actions (alternative)
 
 Every push and pull request builds a debug APK you can install on a test device:
 
