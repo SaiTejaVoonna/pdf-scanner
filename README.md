@@ -4,7 +4,16 @@ A native Android document scanner built with Kotlin, Jetpack Compose and Materia
 Scan pages with the camera or import photos, straighten and clean them up, reorder them, and export a
 real multipage PDF — **entirely offline, on your device**. No accounts, no ads, no analytics, no uploads.
 
-## Features
+## Screenshots
+
+_Screenshots are not available yet: the app has not been run on a device or emulator by its author.
+Add them under `docs/screenshots/` and reference them here._
+
+| Home | Capture | Crop | Export |
+| --- | --- | --- | --- |
+| _placeholder_ | _placeholder_ | _placeholder_ | _placeholder_ |
+
+## Features (implemented)
 
 - **Library** of locally saved documents with search, rename, delete-with-confirmation and share.
   A prominent **Scan** button, and an *Import photos* shortcut, are always one tap away.
@@ -23,6 +32,36 @@ real multipage PDF — **entirely offline, on your device**. No accounts, no ads
   app; the home screen offers to resume or discard it.
 - Dark mode, TalkBack labels, 48dp touch targets, and keyboard/accessibility actions for moving crop corners
   and reordering pages.
+
+## Planned / not implemented
+
+These are **not** part of the app today: OCR and searchable PDFs, cloud sync (Drive or otherwise),
+custom page sizes and margins, a signed release / Play Store build, and on-device (instrumented) UI tests.
+
+## Download the APK from GitHub Actions
+
+Every push and pull request builds a debug APK you can install on a test device:
+
+1. Open the repository on GitHub and click the **Actions** tab.
+2. Click the **Android CI** workflow, then the latest run for your branch
+   (for example `claude/amazing-babbage-qr2tmb`) with a green check.
+3. Scroll to the **Artifacts** section at the bottom of the run summary.
+4. Download **`pdf-scanner-<version>-<commit>-debug-apk`** (a zip containing
+   `pdf-scanner-<version>-<commit>-debug.apk`). Artifacts are kept for 30 days and require being signed in
+   to GitHub with read access to the repository.
+5. Unzip it, copy the APK to your phone, and open it. You must allow *Install unknown apps* for your file
+   manager or browser. Or install over USB: `adb install pdf-scanner-*-debug.apk`.
+
+The debug APK is signed with the standard Android debug key. It is for testing and sideloading only.
+
+**Releases:** if the owner pushes an explicit version tag matching `versionName` in `app/build.gradle.kts`
+(for example `git tag v1.0.0 && git push origin v1.0.0`), the workflow also publishes a GitHub *pre-release*
+with that debug APK attached. Nothing is published unless such a tag is pushed.
+
+**Play Store / production:** the workflow's `assembleRelease` output is *unsigned* and **cannot be
+installed**; it is built only to prove the minified release configuration compiles. Distributing through
+Google Play requires a properly signed Android App Bundle (`bundleRelease`) with an upload key managed by
+the owner (kept in repository *secrets*, never committed). No signing is configured or attempted here.
 
 ## Requirements
 
@@ -55,8 +94,22 @@ versions live in [`gradle/libs.versions.toml`](gradle/libs.versions.toml).
 
    Test reports: `app/build/reports/tests/testDebugUnitTest/index.html`.
 
-3. A minified release build is `./gradlew assembleRelease` (unsigned; supply your own signing config —
-   keystores and credentials are git-ignored and must never be committed).
+3. A minified release build is `./gradlew assembleRelease` (**unsigned and not installable**; for Play distribution
+   the owner must add their own signing config and build a signed AAB. Keystores and credentials are
+   git-ignored and must never be committed).
+
+## Project layout
+
+| Path (`app/src/main/java/com/saiteja/pdfscanner/`) | Responsibility |
+| --- | --- |
+| `ui/home`, `ui/camera`, `ui/document`, `ui/edit` | Compose screens and their ViewModels |
+| `ui/components`, `ui/theme`, `ui/Navigation.kt` | Shared widgets, Material 3 theme, navigation graph |
+| `domain/` | Pure models and logic (geometry, page ordering, file names) |
+| `data/` | Room database, repository, on-disk file store |
+| `imaging/` | Edge detection, perspective warp, filters, import, rendering, thumbnails |
+| `pdf/` | PDF writer and exporter |
+
+Tests mirror this layout under `app/src/test/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow tips.
 
 ## Architecture
 
@@ -127,6 +180,13 @@ Generated PDFs were additionally validated with `pdfinfo` (Poppler) and `pypdf` 
   were **not** exercised on a physical device or emulator in the build environment, so please smoke-test on
   hardware before relying on a build.
 
+## Continuous integration
+
+`.github/workflows/android.yml` runs on every push and pull request (JDK 17, Android SDK 35, Gradle
+caching): unit tests, lint, `assembleDebug` and `assembleRelease`, then verifies the debug APK exists and
+uploads it (30-day retention) plus test/lint reports (14 days). It uses no secrets.
+
 ## License
 
-No license has been chosen yet; add one before distributing.
+**No license has been selected.** Until the repository owner chooses and adds one, all rights are
+reserved by default and others have no permission to reuse the code.

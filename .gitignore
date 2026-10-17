@@ -7,14 +7,26 @@ build/
 local.properties
 *.jks
 *.keystore
+*.p12
+*.pfx
+*.pem
+*.key
 keystore.properties
+signing.properties
+secrets.properties
 google-services.json
 .env
 
 # IDE
 .idea/
+*.iws
+*.ipr
 *.iml
 .vscode/
+.fleet/
+.classpath
+.project
+.settings/
 captures/
 .externalNativeBuild/
 .cxx/
@@ -26,10 +38,21 @@ Thumbs.db
 # Scans and generated documents must never be committed
 *.pdf
 scans/
+test-documents/
+sample-scans/
+*.jpg
+*.jpeg
+*.heic
+!app/src/main/res/**/*.jpg
 app/release/
 *.apk
 *.aab
 *.hprof
+hs_err_pid*
+lint-results*.xml
+report-*.html
+logcat*.txt
+*.log
 
 # Kotlin compiler session data
 .kotlin/
