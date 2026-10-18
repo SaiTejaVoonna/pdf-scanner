@@ -100,11 +100,14 @@ test('settings are stored and auto-crop on import crops the page', async ({ page
   await s.getByRole('button', { name: 'Done' }).click();
   await importImages(page, 1);
   await page.getByRole('button', { name: 'Edit page 1' }).click();
-  const editor = page.getByRole('dialog', { name: 'Edit page' });
-  const box = await editor.locator('.stage-inner').boundingBox();
-  const tl = await editor.getByRole('button', { name: /Top left corner/ }).boundingBox();
-  // With auto-crop the top-left handle sits well inside the photo instead of at its corner.
-  expect(tl!.x + tl!.width / 2 - box!.x).toBeGreaterThan(box!.width * 0.08);
+  await expect(page.getByRole('dialog', { name: 'Edit page' })).toBeVisible();
+  // With auto-crop the top-left handle sits well inside the photo instead of at its corner. Measure the handle and
+  // the stage in the same instant, and wait for the editor to finish laying out.
+  await expect.poll(() => page.evaluate(() => {
+    const stage = document.querySelector('.stage-inner')!.getBoundingClientRect();
+    const h = document.querySelector('.handle')!.getBoundingClientRect();
+    return stage.width > 50 ? (h.left + h.width / 2 - stage.left) / stage.width : -1;
+  }), { message: 'top-left handle should move inside the photo after auto-crop' }).toBeGreaterThan(0.08);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pdf-scanner.settings')!).defaultFilter)).toBe('enhanced');
 });
 
