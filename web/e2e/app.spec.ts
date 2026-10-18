@@ -10,7 +10,12 @@ async function importImages(page: Page, count: number) {
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(count);
 }
 
-test.beforeEach(async ({ page }) => { await page.goto('/'); });
+test.beforeEach(async ({ page }) => {
+  // E2E_CPU_THROTTLE=6 runs the page 6x slower, to flush out timing assumptions that only fail on slow CI runners.
+  const rate = Number(process.env.E2E_CPU_THROTTLE ?? 1);
+  if (rate > 1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate });
+  await page.goto('/');
+});
 
 test('starts empty, with the privacy-friendly basics in place', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
@@ -104,8 +109,10 @@ test('settings are stored and auto-crop on import crops the page', async ({ page
   // With auto-crop the top-left handle sits well inside the photo instead of at its corner. Measure the handle and
   // the stage in the same instant, and wait for the editor to finish laying out.
   await expect.poll(() => page.evaluate(() => {
-    const stage = document.querySelector('.stage-inner')!.getBoundingClientRect();
-    const h = document.querySelector('.handle')!.getBoundingClientRect();
+    // The editor builds its stage asynchronously (it decodes the photo first): report -1 until it exists.
+    const stageEl = document.querySelector('.stage-inner'), handleEl = document.querySelector('.handle');
+    if (!stageEl || !handleEl) return -1;
+    const stage = stageEl.getBoundingClientRect(), h = handleEl.getBoundingClientRect();
     return stage.width > 50 ? (h.left + h.width / 2 - stage.left) / stage.width : -1;
   }), { message: 'top-left handle should move inside the photo after auto-crop' }).toBeGreaterThan(0.08);
   expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pdf-scanner.settings')!).defaultFilter)).toBe('enhanced');

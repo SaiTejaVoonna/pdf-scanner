@@ -11,6 +11,7 @@ npm run dev        # http://localhost:5173
 npm test           # unit tests (Node)
 npm run build      # production build in dist/
 npm run e2e        # browser tests: needs `npx playwright install chromium` (or CHROMIUM_PATH)
+E2E_CPU_THROTTLE=6 npm run e2e   # same tests on a 6x slower CPU, to catch timing assumptions
 ```
 
 ## Layout
