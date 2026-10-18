@@ -10,12 +10,14 @@ import com.saiteja.pdfscanner.ui.camera.CameraScreen
 import com.saiteja.pdfscanner.ui.document.DocumentScreen
 import com.saiteja.pdfscanner.ui.edit.EditPageScreen
 import com.saiteja.pdfscanner.ui.home.HomeScreen
+import com.saiteja.pdfscanner.ui.tools.ResizeScreen
 
 private object Routes {
     const val HOME = "home"
     const val CAMERA = "camera?docId={docId}"
     const val DOCUMENT = "document/{docId}"
     const val EDIT = "edit/{docId}/{pageId}"
+    const val RESIZE = "tools/resize"
 
     fun camera(docId: String? = null) = if (docId == null) "camera" else "camera?docId=$docId"
     fun document(docId: String) = "document/$docId"
@@ -31,6 +33,7 @@ fun AppNavigation() {
                 onScan = { nav.navigate(Routes.camera()) },
                 onOpenDocument = { nav.navigate(Routes.document(it)) },
                 onResumeDraft = { nav.navigate(Routes.document(it)) },
+                onOpenResize = { nav.navigate(Routes.RESIZE) },
             )
         }
         composable(
@@ -55,6 +58,9 @@ fun AppNavigation() {
                 onAddPages = { nav.navigate(Routes.camera(it)) },
                 onEditPage = { docId, pageId -> nav.navigate(Routes.edit(docId, pageId)) },
             )
+        }
+        composable(Routes.RESIZE) {
+            ResizeScreen(onBack = { nav.popBackStack() })
         }
         composable(
             Routes.EDIT,

@@ -62,9 +62,10 @@ class DocumentRepository(
         sourceFile: String,
         corners: Quad = Quad.FULL,
         pageId: String = newId(),
+        filter: PageFilter = PageFilter.ORIGINAL,
     ): ScanPage = db.withTransaction {
         val position = dao.getPages(documentId).size
-        val page = ScanPage(pageId, documentId, position, sourceFile, corners, 0, PageFilter.ORIGINAL)
+        val page = ScanPage(pageId, documentId, position, sourceFile, corners, 0, filter)
         dao.insertPage(page.toEntity())
         dao.touch(documentId, clock())
         page
@@ -73,6 +74,42 @@ class DocumentRepository(
     suspend fun updatePage(page: ScanPage) {
         dao.updatePage(page.toEntity())
         dao.touch(page.documentId, clock())
+    }
+
+    /** Saves several edited pages (and bumps the document) in one transaction. */
+    suspend fun updatePages(pages: List<ScanPage>) {
+        if (pages.isEmpty()) return
+        db.withTransaction {
+            pages.forEach { dao.updatePage(it.toEntity()) }
+            pages.map { it.documentId }.distinct().forEach { dao.touch(it, clock()) }
+        }
+    }
+
+    /**
+     * Applies [transform] to the *current* stored version of each page, inside one transaction.
+     * Reading and writing together means rapid consecutive edits (filter, then rotate) never overwrite each other.
+     */
+    suspend fun editPages(pageIds: Collection<String>, transform: (ScanPage) -> ScanPage) {
+        if (pageIds.isEmpty()) return
+        db.withTransaction {
+            val touched = HashSet<String>()
+            for (id in pageIds) {
+                val current = dao.getPage(id)?.toDomain() ?: continue
+                dao.updatePage(transform(current).toEntity())
+                touched += current.documentId
+            }
+            touched.forEach { dao.touch(it, clock()) }
+        }
+    }
+
+    /** Removes several pages at once, keeping the numbering gap-free. */
+    suspend fun removePages(pageIds: Collection<String>) = db.withTransaction {
+        val pages = pageIds.mapNotNull { dao.getPage(it) }
+        pages.forEach { dao.deletePage(it.id); files.deletePageFile(it.documentId, it.sourceFile) }
+        pages.map { it.documentId }.distinct().forEach { docId ->
+            dao.getPages(docId).forEachIndexed { index, p -> dao.setPosition(p.id, index) }
+            dao.touch(docId, clock())
+        }
     }
 
     /** Removes a page, deletes its image, and closes the gap in the numbering. */

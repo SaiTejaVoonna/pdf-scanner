@@ -7,7 +7,7 @@
 3. `./gradlew testDebugUnitTest lintDebug assembleDebug` should pass before you push. CI runs the same.
 
 ## Guidelines
-- Put code in the package that matches its responsibility (see the table in the README). Keep `domain/`,
+- Put code in the package that matches its responsibility (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)). Keep `domain/`,
   and the pure parts of `imaging/` and `pdf/`, free of Android classes so they stay JVM-testable.
 - Add or update tests with behaviour changes (`app/src/test/`). Robolectric is available for Room, bitmaps
   and Compose.

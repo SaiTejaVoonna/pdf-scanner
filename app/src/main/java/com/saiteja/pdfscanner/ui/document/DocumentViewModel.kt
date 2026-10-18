@@ -8,7 +8,10 @@ import androidx.lifecycle.viewModelScope
 import com.saiteja.pdfscanner.AppContainer
 import com.saiteja.pdfscanner.R
 import com.saiteja.pdfscanner.domain.FileNames
+import com.saiteja.pdfscanner.domain.PageFilter
 import com.saiteja.pdfscanner.domain.PdfPageSize
+import com.saiteja.pdfscanner.domain.PdfQuality
+import com.saiteja.pdfscanner.domain.Quad
 import com.saiteja.pdfscanner.domain.ScanDocument
 import com.saiteja.pdfscanner.domain.ScanPage
 import com.saiteja.pdfscanner.pdf.ExportException
@@ -38,6 +41,9 @@ data class DocumentUiState(
     val busy: Boolean = false,
     val export: ExportProgress? = null,
     val exportName: String = "",
+    /** Pages currently selected for a bulk action; empty means normal (non-selection) mode. */
+    val selection: Set<String> = emptySet(),
+    val quality: PdfQuality = PdfQuality.HIGH,
 )
 
 sealed interface DocumentEvent {
@@ -62,18 +68,107 @@ class DocumentViewModel(
     private val events = Channel<DocumentEvent>(Channel.BUFFERED)
     val eventFlow = events.receiveAsFlow()
 
+    private val selected = saved.getStateFlow<ArrayList<String>>(KEY_SELECTED, ArrayList())
+    private val quality = saved.getStateFlow(KEY_QUALITY, PdfQuality.HIGH.name)
+
+    private class Bits(val busy: Boolean, val export: ExportProgress?, val name: String?, val selected: List<String>, val quality: String)
+
+    private val bits = combine(busy, export, exportName, selected, quality) { b, e, n, sel, q -> Bits(b, e, n, sel, q) }
+
     val state: StateFlow<DocumentUiState> = combine(
-        repository.observeDocument(documentId), repository.observePages(documentId), busy, export, exportName,
-    ) { doc, pages, isBusy, progress, name ->
+        repository.observeDocument(documentId), repository.observePages(documentId), bits,
+    ) { doc, pages, b ->
+        val ids = pages.mapTo(HashSet()) { it.id }
         DocumentUiState(
             loaded = true,
             document = doc,
             pages = pages,
-            busy = isBusy,
-            export = progress,
-            exportName = name ?: doc?.name.orEmpty(),
+            busy = b.busy,
+            export = b.export,
+            exportName = b.name ?: doc?.name.orEmpty(),
+            selection = b.selected.filterTo(LinkedHashSet()) { it in ids },
+            quality = runCatching { PdfQuality.valueOf(b.quality) }.getOrDefault(PdfQuality.HIGH),
         )
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), DocumentUiState())
+    // Eager: the actions below read state.value, so it must stay current even when nothing is collecting.
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, DocumentUiState())
+
+    // --- selection (long-press a page to start) ---------------------------------------------------
+
+    fun toggleSelection(pageId: String) {
+        val current = ArrayList(selected.value)
+        if (!current.remove(pageId)) current.add(pageId)
+        saved[KEY_SELECTED] = current
+    }
+
+    fun selectAll() {
+        saved[KEY_SELECTED] = ArrayList(state.value.pages.map { it.id })
+    }
+
+    fun clearSelection() {
+        saved[KEY_SELECTED] = ArrayList<String>()
+    }
+
+    private fun selectedPages(): List<ScanPage> = state.value.pages.filter { it.id in state.value.selection }
+
+    fun applyFilterToSelection(filter: PageFilter) {
+        val ids = state.value.selection
+        launchSafely { repository.editPages(ids) { it.copy(filter = filter) } }
+    }
+
+    fun rotateSelection(clockwise: Boolean) {
+        val ids = state.value.selection
+        val delta = if (clockwise) 90 else 270
+        launchSafely { repository.editPages(ids) { it.copy(rotation = (it.rotation + delta) % 360) } }
+    }
+
+    /** Removes any crop on the selected pages, restoring the full image. */
+    fun resetCropOfSelection() {
+        val ids = state.value.selection
+        launchSafely { repository.editPages(ids) { it.copy(corners = Quad.FULL) } }
+    }
+
+    /** Runs edge detection on each selected page; pages where nothing convincing is found are left unchanged. */
+    fun autoCropSelection() {
+        val targets = selectedPages()
+        if (targets.isEmpty()) return
+        launchSafely {
+            busy.update { true }
+            try {
+                val detected = HashMap<String, Quad>()
+                for (page in targets) {
+                    container.ingestor.detectCorners(container.renderer.sourceFile(page))?.let { detected[page.id] = it }
+                }
+                repository.editPages(detected.keys) { it.copy(corners = detected.getValue(it.id)) }
+                events.send(DocumentEvent.Message(UiMessage(R.string.msg_autocrop_result, detected.size, targets.size)))
+            } finally {
+                busy.update { false }
+            }
+        }
+    }
+
+    fun deleteSelection() = launchSafely {
+        val ids = state.value.selection
+        repository.removePages(ids)
+        clearSelection()
+    }
+
+    fun setQuality(q: PdfQuality) {
+        saved[KEY_QUALITY] = q.name
+    }
+
+    fun addPdfs(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        launchSafely {
+            busy.update { true }
+            try {
+                val result = container.ingestor.addPdfs(documentId, uris)
+                if (result.protectedPdfs > 0) events.send(DocumentEvent.Message(UiMessage(R.string.msg_pdf_protected, result.protectedPdfs)))
+                else if (result.failed > 0) events.send(DocumentEvent.Message(UiMessage(R.string.msg_pdf_import_failed, result.failed)))
+            } finally {
+                busy.update { false }
+            }
+        }
+    }
 
     fun rename(name: String) = launchSafely {
         repository.rename(documentId, name)
@@ -123,7 +218,7 @@ class DocumentViewModel(
                 try {
                     val stream = resolver.openOutputStream(uri, "wt") ?: throw IOException("Cannot open destination")
                     stream.buffered().use { out ->
-                        container.exporter.export(doc.id, doc.pageSize, exportTitle(), out) { done, total ->
+                        container.exporter.export(doc.id, doc.pageSize, exportTitle(), out, state.value.quality) { done, total ->
                             export.value = ExportProgress(done, total)
                         }
                     }
@@ -140,7 +235,7 @@ class DocumentViewModel(
     fun share() {
         val doc = state.value.document ?: return
         startExport {
-            val file = container.exporter.exportToCache(doc.id, doc.pageSize, exportTitle()) { done, total ->
+            val file = container.exporter.exportToCache(doc.id, doc.pageSize, exportTitle(), state.value.quality) { done, total ->
                 export.value = ExportProgress(done, total)
             }
             events.send(DocumentEvent.Share(file, exportTitle()))
@@ -192,5 +287,7 @@ class DocumentViewModel(
 
     private companion object {
         const val KEY_EXPORT_NAME = "exportName"
+        const val KEY_SELECTED = "selected"
+        const val KEY_QUALITY = "quality"
     }
 }

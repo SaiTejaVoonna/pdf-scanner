@@ -1,6 +1,26 @@
 package com.saiteja.pdfscanner.ui.document
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.automirrored.outlined.RotateRight
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.outlined.AutoFixHigh
+import androidx.compose.material.icons.outlined.CropFree
+import androidx.compose.material.icons.outlined.FileOpen
+import androidx.compose.material.icons.outlined.RadioButtonUnchecked
+import androidx.compose.material.icons.outlined.SelectAll
+import androidx.compose.material.icons.outlined.Tune
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.ui.semantics.selected
+import com.saiteja.pdfscanner.domain.PageFilter
+import com.saiteja.pdfscanner.domain.PdfQuality
+import com.saiteja.pdfscanner.ui.components.label
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
@@ -110,8 +130,10 @@ fun DocumentScreen(
     var deletePageId by rememberSaveable { mutableStateOf<String?>(null) }
     var showLeaveDraft by rememberSaveable { mutableStateOf(false) }
     var showDiscard by rememberSaveable { mutableStateOf(false) }
+    var showDeleteSelection by rememberSaveable { mutableStateOf(false) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_IMPORT)) { viewModel.addPhotos(it) }
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { viewModel.addPdfs(it) }
     val saveLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/pdf")) { uri ->
         if (uri == null) viewModel.notifyCancelledPicker() else viewModel.saveTo(uri)
     }
@@ -142,6 +164,7 @@ fun DocumentScreen(
     val handleBack = {
         when {
             exporting -> Unit
+            state.selection.isNotEmpty() -> viewModel.clearSelection()
             isDraft && state.pages.isEmpty() -> viewModel.discard() // nothing worth keeping
             isDraft -> showLeaveDraft = true
             else -> onBack()
@@ -151,7 +174,12 @@ fun DocumentScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
+            if (state.selection.isNotEmpty()) SelectionTopBar(
+                count = state.selection.size,
+                onClose = viewModel::clearSelection,
+                onSelectAll = viewModel::selectAll,
+                onDelete = { showDeleteSelection = true },
+            ) else TopAppBar(
                 title = {
                     Row(
                         Modifier.clickable(enabled = doc != null, onClickLabel = stringResource(R.string.action_rename)) { showRename = true },
@@ -177,13 +205,22 @@ fun DocumentScreen(
             )
         },
         bottomBar = {
-            BottomAppBar(
+            if (state.selection.isNotEmpty()) SelectionBottomBar(
+                busy = state.busy,
+                onAutoCrop = viewModel::autoCropSelection,
+                onResetCrop = viewModel::resetCropOfSelection,
+                onRotate = { viewModel.rotateSelection(true) },
+                onFilter = viewModel::applyFilterToSelection,
+            ) else BottomAppBar(
                 actions = {
                     IconButton(onClick = { doc?.let { onAddPages(it.id) } }, enabled = !exporting && !state.busy) {
                         Icon(Icons.Outlined.AddAPhoto, contentDescription = stringResource(R.string.action_add_page_camera))
                     }
                     IconButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }, enabled = !exporting && !state.busy) {
                         Icon(Icons.Outlined.PhotoLibrary, contentDescription = stringResource(R.string.action_import_photos))
+                    }
+                    IconButton(onClick = { pdfPicker.launch(arrayOf("application/pdf")) }, enabled = !exporting && !state.busy) {
+                        Icon(Icons.Outlined.FileOpen, contentDescription = stringResource(R.string.action_add_pdf))
                     }
                     if (isDraft) {
                         IconButton(onClick = { showDiscard = true }, enabled = !exporting) {
@@ -227,7 +264,7 @@ fun DocumentScreen(
                 ) {
                     item(span = { GridItemSpan(maxLineSpan) }) {
                         Text(
-                            pluralStringResource(R.plurals.pages_count, state.pages.size, state.pages.size) + " · " + stringResource(R.string.pages_hint),
+                            pluralStringResource(R.plurals.pages_count, state.pages.size, state.pages.size) + " · " + stringResource(R.string.pages_hint_select),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
@@ -237,6 +274,9 @@ fun DocumentScreen(
                             page = page,
                             index = index,
                             total = state.pages.size,
+                            selecting = state.selection.isNotEmpty(),
+                            selected = page.id in state.selection,
+                            onToggleSelect = { viewModel.toggleSelection(page.id) },
                             onEdit = { onEditPage(page.documentId, page.id) },
                             onMove = { delta -> viewModel.movePage(page.id, delta) },
                             onDelete = { deletePageId = page.id },
@@ -264,6 +304,15 @@ fun DocumentScreen(
             onDismiss = { deletePageId = null },
         )
     }
+    if (showDeleteSelection) {
+        ConfirmDialog(
+            title = stringResource(R.string.delete_pages_title),
+            message = pluralStringResource(R.plurals.delete_pages_message, state.selection.size, state.selection.size),
+            confirmLabel = stringResource(R.string.action_delete),
+            onConfirm = { showDeleteSelection = false; viewModel.deleteSelection() },
+            onDismiss = { showDeleteSelection = false },
+        )
+    }
     if (showLeaveDraft) {
         LeaveDraftDialog(
             canSave = state.pages.isNotEmpty(),
@@ -286,10 +335,12 @@ fun DocumentScreen(
         ExportSheet(
             fileName = state.exportName,
             pageSize = doc.pageSize,
+            quality = state.quality,
             pageCount = state.pages.size,
             progress = state.export,
             onFileName = viewModel::setExportName,
             onPageSize = viewModel::setPageSize,
+            onQuality = viewModel::setQuality,
             onSave = { saveLauncher.launch(FileNames.pdfFileName(state.exportName.ifBlank { doc.name })) },
             onShare = viewModel::share,
             onCancelExport = viewModel::cancelExport,
@@ -314,41 +365,81 @@ private fun LeaveDraftDialog(canSave: Boolean, onSave: () -> Unit, onKeep: () ->
     )
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun PageCard(page: ScanPage, index: Int, total: Int, onEdit: () -> Unit, onMove: (Int) -> Unit, onDelete: () -> Unit) {
+private fun PageCard(
+    page: ScanPage,
+    index: Int,
+    total: Int,
+    selecting: Boolean,
+    selected: Boolean,
+    onToggleSelect: () -> Unit,
+    onEdit: () -> Unit,
+    onMove: (Int) -> Unit,
+    onDelete: () -> Unit,
+) {
     val label = stringResource(R.string.page_of, index + 1, total)
     val moveEarlier = stringResource(R.string.action_move_earlier)
     val moveLater = stringResource(R.string.action_move_later)
     val delete = stringResource(R.string.action_delete)
+    val selectLabel = stringResource(R.string.action_select_page)
+    val primary = MaterialTheme.colorScheme.primary
     Card(
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow),
+        colors = CardDefaults.cardColors(
+            containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
         elevation = CardDefaults.cardElevation(1.dp),
+        border = if (selected) BorderStroke(2.dp, primary) else null,
         modifier = Modifier.semantics {
+            this.selected = selected
             customActions = buildList {
-                if (index > 0) add(CustomAccessibilityAction(moveEarlier) { onMove(-1); true })
-                if (index < total - 1) add(CustomAccessibilityAction(moveLater) { onMove(1); true })
-                add(CustomAccessibilityAction(delete) { onDelete(); true })
+                add(CustomAccessibilityAction(selectLabel) { onToggleSelect(); true })
+                if (!selecting) {
+                    if (index > 0) add(CustomAccessibilityAction(moveEarlier) { onMove(-1); true })
+                    if (index < total - 1) add(CustomAccessibilityAction(moveLater) { onMove(1); true })
+                    add(CustomAccessibilityAction(delete) { onDelete(); true })
+                }
             }
         },
     ) {
         Column {
-            PageThumbnail(
-                page = page,
-                cache = LocalThumbnails.current,
-                contentDescription = label,
-                modifier = Modifier.fillMaxWidth().aspectRatio(0.75f).clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
-                    .clickable(onClickLabel = stringResource(R.string.action_edit_page), onClick = onEdit),
-            )
+            Box {
+                PageThumbnail(
+                    page = page,
+                    cache = LocalThumbnails.current,
+                    contentDescription = label,
+                    modifier = Modifier.fillMaxWidth().aspectRatio(0.75f).clip(RoundedCornerShape(topStart = 12.dp, topEnd = 12.dp))
+                        .combinedClickable(
+                            onClickLabel = stringResource(if (selecting) R.string.action_select_page else R.string.action_edit_page),
+                            onLongClickLabel = selectLabel,
+                            onClick = { if (selecting) onToggleSelect() else onEdit() },
+                            onLongClick = onToggleSelect,
+                        ),
+                )
+                if (selecting) {
+                    Icon(
+                        if (selected) Icons.Filled.CheckCircle else Icons.Outlined.RadioButtonUnchecked,
+                        contentDescription = null,
+                        tint = if (selected) primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.align(Alignment.TopStart).padding(8.dp).size(28.dp)
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), CircleShape),
+                    )
+                }
+            }
             Row(Modifier.fillMaxWidth().padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text(label, style = MaterialTheme.typography.labelMedium, modifier = Modifier.weight(1f).padding(start = 8.dp), maxLines = 1)
-                IconButton(onClick = { onMove(-1) }, enabled = index > 0) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = moveEarlier, modifier = Modifier.size(20.dp))
-                }
-                IconButton(onClick = { onMove(1) }, enabled = index < total - 1) {
-                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = moveLater, modifier = Modifier.size(20.dp))
-                }
-                IconButton(onClick = onDelete) {
-                    Icon(Icons.Outlined.Delete, contentDescription = delete, modifier = Modifier.size(20.dp))
+                if (!selecting) {
+                    IconButton(onClick = { onMove(-1) }, enabled = index > 0) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = moveEarlier, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = { onMove(1) }, enabled = index < total - 1) {
+                        Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = moveLater, modifier = Modifier.size(20.dp))
+                    }
+                    IconButton(onClick = onDelete) {
+                        Icon(Icons.Outlined.Delete, contentDescription = delete, modifier = Modifier.size(20.dp))
+                    }
+                } else {
+                    Spacer(Modifier.height(48.dp))
                 }
             }
         }
@@ -357,13 +448,65 @@ private fun PageCard(page: ScanPage, index: Int, total: Int, onEdit: () -> Unit,
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
+private fun SelectionTopBar(count: Int, onClose: () -> Unit, onSelectAll: () -> Unit, onDelete: () -> Unit) {
+    TopAppBar(
+        title = { Text(pluralStringResource(R.plurals.selected_count, count, count)) },
+        navigationIcon = {
+            IconButton(onClick = onClose) { Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.action_clear_selection)) }
+        },
+        actions = {
+            IconButton(onClick = onSelectAll) { Icon(Icons.Outlined.SelectAll, contentDescription = stringResource(R.string.action_select_all)) }
+            IconButton(onClick = onDelete) { Icon(Icons.Outlined.Delete, contentDescription = stringResource(R.string.action_delete)) }
+        },
+    )
+}
+
+/** Bulk actions for the selected pages: auto-crop, remove crop, rotate, filter. */
+@Composable
+private fun SelectionBottomBar(
+    busy: Boolean,
+    onAutoCrop: () -> Unit,
+    onResetCrop: () -> Unit,
+    onRotate: () -> Unit,
+    onFilter: (PageFilter) -> Unit,
+) {
+    var filterMenu by remember { mutableStateOf(false) }
+    BottomAppBar(
+        actions = {
+            IconButton(onClick = onAutoCrop, enabled = !busy) {
+                Icon(Icons.Outlined.AutoFixHigh, contentDescription = stringResource(R.string.action_auto_crop_selected))
+            }
+            IconButton(onClick = onResetCrop, enabled = !busy) {
+                Icon(Icons.Outlined.CropFree, contentDescription = stringResource(R.string.action_remove_crop_selected))
+            }
+            IconButton(onClick = onRotate, enabled = !busy) {
+                Icon(Icons.AutoMirrored.Outlined.RotateRight, contentDescription = stringResource(R.string.action_rotate_right))
+            }
+            Box {
+                IconButton(onClick = { filterMenu = true }, enabled = !busy) {
+                    Icon(Icons.Outlined.Tune, contentDescription = stringResource(R.string.action_filter_selected))
+                }
+                DropdownMenu(expanded = filterMenu, onDismissRequest = { filterMenu = false }) {
+                    PageFilter.entries.forEach { f ->
+                        DropdownMenuItem(text = { Text(f.label()) }, onClick = { filterMenu = false; onFilter(f) })
+                    }
+                }
+            }
+        },
+    )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
 private fun ExportSheet(
     fileName: String,
     pageSize: PdfPageSize,
+    quality: PdfQuality,
     pageCount: Int,
     progress: ExportProgress?,
     onFileName: (String) -> Unit,
     onPageSize: (PdfPageSize) -> Unit,
+    onQuality: (PdfQuality) -> Unit,
     onSave: () -> Unit,
     onShare: () -> Unit,
     onCancelExport: () -> Unit,
@@ -391,16 +534,16 @@ private fun ExportSheet(
                             selected = pageSize == size,
                             onClick = { onPageSize(size) },
                             enabled = !working,
-                            label = {
-                                Text(
-                                    when (size) {
-                                        PdfPageSize.A4 -> stringResource(R.string.size_a4)
-                                        PdfPageSize.LETTER -> stringResource(R.string.size_letter)
-                                        PdfPageSize.MATCH_IMAGE -> stringResource(R.string.size_match)
-                                    },
-                                )
-                            },
+                            label = { Text(size.label()) },
                         )
+                    }
+                }
+            }
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.label_quality), style = MaterialTheme.typography.labelLarge)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    PdfQuality.entries.forEach { q ->
+                        FilterChip(selected = quality == q, onClick = { onQuality(q) }, enabled = !working, label = { Text(q.label()) })
                     }
                 }
             }

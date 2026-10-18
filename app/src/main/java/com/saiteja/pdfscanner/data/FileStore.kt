@@ -27,9 +27,13 @@ class FileStore(context: Context) {
         File(documentsRoot, documentId).resolve(fileName).delete()
     }
 
-    /** Removes leftovers from earlier sessions (temporary camera files and exported copies). */
-    fun clearTemporaryFiles() {
-        captureDir.listFiles()?.forEach { it.delete() }
-        exportDir.listFiles()?.forEach { it.delete() }
+    /**
+     * Removes stale leftovers (temporary camera files and exported copies). Only files older than
+     * [maxAgeMs] go, so a capture or share that has just started is never deleted underneath itself.
+     */
+    fun clearTemporaryFiles(maxAgeMs: Long = 10 * 60 * 1000L, now: Long = System.currentTimeMillis()) {
+        for (dir in listOf(captureDir, exportDir)) {
+            dir.listFiles()?.filter { now - it.lastModified() > maxAgeMs }?.forEach { it.delete() }
+        }
     }
 }

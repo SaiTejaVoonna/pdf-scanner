@@ -5,6 +5,7 @@ import com.saiteja.pdfscanner.data.DocumentRepository
 import com.saiteja.pdfscanner.data.FileStore
 import com.saiteja.pdfscanner.domain.FileNames
 import com.saiteja.pdfscanner.domain.PdfPageSize
+import com.saiteja.pdfscanner.domain.PdfQuality
 import com.saiteja.pdfscanner.imaging.PageRenderer
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -29,6 +30,7 @@ class PdfExporter(
         pageSize: PdfPageSize,
         title: String,
         out: OutputStream,
+        quality: PdfQuality = PdfQuality.HIGH,
         onProgress: (done: Int, total: Int) -> Unit = { _, _ -> },
     ) = withContext(Dispatchers.Default) {
         val pages = repository.getPages(documentId)
@@ -37,10 +39,10 @@ class PdfExporter(
         try {
             PdfWriter.write(out, pages.size, pageSize, title, onProgress = onProgress) { index ->
                 job.ensureActive()
-                val bitmap = renderer.render(pages[index], EXPORT_MAX_SIDE)
+                val bitmap = renderer.render(pages[index], quality.maxSide)
                 try {
                     val bytes = ByteArrayOutputStream(bitmap.byteCount / 8)
-                    bitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, bytes)
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, quality.jpegQuality, bytes)
                     PdfImage(bytes.toByteArray(), bitmap.width, bitmap.height)
                 } finally {
                     bitmap.recycle()
@@ -56,13 +58,19 @@ class PdfExporter(
     }
 
     /** Exports into the cache directory for sharing and returns the file. */
-    suspend fun exportToCache(documentId: String, pageSize: PdfPageSize, fileName: String, onProgress: (Int, Int) -> Unit = { _, _ -> }): File {
+    suspend fun exportToCache(
+        documentId: String,
+        pageSize: PdfPageSize,
+        fileName: String,
+        quality: PdfQuality = PdfQuality.HIGH,
+        onProgress: (Int, Int) -> Unit = { _, _ -> },
+    ): File {
         val dir = files.exportDir
         dir.listFiles()?.forEach { it.delete() }
         val target = File(dir, FileNames.pdfFileName(fileName))
         try {
             withContext(Dispatchers.IO) {
-                target.outputStream().buffered().use { export(documentId, pageSize, fileName, it, onProgress) }
+                target.outputStream().buffered().use { export(documentId, pageSize, fileName, it, quality, onProgress) }
             }
         } catch (t: Throwable) {
             target.delete()
@@ -71,9 +79,4 @@ class PdfExporter(
         return target
     }
 
-    companion object {
-        /** About 300 dpi on A4. */
-        const val EXPORT_MAX_SIDE = 2480
-        const val JPEG_QUALITY = 85
-    }
 }

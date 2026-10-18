@@ -1,207 +1,125 @@
 # PDF Scanner
 
-A native Android document scanner built with Kotlin, Jetpack Compose and Material 3.
-Scan pages with the camera or import photos, straighten and clean them up, reorder them, and export a
-real multipage PDF — **entirely offline, on your device**. No accounts, no ads, no analytics, no uploads.
+[![Android CI](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/android.yml/badge.svg)](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/android.yml)
+[![Download APK](https://img.shields.io/badge/Download-beta%20APK-2ea44f?logo=android&logoColor=white)](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk)
+![Status: beta](https://img.shields.io/badge/status-beta%201.0.0-orange)
+
+A free, offline Android app for turning photos and PDFs into clean PDFs. No accounts, no ads, no
+analytics, no uploads: it has no internet permission at all.
+
+> **Beta (`1.0.0-beta.1`).** It works end to end, but it is young. Expect rough edges, and please report
+> them. See [docs/ROADMAP.md](docs/ROADMAP.md) for what is done and what is planned.
+
+## Download
+
+**[Download the latest beta APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk)**
+(rebuilt on every push; no sign-in needed). Open the file on your phone and allow *Install unknown apps* when
+asked. It is a debug-signed build for testing, not a Play Store release.
 
 ## Screenshots
 
-_Screenshots are not available yet: the app has not been run on a device or emulator by its author.
-Add them under `docs/screenshots/` and reference them here._
+_Not added yet._ Put images in `docs/screenshots/` and link them here.
 
 | Home | Capture | Crop | Export |
 | --- | --- | --- | --- |
 | _placeholder_ | _placeholder_ | _placeholder_ | _placeholder_ |
 
-## Features (implemented)
+## What it does today
 
-- **Library** of locally saved documents with search, rename, delete-with-confirmation and share.
-  A prominent **Scan** button, and an *Import photos* shortcut, are always one tap away.
-- **Capture** pages with CameraX (flash toggle, multiple pages per document) or **import** images with
-  the Android Photo Picker (multi-select, no storage permission needed).
-- **Automatic edge detection** finds the page in each photo, with **adjustable crop corners** and
-  **perspective correction**. A manual fallback is always available: if detection fails, you get the full
-  image and draggable corners (plus *Auto-detect* / *Full image* buttons).
-- **Rotate** and apply **Original / Grayscale / Black & white** filters (the B&W filter is adaptive, so it
-  copes with shadows and uneven lighting). Edits are non-destructive and can be changed later.
-- **Review** all pages in a grid: reorder, add more, remove, or tap to edit.
-- **Export** a genuine multipage PDF with a custom **file name** and **page size** (A4, US Letter, or match
-  each scan). Save anywhere through the **Storage Access Framework**, or **share** via a `FileProvider`
-  `content://` URI with a temporary read grant.
-- **Drafts**: a scan in progress is stored as you go, so it survives rotation, process death and leaving the
-  app; the home screen offers to resume or discard it.
-- Dark mode, TalkBack labels, 48dp touch targets, and keyboard/accessibility actions for moving crop corners
-  and reordering pages.
+**Scan and import**
+- Capture pages with the camera (CameraX, flash toggle), or import photos with the system Photo Picker.
+- Import existing **PDFs** and add their pages to a document. This is how you **combine, split and reorder**
+  PDFs: import several, reorder, delete the pages you do not want, export.
+- Several pages per document; unfinished scans are kept as drafts and can be resumed.
 
-## Planned / not implemented
+**Crop, clean up and edit**
+- **Auto-crop is optional.** Settings has separate switches for camera photos (on by default) and imported
+  images (off by default). A page can always be cropped by hand with draggable corners and perspective
+  correction, or reset to the full image.
+- **Per page or many at once:** long-press a page to select; tap more; then auto-crop, remove crop, rotate or
+  apply a filter to all selected pages, or delete them.
+- Filters: **Original**, **Enhanced** (removes shadows and uneven lighting, whitens paper, keeps colour),
+  **Grayscale**, **Black & white** (adaptive threshold). Rotate left/right.
 
-These are **not** part of the app today: OCR and searchable PDFs, cloud sync (Drive or otherwise),
-custom page sizes and margins, a signed release / Play Store build, and on-device (instrumented) UI tests.
+**Export and share**
+- Real multipage PDF: custom file name, page size (**A4**, **US Letter**, or match each image), and a
+  **quality** preset (High, Balanced, Small file) to control file size.
+- Save anywhere with the system file picker, or share through a `FileProvider` link with a temporary grant.
 
-## Download the APK (simplest way)
+**Tools**
+- **Resize images**: pick photos, choose a longest side (2048 / 1280 / 800 / original), JPEG quality or PNG,
+  and save copies to a folder you choose. Originals are never touched.
 
-Every push to `claude/amazing-babbage-qr2tmb` refreshes a rolling pre-release with a plain APK:
+**Library**
+- Search, rename, delete with confirmation, share. Dark mode and TalkBack labels throughout.
 
-- Open **Releases → Latest debug build** on the repository page and tap **`pdf-scanner-debug.apk`**, or use
-  `https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk`.
-- Open the file on your phone and allow *Install unknown apps* when asked.
-- If the repository is private, you must be signed in to GitHub with access to it.
+## Not implemented yet
 
-This is a debug-signed build for testing only (not a Play Store build). The `latest-debug` tag is created
-and moved by the workflow itself; it is not a version release.
-
-## Download the APK from GitHub Actions (alternative)
-
-Every push and pull request builds a debug APK you can install on a test device:
-
-1. Open the repository on GitHub and click the **Actions** tab.
-2. Click the **Android CI** workflow, then the latest run for your branch
-   (for example `claude/amazing-babbage-qr2tmb`) with a green check.
-3. Scroll to the **Artifacts** section at the bottom of the run summary.
-4. Download **`pdf-scanner-<version>-<commit>-debug-apk`** (a zip containing
-   `pdf-scanner-<version>-<commit>-debug.apk`). Artifacts are kept for 30 days and require being signed in
-   to GitHub with read access to the repository.
-5. Unzip it, copy the APK to your phone, and open it. You must allow *Install unknown apps* for your file
-   manager or browser. Or install over USB: `adb install pdf-scanner-*-debug.apk`.
-
-The debug APK is signed with the standard Android debug key. It is for testing and sideloading only.
-
-**Releases:** if the owner pushes an explicit version tag matching `versionName` in `app/build.gradle.kts`
-(for example `git tag v1.0.0 && git push origin v1.0.0`), the workflow also publishes a GitHub *pre-release*
-with that debug APK attached. Nothing is published unless such a tag is pushed.
-
-**Play Store / production:** the workflow's `assembleRelease` output is *unsigned* and **cannot be
-installed**; it is built only to prove the minified release configuration compiles. Distributing through
-Google Play requires a properly signed Android App Bundle (`bundleRelease`) with an upload key managed by
-the owner (kept in repository *secrets*, never committed). No signing is configured or attempted here.
+OCR / searchable PDFs, folders in the library, password-protected PDFs (they are skipped on import), PDF
+password protection on export, Google Drive or any cloud sync, custom page sizes, a Play Store release. See the
+[roadmap](docs/ROADMAP.md).
 
 ## Requirements
 
 | Tool | Version |
 | --- | --- |
-| JDK | 17 or newer (21 works) |
+| JDK | 17 or newer |
 | Android SDK | Platform 35, Build-Tools 35 (Android Studio installs these) |
-| Device | Android 8.0 (API 26) or newer; a camera is optional (import works without one) |
-
-Gradle 8.11.1 and the Android Gradle Plugin 8.7.3 are pinned through the included wrapper; dependency
-versions live in [`gradle/libs.versions.toml`](gradle/libs.versions.toml).
+| Device | Android 8.0 (API 26) or newer. A camera is optional; import works without one |
 
 ## Build and run
 
-1. Open the project in **Android Studio** (Ladybug or newer) and press **Run**, or from a terminal:
+```bash
+echo "sdk.dir=$ANDROID_HOME" > local.properties   # once; Android Studio does this for you
+./gradlew assembleDebug                            # app/build/outputs/apk/debug/app-debug.apk
+./gradlew installDebug                             # install on a connected device or emulator
+./gradlew testDebugUnitTest lintDebug              # tests and lint
+```
 
-   ```bash
-   # Point Gradle at your SDK once (Android Studio does this automatically)
-   echo "sdk.dir=$ANDROID_HOME" > local.properties
+Open the folder in Android Studio and press Run if you prefer. `./gradlew assembleRelease` produces an
+**unsigned, non-installable** APK (it only proves the minified build compiles). Publishing on Google Play would
+need a properly signed AAB with an owner-managed key, which is not set up here.
 
-   ./gradlew assembleDebug          # app/build/outputs/apk/debug/app-debug.apk
-   ./gradlew installDebug           # install on a connected device/emulator
-   ```
+## Privacy, permissions and network
 
-2. Run all checks:
+- Permissions: **`CAMERA`** only, requested when you open the scanner. **No `INTERNET` permission**, so the app
+  cannot send data anywhere, and nothing is downloaded after install.
+- Photos come from the system Photo Picker and PDFs/folders from the system file picker, so the app never needs
+  broad storage access.
+- Scans live in app-private storage and are excluded from cloud backup and device transfer. Shared PDFs are
+  temporary copies in the cache, exposed through a narrowly scoped `FileProvider`, and cleared when stale.
+- If camera permission is denied (or there is no camera) the scanner explains how to grant it and offers
+  *Import photos* instead.
 
-   ```bash
-   ./gradlew testDebugUnitTest lintDebug
-   ```
+## How page detection works (and where it fails)
 
-   Test reports: `app/build/reports/tests/testDebugUnitTest/index.html`.
+Auto-crop uses no Google services and no native libraries: Canny edges, a Hough transform for straight
+lines, then every plausible quadrilateral is scored by how well its sides sit on real edges, how much of
+the image it covers, and whether there is a real brightness/colour step across each side. It declines to guess
+rather than return a bad crop. Details: [docs/PAGE_DETECTION.md](docs/PAGE_DETECTION.md).
 
-3. A minified release build is `./gradlew assembleRelease` (**unsigned and not installable**; for Play distribution
-   the owner must add their own signing config and build a signed AAB. Keystores and credentials are
-   git-ignored and must never be committed).
+It is still a heuristic. Busy backgrounds, overlapping papers or heavy glare can fool it, which is why manual
+corners, "remove crop" and the switch to turn auto-crop off always exist.
 
 ## Project layout
 
-| Path (`app/src/main/java/com/saiteja/pdfscanner/`) | Responsibility |
-| --- | --- |
-| `ui/home`, `ui/camera`, `ui/document`, `ui/edit` | Compose screens and their ViewModels |
-| `ui/components`, `ui/theme`, `ui/Navigation.kt` | Shared widgets, Material 3 theme, navigation graph |
-| `domain/` | Pure models and logic (geometry, page ordering, file names) |
-| `data/` | Room database, repository, on-disk file store |
-| `imaging/` | Edge detection, perspective warp, filters, import, rendering, thumbnails |
-| `pdf/` | PDF writer and exporter |
-
-Tests mirror this layout under `app/src/test/`. See [CONTRIBUTING.md](CONTRIBUTING.md) for workflow tips.
-
-## Architecture
-
 ```
 app/src/main/java/com/saiteja/pdfscanner/
-├── domain/    Pure Kotlin models and logic: geometry (Quad), page ordering, file names
-├── imaging/   EdgeDetector, PerspectiveTransform, ImageFilters (pure, JVM-testable) and the
-│              Android glue: ImageImporter (EXIF + size cap), PageRenderer, ThumbnailCache, PageIngestor
-├── pdf/       PdfWriter (dependency-free PDF 1.4 writer) and PdfExporter
-├── data/      Room database, DocumentRepository, FileStore
-└── ui/        Compose screens + ViewModels: home, camera, document (review/export), edit
+├── ui/        Compose screens and ViewModels (home, camera, document, edit, tools), theme, navigation
+├── domain/    Pure Kotlin models and logic (geometry, page order, file names, image sizing)
+├── data/      Room database, repository, settings, on-disk file store
+├── imaging/   Edge detection, perspective warp, filters, import/render, PDF page import, resizer
+└── pdf/       PDF writer and exporter
 ```
 
-- **MVVM** with `ViewModel`s, `StateFlow`, `SavedStateHandle` and coroutines; manual dependency wiring in
-  `AppContainer` (small enough that a DI framework would cost more than it saves).
-- **Persistence**: Room stores documents and pages (edit parameters: crop corners, rotation, filter). Page
-  images live in app-private storage. A document is a *draft* from the first captured page until you save
-  it, which is how drafts survive configuration changes and process death.
-- **Non-destructive editing**: each page keeps a normalised, EXIF-corrected source JPEG (capped at 3000 px)
-  plus edit parameters; thumbnails, previews and exports are rendered from those on demand.
-- **PDF writer**: pages embed the rendered JPEG verbatim (`DCTDecode`), one page at a time, so memory stays
-  bounded and files stay small. Exports render at ≈300 dpi on A4 (2480 px long edge).
-- **Large images** are decoded with `inSampleSize`, capped on import, and all heavy work runs off the main
-  thread; out-of-memory conditions surface as a message rather than a crash.
-- **Edge detection** is implemented in plain Kotlin (blur → Otsu threshold → largest quadrilateral-like
-  region → corner extremes). It has no native or Play-services dependency, so it works on every device.
+More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Tests mirror this layout in `app/src/test/`
+([docs/TESTING.md](docs/TESTING.md)).
 
-## Permissions and privacy
+## Contributing
 
-- Declared permissions: **`CAMERA` only**, requested when you open the scanner. There is **no `INTERNET`
-  permission**, so the app cannot send anything off the device even by accident.
-- Importing uses the system **Photo Picker**; exporting uses the system **file picker**. The app never
-  needs broad storage access.
-- If camera access is denied (or no camera exists) the scanner screen explains why and offers *Import
-  photos*, *Allow camera* and, if the denial is permanent, a shortcut to app settings.
-- Scans are stored in app-private storage, excluded from cloud backup and device transfer
-  (`allowBackup=false` plus data-extraction rules). Shared PDFs are temporary copies in the cache folder
-  exposed only through a narrowly scoped `FileProvider` (`cache/exports/`) and cleared on next launch.
-- No accounts, ads, analytics, crash reporters or third-party services. No Google Play services are
-  required, and nothing is downloaded after installation.
-
-## Testing
-
-`./gradlew testDebugUnitTest` runs 81 JVM tests (Robolectric is used for Room, bitmaps and Compose):
-
-- **PDF generation**: structural validity (header, xref offsets, `startxref`, `%%EOF`), page count, media
-  boxes for A4/Letter/match-image, orientation, embedded JPEG integrity, UTF-16 titles, lazy page loading.
-- **Export pipeline**: real bitmaps → crop/perspective → filter → rotation → multipage PDF, page order,
-  failure modes (empty document, missing image, unwritable destination).
-- **Document and page operations**: create/draft/finalize, add, reorder, remove, rename, delete (including
-  files), persistence of edits, isolation between documents, search.
-- **Imaging**: edge detection (rotated, dark-on-light, printed text, no-document, noise), homography and
-  warp, adaptive thresholding under uneven lighting.
-- **ViewModels and UI**: editor state (including a regression test for an infinite re-render loop),
-  saved-state restoration, import with auto-crop, and Compose tests of the home screen (empty state, search,
-  rename, delete confirmation, draft resume).
-
-Generated PDFs were additionally validated with `pdfinfo` (Poppler) and `pypdf` in strict mode.
-
-## Limitations
-
-- Edge detection is heuristic. It works well for a light page on a contrasting surface, but busy
-  backgrounds or pages rotated near 45° may need the manual corners (that fallback is always offered).
-- There is no OCR / searchable text layer; PDFs contain page images only.
-- Page-size options are A4, US Letter and *match image*; there are no custom dimensions or margins.
-- `minSdk` is 26 (Android 8.0). Releases are not signed or published; there is no Play Store listing.
-- Automated tests run on the JVM. The camera capture path, the system pickers and on-device rendering
-  were **not** exercised on a physical device or emulator in the build environment, so please smoke-test on
-  hardware before relying on a build.
-
-## Continuous integration
-
-`.github/workflows/android.yml` runs on every push and pull request (JDK 17, Android SDK 35, Gradle
-caching) as two parallel jobs: **Build debug APK** (assemble, verify, upload with 30-day retention, then
-refresh the `latest-debug` release) and **Tests, lint and release build** (unit tests, lint,
-`assembleRelease`, reports kept 14 days). The rolling release publishes as soon as the APK is built and does
-not wait for the checks, so check the *Tests, lint and release build* job before trusting a build. Version
-tag releases (`vX.Y.Z`) additionally require the checks to pass. No secrets are used.
+Welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md). Releases: [docs/RELEASING.md](docs/RELEASING.md).
 
 ## License
 
-**No license has been selected.** Until the repository owner chooses and adds one, all rights are
-reserved by default and others have no permission to reuse the code.
+**No license has been selected yet.** The owner intends this to be open source; until a license file is added,
+default copyright applies and others have no permission to reuse the code.

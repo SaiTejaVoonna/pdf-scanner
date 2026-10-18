@@ -5,6 +5,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -18,6 +19,7 @@ import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -77,6 +79,7 @@ import com.saiteja.pdfscanner.domain.Quad
 import com.saiteja.pdfscanner.ui.AppViewModelProvider
 import com.saiteja.pdfscanner.ui.components.ConfirmDialog
 import com.saiteja.pdfscanner.ui.components.EmptyState
+import com.saiteja.pdfscanner.ui.components.label
 import kotlin.math.roundToInt
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -217,23 +220,20 @@ private fun CropControls(detecting: Boolean, onAuto: () -> Unit, onReset: () -> 
 @Composable
 private fun EnhanceControls(filter: PageFilter, onFilter: (PageFilter) -> Unit, onRotate: (clockwise: Boolean) -> Unit) {
     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Row(
+            Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             PageFilter.entries.forEach { f ->
                 FilterChip(
                     selected = filter == f,
                     onClick = { onFilter(f) },
-                    label = {
-                        Text(
-                            when (f) {
-                                PageFilter.ORIGINAL -> stringResource(R.string.filter_original)
-                                PageFilter.GRAYSCALE -> stringResource(R.string.filter_grayscale)
-                                PageFilter.BLACK_WHITE -> stringResource(R.string.filter_bw)
-                            },
-                        )
-                    },
+                    label = { Text(f.label()) },
                 )
             }
-            Spacer(Modifier.weight(1f))
+        }
+        Row(verticalAlignment = Alignment.CenterVertically) {
             IconButton(onClick = { onRotate(false) }) { Icon(Icons.AutoMirrored.Outlined.RotateLeft, contentDescription = stringResource(R.string.action_rotate_left)) }
             IconButton(onClick = { onRotate(true) }) { Icon(Icons.AutoMirrored.Outlined.RotateRight, contentDescription = stringResource(R.string.action_rotate_right)) }
         }

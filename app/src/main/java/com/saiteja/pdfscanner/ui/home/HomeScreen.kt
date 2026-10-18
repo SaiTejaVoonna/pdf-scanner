@@ -28,7 +28,10 @@ import androidx.compose.material.icons.outlined.CameraAlt
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.DocumentScanner
 import androidx.compose.material.icons.outlined.Edit
+import androidx.compose.material.icons.outlined.FileOpen
 import androidx.compose.material.icons.outlined.PhotoLibrary
+import androidx.compose.material.icons.outlined.PhotoSizeSelectLarge
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.SearchOff
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material3.Card
@@ -90,6 +93,7 @@ fun HomeScreen(
     onScan: () -> Unit,
     onOpenDocument: (String) -> Unit,
     onResumeDraft: (String) -> Unit,
+    onOpenResize: () -> Unit = {},
     viewModel: HomeViewModel = viewModel(factory = AppViewModelProvider.Factory),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -99,6 +103,10 @@ fun HomeScreen(
     var renameTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var deleteTarget by rememberSaveable { mutableStateOf<String?>(null) }
     var discardDraft by rememberSaveable { mutableStateOf(false) }
+    var showSettings by rememberSaveable { mutableStateOf(false) }
+    var moreMenu by rememberSaveable { mutableStateOf(false) }
+    val settings by viewModel.settings.collectAsStateWithLifecycle()
+    val pdfPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenMultipleDocuments()) { viewModel.importPdfs(it) }
 
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_IMPORT)) { uris ->
         viewModel.importPhotos(uris)
@@ -121,6 +129,28 @@ fun HomeScreen(
                 actions = {
                     IconButton(onClick = { picker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) }) {
                         Icon(Icons.Outlined.PhotoLibrary, contentDescription = stringResource(R.string.action_import_photos))
+                    }
+                    Box {
+                        IconButton(onClick = { moreMenu = true }) {
+                            Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.action_more))
+                        }
+                        DropdownMenu(expanded = moreMenu, onDismissRequest = { moreMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_import_pdf)) },
+                                leadingIcon = { Icon(Icons.Outlined.FileOpen, null) },
+                                onClick = { moreMenu = false; pdfPicker.launch(arrayOf("application/pdf")) },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_resize_images)) },
+                                leadingIcon = { Icon(Icons.Outlined.PhotoSizeSelectLarge, null) },
+                                onClick = { moreMenu = false; onOpenResize() },
+                            )
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.action_settings)) },
+                                leadingIcon = { Icon(Icons.Outlined.Settings, null) },
+                                onClick = { moreMenu = false; showSettings = true },
+                            )
+                        }
                     }
                 },
             )
@@ -211,6 +241,8 @@ fun HomeScreen(
             }
         }
     }
+
+    if (showSettings) SettingsSheet(settings = settings, onChange = viewModel::updateSettings, onDismiss = { showSettings = false })
 
     renameTarget?.let { id ->
         val current = state.documents.firstOrNull { it.document.id == id }

@@ -1,6 +1,13 @@
 package com.saiteja.pdfscanner.domain
 
-enum class PageFilter { ORIGINAL, GRAYSCALE, BLACK_WHITE }
+enum class PageFilter { ORIGINAL, ENHANCED, GRAYSCALE, BLACK_WHITE }
+
+/** PDF size/quality trade-off: longest image side in pixels and JPEG quality. */
+enum class PdfQuality(val maxSide: Int, val jpegQuality: Int) {
+    HIGH(2480, 90),      // about 300 dpi on A4
+    BALANCED(1754, 80),  // about 150 dpi on A4
+    SMALL(1240, 65),     // about 100 dpi on A4
+}
 
 /** PDF page size choices. [MATCH_IMAGE] sizes every page to its scan. */
 enum class PdfPageSize(val widthPt: Float, val heightPt: Float) {

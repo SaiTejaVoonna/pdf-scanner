@@ -1,6 +1,7 @@
 package com.saiteja.pdfscanner.imaging
 
 import android.net.Uri
+import com.saiteja.pdfscanner.data.AppSettings
 import com.saiteja.pdfscanner.data.DocumentRepository
 import com.saiteja.pdfscanner.data.FileStore
 import com.saiteja.pdfscanner.domain.Quad
@@ -10,7 +11,7 @@ import java.io.File
 import java.util.UUID
 
 /** Result of adding one or more images to a document. */
-data class IngestResult(val documentId: String, val added: Int, val failed: Int)
+data class IngestResult(val documentId: String, val added: Int, val failed: Int, val protectedPdfs: Int = 0)
 
 /**
  * Turns captured/picked images into pages: normalise the image, try automatic edge detection
@@ -21,6 +22,8 @@ class PageIngestor(
     private val files: FileStore,
     private val importer: ImageImporter,
     private val renderer: PageRenderer,
+    private val settings: AppSettings,
+    private val pdfImporter: PdfPageImporter,
 ) {
     /** Adds a camera capture to [documentId], creating a draft when null. The temp file is deleted. */
     suspend fun addCapture(documentId: String?, captured: File): IngestResult {
@@ -33,6 +36,31 @@ class PageIngestor(
 
     suspend fun addUris(documentId: String?, uris: List<Uri>): IngestResult =
         add(documentId, uris.map { Source.FromUri(it) })
+
+    /**
+     * Adds every page of each PDF as an uncropped page (PDFs are already flat, so no edge detection),
+     * creating a draft when [documentId] is null. Password-protected PDFs are counted, not fatal.
+     */
+    suspend fun addPdfs(documentId: String?, uris: List<Uri>): IngestResult {
+        val docId = documentId ?: repository.createDraft().id
+        var added = 0
+        var failed = 0
+        var protectedCount = 0
+        for (uri in uris) {
+            try {
+                added += pdfImporter.import(
+                    uri,
+                    newFile = { files.pageFile(docId, "${UUID.randomUUID()}.jpg") },
+                ) { file ->
+                    repository.addPage(docId, file.name, Quad.FULL, file.nameWithoutExtension, settings.current.defaultFilter)
+                }
+            } catch (e: PdfImportException) {
+                if (e.passwordProtected) protectedCount++ else failed++
+            }
+        }
+        if (documentId == null && added == 0) repository.deleteDocument(docId)
+        return IngestResult(docId, added, failed, protectedCount)
+    }
 
     private sealed interface Source {
         class FromFile(val file: File) : Source
@@ -52,8 +80,10 @@ class PageIngestor(
                     is Source.FromFile -> importer.import(source.file, dest)
                     is Source.FromUri -> importer.import(source.uri, dest)
                 }
-                val corners = detectCorners(dest) ?: Quad.FULL
-                repository.addPage(docId, fileName, corners, pageId)
+                // Camera shots and gallery imports can be configured separately in Settings.
+                val autoCrop = if (source is Source.FromFile) settings.current.autoCropCamera else settings.current.autoCropImport
+                val corners = if (autoCrop) detectCorners(dest) ?: Quad.FULL else Quad.FULL
+                repository.addPage(docId, fileName, corners, pageId, settings.current.defaultFilter)
                 added++
             } catch (e: Exception) {
                 dest.delete()
@@ -77,7 +107,7 @@ class PageIngestor(
                 val px = IntArray(w * h)
                 small.getPixels(px, 0, w, 0, 0, w, h)
                 if (small !== bmp) small.recycle()
-                EdgeDetector.detect(IntArray(w * h) { ImageFilters.luma(px[it]) }, w, h)
+                EdgeDetector.detectArgb(px, w, h)
             } finally {
                 bmp.recycle()
             }

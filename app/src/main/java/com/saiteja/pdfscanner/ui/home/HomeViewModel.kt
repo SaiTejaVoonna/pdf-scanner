@@ -60,6 +60,25 @@ class HomeViewModel(
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), HomeUiState(query = saved.get<String>(KEY_QUERY).orEmpty()))
 
+    val settings = container.settings.state
+
+    fun updateSettings(transform: (com.saiteja.pdfscanner.data.Settings) -> com.saiteja.pdfscanner.data.Settings) = container.settings.update(transform)
+
+    fun importPdfs(uris: List<Uri>) {
+        if (uris.isEmpty()) return
+        viewModelScope.launch {
+            busy.update { true }
+            try {
+                val result = container.ingestor.addPdfs(null, uris)
+                if (result.protectedPdfs > 0) events.send(HomeEvent.Message(UiMessage(R.string.msg_pdf_protected, result.protectedPdfs)))
+                else if (result.failed > 0) events.send(HomeEvent.Message(UiMessage(R.string.msg_pdf_import_failed, result.failed)))
+                if (result.added > 0) events.send(HomeEvent.OpenDocument(result.documentId))
+            } finally {
+                busy.update { false }
+            }
+        }
+    }
+
     fun setQuery(value: String) {
         saved[KEY_QUERY] = value
     }

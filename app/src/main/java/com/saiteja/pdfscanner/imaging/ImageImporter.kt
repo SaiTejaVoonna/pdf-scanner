@@ -42,6 +42,33 @@ class ImageImporter(context: Context) {
     }
 
     private fun importStreams(open: () -> InputStream?, destination: File) {
+        val upright = decodeUpright(open, MAX_SOURCE_SIDE)
+        try {
+            FileOutputStream(destination).use { upright.compress(Bitmap.CompressFormat.JPEG, SOURCE_QUALITY, it) }
+        } catch (e: IOException) {
+            destination.delete()
+            throw ImageImportException("Could not save image", e)
+        } finally {
+            upright.recycle()
+        }
+    }
+
+    /**
+     * Decodes an image honouring its EXIF orientation, sampled so the longest side is about
+     * [maxSide] (never upscaled). Shared by import and the resize tool.
+     */
+    fun decodeUpright(open: () -> InputStream?, maxSide: Int): Bitmap {
+        return try {
+            decodeUprightUnchecked(open, maxSide)
+        } catch (e: java.io.FileNotFoundException) {
+            throw ImageImportException("Cannot open image", e)
+        } catch (e: SecurityException) {
+            // e.g. a picked image whose access permission has been revoked
+            throw ImageImportException("No permission to read image", e)
+        }
+    }
+
+    private fun decodeUprightUnchecked(open: () -> InputStream?, maxSide: Int): Bitmap {
         val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         (open() ?: throw ImageImportException("Cannot open image")).use { BitmapFactory.decodeStream(it, null, bounds) }
         if (bounds.outWidth <= 0 || bounds.outHeight <= 0) throw ImageImportException("Not a supported image")
@@ -53,7 +80,7 @@ class ImageImporter(context: Context) {
         }
 
         val options = BitmapFactory.Options().apply {
-            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, MAX_SOURCE_SIDE)
+            inSampleSize = sampleSizeFor(bounds.outWidth, bounds.outHeight, maxSide)
             inPreferredConfig = Bitmap.Config.ARGB_8888
         }
         val decoded = (open() ?: throw ImageImportException("Cannot open image")).use {
@@ -62,20 +89,13 @@ class ImageImporter(context: Context) {
 
         var upright = applyOrientation(decoded, orientation)
         val longest = maxOf(upright.width, upright.height)
-        if (longest > MAX_SOURCE_SIDE) {
-            val s = MAX_SOURCE_SIDE.toFloat() / longest
+        if (longest > maxSide) {
+            val s = maxSide.toFloat() / longest
             val scaled = Bitmap.createScaledBitmap(upright, (upright.width * s).toInt().coerceAtLeast(1), (upright.height * s).toInt().coerceAtLeast(1), true)
             if (scaled !== upright) upright.recycle()
             upright = scaled
         }
-        try {
-            FileOutputStream(destination).use { upright.compress(Bitmap.CompressFormat.JPEG, SOURCE_QUALITY, it) }
-        } catch (e: IOException) {
-            destination.delete()
-            throw ImageImportException("Could not save image", e)
-        } finally {
-            upright.recycle()
-        }
+        return upright
     }
 
     private fun applyOrientation(bitmap: Bitmap, orientation: Int): Bitmap {

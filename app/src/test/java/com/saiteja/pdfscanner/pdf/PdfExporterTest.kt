@@ -183,3 +183,41 @@ class PdfExporterTest {
         assertTrue(text.contains("/Count 2"))
     }
 }
+
+@RunWith(RobolectricTestRunner::class)
+@GraphicsMode(GraphicsMode.Mode.NATIVE)
+@Config(sdk = [34])
+class PdfQualityTest {
+    @Test
+    fun `smaller quality presets produce smaller pdfs than high`() = runBlocking {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val db = Room.inMemoryDatabaseBuilder(context, AppDatabase::class.java).allowMainThreadQueries().build()
+        val files = FileStore(context)
+        val repo = DocumentRepository(db, files)
+        val exporter = PdfExporter(repo, PageRenderer(files), files)
+        val doc = repo.createDraft("q")
+        // A busy 2600x3300 image so that resolution and JPEG quality both matter.
+        val bmp = Bitmap.createBitmap(2600, 3300, Bitmap.Config.ARGB_8888)
+        val rnd = java.util.Random(1)
+        val row = IntArray(2600)
+        for (y in 0 until 3300) {
+            for (x in 0 until 2600) row[x] = Color.rgb((x * 7 + y * 3) % 256, rnd.nextInt(256), (x + y) % 256)
+            bmp.setPixels(row, 0, 2600, 0, y, 2600, 1)
+        }
+        FileOutputStream(files.pageFile(doc.id, "p.jpg")).use { bmp.compress(Bitmap.CompressFormat.JPEG, 95, it) }
+        bmp.recycle()
+        repo.addPage(doc.id, "p.jpg", pageId = "p")
+
+        fun size(q: com.saiteja.pdfscanner.domain.PdfQuality): Int {
+            val out = ByteArrayOutputStream()
+            runBlocking { exporter.export(doc.id, PdfPageSize.A4, "q", out, q) }
+            return out.size()
+        }
+        val high = size(com.saiteja.pdfscanner.domain.PdfQuality.HIGH)
+        val balanced = size(com.saiteja.pdfscanner.domain.PdfQuality.BALANCED)
+        val small = size(com.saiteja.pdfscanner.domain.PdfQuality.SMALL)
+        assertTrue("high=$high balanced=$balanced", balanced < high)
+        assertTrue("balanced=$balanced small=$small", small < balanced)
+        db.close()
+    }
+}

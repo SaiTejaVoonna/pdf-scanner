@@ -177,6 +177,86 @@ class DocumentViewModelTest {
     }
 
     @Test
+    fun `selection mode applies bulk edits only to the selected pages`() = runBlocking {
+        val c = TestFixtures.container()
+        val id = TestFixtures.seedDocument(c, "doc", 4, finalized = false)
+        val vm = DocumentViewModel(c, SavedStateHandle(mapOf("docId" to id)))
+        vm.state.awaitMatch { it.loaded && it.pages.size == 4 }
+
+        vm.toggleSelection("doc-1"); vm.toggleSelection("doc-3")
+        assertEquals(setOf("doc-1", "doc-3"), vm.state.awaitMatch { it.selection.size == 2 }.selection)
+
+        vm.applyFilterToSelection(PageFilter.BLACK_WHITE)
+        vm.rotateSelection(clockwise = true)
+        vm.state.awaitMatch { s -> s.pages.first { it.id == "doc-1" }.filter == PageFilter.BLACK_WHITE && s.pages.first { it.id == "doc-1" }.rotation == 90 }
+        val pages = c.repository.getPages(id).associateBy { it.id }
+        assertEquals(PageFilter.ORIGINAL, pages["doc-0"]!!.filter)
+        assertEquals(0, pages["doc-2"]!!.rotation)
+        assertEquals(PageFilter.BLACK_WHITE, pages["doc-3"]!!.filter)
+        assertEquals(90, pages["doc-3"]!!.rotation)
+
+        vm.toggleSelection("doc-1") // deselect
+        assertEquals(setOf("doc-3"), vm.state.awaitMatch { it.selection.size == 1 }.selection)
+        vm.selectAll()
+        assertEquals(4, vm.state.awaitMatch { it.selection.size == 4 }.selection.size)
+        vm.clearSelection()
+        assertTrue(vm.state.awaitMatch { it.selection.isEmpty() }.selection.isEmpty())
+    }
+
+    @Test
+    fun `remove crop and delete selection`() = runBlocking {
+        val c = TestFixtures.container()
+        val id = TestFixtures.seedDocument(c, "doc", 3, finalized = false)
+        val crop = Quad(Pt(0.1f, 0.1f), Pt(0.9f, 0.1f), Pt(0.9f, 0.9f), Pt(0.1f, 0.9f))
+        c.repository.updatePages(c.repository.getPages(id).map { it.copy(corners = crop) })
+        val vm = DocumentViewModel(c, SavedStateHandle(mapOf("docId" to id)))
+        vm.state.awaitMatch { it.loaded && it.pages.size == 3 }
+
+        vm.toggleSelection("doc-0")
+        vm.state.awaitMatch { it.selection.size == 1 }
+        vm.resetCropOfSelection()
+        vm.state.awaitMatch { s -> s.pages.first { it.id == "doc-0" }.corners.isFullFrame() }
+        assertFalse(c.repository.getPage("doc-1")!!.corners.isFullFrame())
+
+        vm.toggleSelection("doc-2")
+        vm.state.awaitMatch { it.selection.size == 2 }
+        vm.deleteSelection()
+        assertEquals(listOf("doc-1"), vm.state.awaitMatch { it.pages.size == 1 }.pages.map { it.id })
+        assertTrue(vm.state.value.selection.isEmpty())
+        assertEquals(listOf(0), c.repository.getPages(id).map { it.position })
+    }
+
+    @Test
+    fun `selection survives recreation through saved state and ignores deleted pages`() = runBlocking {
+        val c = TestFixtures.container()
+        val id = TestFixtures.seedDocument(c, "doc", 3, finalized = false)
+        val handle = SavedStateHandle(mapOf("docId" to id))
+        val vm = DocumentViewModel(c, handle)
+        vm.state.awaitMatch { it.pages.size == 3 }
+        vm.toggleSelection("doc-0"); vm.toggleSelection("doc-2")
+
+        val restored = DocumentViewModel(c, handle)
+        assertEquals(setOf("doc-0", "doc-2"), restored.state.awaitMatch { it.selection.size == 2 }.selection)
+        c.repository.removePage("doc-2")
+        assertEquals(setOf("doc-0"), restored.state.awaitMatch { it.pages.size == 2 }.selection)
+    }
+
+    @Test
+    fun `auto crop of selection leaves pages without clear edges unchanged`() = runBlocking {
+        val c = TestFixtures.container()
+        val id = TestFixtures.seedDocument(c, "doc", 2, finalized = false) // flat grey pages: nothing to detect
+        val vm = DocumentViewModel(c, SavedStateHandle(mapOf("docId" to id)))
+        vm.state.awaitMatch { it.pages.size == 2 }
+        vm.selectAll()
+        vm.state.awaitMatch { it.selection.size == 2 }
+        vm.autoCropSelection()
+        val event = withTimeout(30_000) { vm.eventFlow.first() } as DocumentEvent.Message
+        assertEquals(R.string.msg_autocrop_result, event.message.res)
+        assertEquals(0, event.message.args[0])
+        assertTrue(c.repository.getPages(id).all { it.corners.isFullFrame() })
+    }
+
+    @Test
     fun `save to library finalizes the draft and closes`() = runBlocking {
         val c = TestFixtures.container()
         val id = TestFixtures.seedDocument(c, "doc", 1, finalized = false)
@@ -293,8 +373,9 @@ class HomeViewModelTest {
     }
 
     @Test
-    fun `importing valid images creates a draft page per image with auto crop`() = runBlocking {
+    fun `importing valid images creates a draft page per image with auto crop when enabled`() = runBlocking {
         val c = TestFixtures.container()
+        c.settings.update { it.copy(autoCropImport = true) }
         val files = (0 until 2).map { i ->
             val bmp = android.graphics.Bitmap.createBitmap(500, 700, android.graphics.Bitmap.Config.ARGB_8888)
             bmp.eraseColor(android.graphics.Color.rgb(40, 40, 40))
@@ -316,5 +397,43 @@ class HomeViewModelTest {
         assertEquals(0.84f, pages[0].corners.br.x, 0.04f)
         assertEquals(0.89f, pages[0].corners.br.y, 0.04f)
         assertTrue(c.fileStore.pageFile(event.documentId, pages[0].sourceFile).exists())
+    }
+
+    @Test
+    fun `imported images keep the full frame by default`() = runBlocking {
+        val c = TestFixtures.container()
+        assertFalse(c.settings.current.autoCropImport)
+        val bmp = android.graphics.Bitmap.createBitmap(500, 700, android.graphics.Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(android.graphics.Color.rgb(40, 40, 40))
+        android.graphics.Canvas(bmp).drawRect(80f, 100f, 420f, 620f, android.graphics.Paint().apply { color = android.graphics.Color.rgb(235, 235, 225) })
+        val file = java.io.File(c.fileStore.captureDir, "plain.jpg").also { f -> f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) } }
+        val vm = HomeViewModel(c, SavedStateHandle())
+        vm.importPhotos(listOf(android.net.Uri.fromFile(file)))
+        val event = withTimeout(30_000) { vm.eventFlow.first() } as com.saiteja.pdfscanner.ui.home.HomeEvent.OpenDocument
+        assertTrue(c.repository.getPages(event.documentId).single().corners.isFullFrame())
+    }
+
+    @Test
+    fun `default filter setting is applied to new pages`() = runBlocking {
+        val c = TestFixtures.container()
+        c.settings.update { it.copy(defaultFilter = com.saiteja.pdfscanner.domain.PageFilter.ENHANCED) }
+        val bmp = android.graphics.Bitmap.createBitmap(200, 300, android.graphics.Bitmap.Config.ARGB_8888)
+        bmp.eraseColor(android.graphics.Color.GRAY)
+        val file = java.io.File(c.fileStore.captureDir, "f.jpg").also { f -> f.outputStream().use { bmp.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, it) } }
+        val vm = HomeViewModel(c, SavedStateHandle())
+        vm.importPhotos(listOf(android.net.Uri.fromFile(file)))
+        val event = withTimeout(30_000) { vm.eventFlow.first() } as com.saiteja.pdfscanner.ui.home.HomeEvent.OpenDocument
+        assertEquals(com.saiteja.pdfscanner.domain.PageFilter.ENHANCED, c.repository.getPages(event.documentId).single().filter)
+    }
+
+    @Test
+    fun `importing a file that is not a pdf reports failure and creates no document`() = runBlocking {
+        val c = TestFixtures.container()
+        val bad = java.io.File(c.fileStore.captureDir, "bad.pdf").apply { writeText("this is not a pdf") }
+        val vm = HomeViewModel(c, SavedStateHandle())
+        vm.importPdfs(listOf(android.net.Uri.fromFile(bad)))
+        val event = withTimeout(15_000) { vm.eventFlow.first() } as com.saiteja.pdfscanner.ui.home.HomeEvent.Message
+        assertEquals(R.string.msg_pdf_import_failed, event.message.res)
+        assertTrue(c.repository.observeDrafts().first().isEmpty())
     }
 }

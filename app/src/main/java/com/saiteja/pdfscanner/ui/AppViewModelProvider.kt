@@ -12,6 +12,7 @@ import com.saiteja.pdfscanner.ui.camera.CameraViewModel
 import com.saiteja.pdfscanner.ui.document.DocumentViewModel
 import com.saiteja.pdfscanner.ui.edit.EditPageViewModel
 import com.saiteja.pdfscanner.ui.home.HomeViewModel
+import com.saiteja.pdfscanner.ui.tools.ResizeViewModel
 
 private fun CreationExtras.container(): AppContainer = (this[APPLICATION_KEY] as PdfScannerApp).container
 
@@ -22,6 +23,7 @@ object AppViewModelProvider {
         initializer { CameraViewModel(container(), createSavedStateHandle()) }
         initializer { DocumentViewModel(container(), createSavedStateHandle()) }
         initializer { EditPageViewModel(container(), createSavedStateHandle()) }
+        initializer { ResizeViewModel(container(), createSavedStateHandle()) }
     }
 }
 

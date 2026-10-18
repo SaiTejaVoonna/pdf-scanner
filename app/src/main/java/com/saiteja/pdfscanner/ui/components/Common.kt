@@ -31,6 +31,8 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.saiteja.pdfscanner.domain.ScanPage
@@ -47,12 +49,14 @@ fun PageThumbnail(page: ScanPage?, cache: ThumbnailCache, contentDescription: St
             failed = bitmap == null
         }
     }
-    Box(modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest), contentAlignment = Alignment.Center) {
+    // The description lives on the container so it is present (and read by TalkBack) before the image loads.
+    val described = if (contentDescription != null) Modifier.semantics { this.contentDescription = contentDescription } else Modifier
+    Box(modifier.background(MaterialTheme.colorScheme.surfaceContainerHighest).then(described), contentAlignment = Alignment.Center) {
         val bmp = bitmap
         if (bmp != null) {
             Image(
                 bitmap = bmp.asImageBitmap(),
-                contentDescription = contentDescription,
+                contentDescription = null,
                 contentScale = contentScale,
                 modifier = Modifier.fillMaxSize(),
             )

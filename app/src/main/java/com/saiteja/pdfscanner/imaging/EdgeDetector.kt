@@ -2,205 +2,264 @@ package com.saiteja.pdfscanner.imaging
 
 import com.saiteja.pdfscanner.domain.Pt
 import com.saiteja.pdfscanner.domain.Quad
+import kotlin.math.abs
+import kotlin.math.hypot
+import kotlin.math.max
+import kotlin.math.min
+import kotlin.math.sqrt
 
 /**
- * Dependency-free document edge detection (no OpenCV, no Play services, fully offline).
+ * Offline page-corner detection with no native libraries and no Google services.
  *
- * Approach: blur, Otsu-threshold into foreground/background (trying both "bright paper on dark
- * desk" and the reverse), take the large connected regions, fill their holes (printed text),
- * and read the four corner points from the x±y extremes. A region is accepted only if it is
- * nearly quadrilateral (high fill ratio), so cluttered scenes return null and the caller falls
- * back to the manual crop handles.
+ * 1. Canny edges (colour-aware) and a Hough transform find the dominant straight lines.
+ * 2. Every plausible quadrilateral made from those lines (plus the image frame, for pages cut off by
+ *    the frame) is scored by how much of its outline lies on real image edges, how much of the
+ *    picture it covers, and how rectangular it looks after perspective.
+ * 3. A second, brightness-based segmentation proposes extra candidates for smooth backgrounds; they are
+ *    scored by the same rule so the better evidence wins.
+ *
+ * Returns null when nothing convincing is found, so the caller keeps the full image and the user adjusts
+ * the corners by hand. Never guesses.
  */
 object EdgeDetector {
 
-    private const val MIN_REGION_FRACTION = 0.08f
-    private const val MIN_FILL = 0.85f
-    private const val MIN_QUAD_FRACTION = 0.12f
-    private const val MAX_QUAD_FRACTION = 0.985f
+    private const val MIN_AREA_FRACTION = 0.12f
+    private const val MAX_AREA_FRACTION = 0.985f
+    private const val MIN_MEAN_SUPPORT = 0.55f
+    private const val MIN_SIDE_SUPPORT = 0.35f
+    private const val BORDER_SUPPORT_WEIGHT = 0.5f
+    private const val MIN_SIDE_CONTRAST = 8.0       // luma/colour levels between inside and outside of a side
+    private const val FULL_CONTRAST = 25.0
+    private val CONTRAST_OFFSETS_PX = intArrayOf(4, 7, 10, 13, 16)
+    private const val MAX_NEAR_DENSITY = 0.65       // beyond this the "edges" are just texture or noise
+    private const val BORDER_PENALTY = 0.9
 
-    /** [gray] holds luma values 0..255, row-major, [w]*[h] entries. Returns normalized corners. */
-    fun detect(gray: IntArray, w: Int, h: Int): Quad? {
-        if (w < 16 || h < 16 || gray.size < w * h) return null
-        val blurred = boxBlur(gray, w, h, 2)
-        val threshold = otsu(blurred)
-        var best: Quad? = null
-        var bestScore = 0f
-        for (bright in booleanArrayOf(true, false)) {
-            val mask = BooleanArray(w * h) { if (bright) blurred[it] > threshold else blurred[it] <= threshold }
-            for (candidate in candidates(mask, w, h)) {
-                if (candidate.score > bestScore) {
-                    bestScore = candidate.score
-                    best = candidate.quad
-                }
-            }
-        }
-        return best
+    /** [gray] holds luma 0..255, row-major, [w]*[h] entries. Returns normalized corners. */
+    fun detect(gray: IntArray, w: Int, h: Int): Quad? = detectChannels(listOf(gray), w, h)
+
+    /** Same as [detect] for ARGB pixels; also notices pages that differ from the background only in colour. */
+    fun detectArgb(argb: IntArray, w: Int, h: Int): Quad? {
+        if (argb.size < w * h) return null
+        val r = IntArray(w * h) { (argb[it] shr 16) and 0xFF }
+        val g = IntArray(w * h) { (argb[it] shr 8) and 0xFF }
+        val b = IntArray(w * h) { argb[it] and 0xFF }
+        return detectChannels(listOf(r, g, b), w, h)
     }
 
-    private class Candidate(val quad: Quad, val score: Float)
+    private fun detectChannels(channels: List<IntArray>, w: Int, h: Int): Quad? {
+        if (w < 32 || h < 32 || channels.any { it.size < w * h }) return null
+        val edges = CannyEdges.detect(channels, w, h)
+        val near = dilate(edges, w, h, radius = 2)
+        if (near.count { it } > MAX_NEAR_DENSITY * w * h) return null
+        val smooth = channels.map { BoxBlur.apply(it, w, h, 2) }
+        val scorer = Scorer(near, smooth, w, h)
 
-    private fun candidates(mask: BooleanArray, w: Int, h: Int): List<Candidate> {
-        val total = w * h
-        val visited = BooleanArray(total)
-        val stack = IntArray(total)
-        val result = ArrayList<Candidate>()
-        val regions = ArrayList<Region>()
-
-        for (start in 0 until total) {
-            if (!mask[start] || visited[start]) continue
-            val region = flood(start, mask, visited, stack, w, h)
-            if (region.area >= total * MIN_REGION_FRACTION) regions += region
+        var best: Scored? = null
+        fun consider(q: PixelQuad?) {
+            val s = q?.let { scorer.score(it) } ?: return
+            if (best == null || s.score > best!!.score) best = s
         }
-        // Only the biggest few regions are worth the hole-filling pass.
-        for (region in regions.sortedByDescending { it.area }.take(3)) {
-            if (region.touchesAllBorders) continue // it's the background, not the document
-            val filledArea = region.area + holeArea(region, mask, w, h)
-            val quad = region.cornerQuad()
-            val quadArea = pixelArea(quad)
-            if (quadArea <= 0f) continue
-            val fill = filledArea / quadArea
-            val fraction = quadArea / total
-            if (fill < MIN_FILL || fraction < MIN_QUAD_FRACTION || fraction > MAX_QUAD_FRACTION) continue
-            val normalized = Quad(
-                Pt(quad.tl.x / w, quad.tl.y / h), Pt(quad.tr.x / w, quad.tr.y / h),
-                Pt(quad.br.x / w, quad.br.y / h), Pt(quad.bl.x / w, quad.bl.y / h),
+
+        // Candidates from straight lines.
+        val minVotes = (0.25f * min(w, h)).toInt().coerceAtLeast(12)
+        val lines = HoughLines.find(edges, w, h, minVotes, maxLines = 28) + HoughLines.borderLines(w, h)
+        forEachQuad(lines) { consider(it) }
+
+        // Candidates from brightness segmentation.
+        val luma = if (channels.size == 3) IntArray(w * h) { (channels[0][it] * 299 + channels[1][it] * 587 + channels[2][it] * 114) / 1000 } else channels[0]
+        for (q in RegionCandidates.find(luma, w, h)) {
+            consider(PixelQuad(q.tl.x * w, q.tl.y * h, q.tr.x * w, q.tr.y * h, q.br.x * w, q.br.y * h, q.bl.x * w, q.bl.y * h, borderSides = BooleanArray(4)))
+        }
+
+        val result = best ?: return null
+        return result.quad.takeIf { it.isValidCrop() }
+    }
+
+    // ---------------------------------------------------------------------------------------------
+
+    private class PixelQuad(
+        val x0: Double, val y0: Double, val x1: Double, val y1: Double,
+        val x2: Double, val y2: Double, val x3: Double, val y3: Double,
+        val borderSides: BooleanArray,
+    ) {
+        constructor(x0: Float, y0: Float, x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float, borderSides: BooleanArray) :
+            this(x0.toDouble(), y0.toDouble(), x1.toDouble(), y1.toDouble(), x2.toDouble(), y2.toDouble(), x3.toDouble(), y3.toDouble(), borderSides)
+
+        fun xs() = doubleArrayOf(x0, x1, x2, x3)
+        fun ys() = doubleArrayOf(y0, y1, y2, y3)
+    }
+
+    private class Scored(val quad: Quad, val score: Double)
+
+    private class Scorer(val near: BooleanArray, val smooth: List<IntArray>, val w: Int, val h: Int) {
+        fun score(q: PixelQuad): Scored? {
+            val xs = q.xs()
+            val ys = q.ys()
+            // Clamp slightly-outside corners (page cut by frame) to the frame.
+            val cx = DoubleArray(4) { xs[it].coerceIn(0.0, w.toDouble()) }
+            val cy = DoubleArray(4) { ys[it].coerceIn(0.0, h.toDouble()) }
+            val quad = Quad(
+                Pt((cx[0] / w).toFloat(), (cy[0] / h).toFloat()), Pt((cx[1] / w).toFloat(), (cy[1] / h).toFloat()),
+                Pt((cx[2] / w).toFloat(), (cy[2] / h).toFloat()), Pt((cx[3] / w).toFloat(), (cy[3] / h).toFloat()),
             )
-            if (!normalized.isConvex()) continue
-            result += Candidate(normalized, quadArea * fill * fill)
-        }
-        return result
-    }
+            if (!quad.isValidCrop()) return null
+            val area = quad.area()
+            if (area < MIN_AREA_FRACTION || area > MAX_AREA_FRACTION) return null
+            if (!anglesPlausible(cx, cy)) return null
 
-    private class Region(val w: Int, val h: Int) {
-        var area = 0
-        var minSum = Int.MAX_VALUE; var minSumX = 0; var minSumY = 0
-        var maxSum = Int.MIN_VALUE; var maxSumX = 0; var maxSumY = 0
-        var minDiff = Int.MAX_VALUE; var minDiffX = 0; var minDiffY = 0
-        var maxDiff = Int.MIN_VALUE; var maxDiffX = 0; var maxDiffY = 0
-        var touchLeft = false; var touchRight = false; var touchTop = false; var touchBottom = false
-        val touchesAllBorders get() = touchLeft && touchRight && touchTop && touchBottom
-        val members = ArrayList<Int>()
-
-        fun add(x: Int, y: Int) {
-            area++
-            val s = x + y
-            val d = x - y
-            if (s < minSum) { minSum = s; minSumX = x; minSumY = y }
-            if (s > maxSum) { maxSum = s; maxSumX = x; maxSumY = y }
-            if (d < minDiff) { minDiff = d; minDiffX = x; minDiffY = y }
-            if (d > maxDiff) { maxDiff = d; maxDiffX = x; maxDiffY = y }
-            if (x == 0) touchLeft = true
-            if (x == w - 1) touchRight = true
-            if (y == 0) touchTop = true
-            if (y == h - 1) touchBottom = true
-        }
-
-        /** Corners in pixel units, expanded to pixel edges. */
-        fun cornerQuad() = Quad(
-            tl = Pt(minSumX.toFloat(), minSumY.toFloat()),
-            tr = Pt(maxDiffX + 1f, maxDiffY.toFloat()),
-            br = Pt(maxSumX + 1f, maxSumY + 1f),
-            bl = Pt(minDiffX.toFloat(), minDiffY + 1f),
-        )
-    }
-
-    private fun flood(start: Int, mask: BooleanArray, visited: BooleanArray, stack: IntArray, w: Int, h: Int): Region {
-        val region = Region(w, h)
-        var sp = 0
-        stack[sp++] = start
-        visited[start] = true
-        while (sp > 0) {
-            val i = stack[--sp]
-            val x = i % w
-            val y = i / w
-            region.add(x, y)
-            region.members.add(i)
-            if (x > 0 && mask[i - 1] && !visited[i - 1]) { visited[i - 1] = true; stack[sp++] = i - 1 }
-            if (x < w - 1 && mask[i + 1] && !visited[i + 1]) { visited[i + 1] = true; stack[sp++] = i + 1 }
-            if (y > 0 && mask[i - w] && !visited[i - w]) { visited[i - w] = true; stack[sp++] = i - w }
-            if (y < h - 1 && mask[i + w] && !visited[i + w]) { visited[i + w] = true; stack[sp++] = i + w }
-        }
-        return region
-    }
-
-    /** Number of pixels enclosed by the region (not in it, and not reachable from the image border). */
-    private fun holeArea(region: Region, mask: BooleanArray, w: Int, h: Int): Int {
-        val inRegion = BooleanArray(w * h)
-        for (i in region.members) inRegion[i] = true
-        val seen = BooleanArray(w * h)
-        val stack = IntArray(w * h)
-        var sp = 0
-        var outside = 0
-        fun push(i: Int) {
-            if (!inRegion[i] && !seen[i]) { seen[i] = true; stack[sp++] = i }
-        }
-        for (x in 0 until w) { push(x); push((h - 1) * w + x) }
-        for (y in 0 until h) { push(y * w); push(y * w + w - 1) }
-        while (sp > 0) {
-            val i = stack[--sp]
-            outside++
-            val x = i % w
-            val y = i / w
-            if (x > 0) push(i - 1)
-            if (x < w - 1) push(i + 1)
-            if (y > 0) push(i - w)
-            if (y < h - 1) push(i + w)
-        }
-        return w * h - region.area - outside
-    }
-
-    private fun pixelArea(q: Quad) = q.area()
-
-    private fun boxBlur(src: IntArray, w: Int, h: Int, r: Int): IntArray {
-        val tmp = IntArray(w * h)
-        val out = IntArray(w * h)
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                var sum = 0
-                var n = 0
-                for (k in -r..r) {
-                    val xx = x + k
-                    if (xx in 0 until w) { sum += src[y * w + xx]; n++ }
+            var sum = 0.0
+            var weakest = 1.0
+            var genuineSides = 0
+            var borderSides = 0
+            var contrastSum = 0.0
+            val centreX = cx.average()
+            val centreY = cy.average()
+            for (i in 0 until 4) {
+                val j = (i + 1) % 4
+                val (support, onBorder) = sideSupport(cx[i], cy[i], cx[j], cy[j])
+                if (onBorder) borderSides++ else {
+                    genuineSides++
+                    weakest = min(weakest, support)
+                    // A real page edge has paper on one side and desk on the other; a printed line has paper on both.
+                    val contrast = sideContrast(cx[i], cy[i], cx[j], cy[j], centreX, centreY)
+                    if (contrast < MIN_SIDE_CONTRAST) return null
+                    contrastSum += contrast
                 }
-                tmp[y * w + x] = sum / n
+                sum += support
+            }
+            val mean = sum / 4
+            if (genuineSides < 2 || borderSides > 2) return null
+            if (mean < MIN_MEAN_SUPPORT || weakest < MIN_SIDE_SUPPORT) return null
+            if (borderSides == 4) return null
+            val contrastFactor = sqrt(min(1.0, contrastSum / genuineSides / FULL_CONTRAST))
+            val borderFactor = Math.pow(BORDER_PENALTY, borderSides.toDouble())
+            return Scored(quad, Math.pow(area.toDouble(), 0.7) * mean * mean * (0.5 + 0.5 * weakest) * contrastFactor * borderFactor)
+        }
+
+        /**
+         * Average brightness/colour step across the side, comparing the mean of a band on each side
+         * ([CONTRAST_OFFSETS_PX]) so text rows average out but a page-to-desk boundary still shows a step.
+         */
+        private fun sideContrast(ax: Double, ay: Double, bx: Double, by: Double, centreX: Double, centreY: Double): Double {
+            val length = hypot(bx - ax, by - ay)
+            var nx = -(by - ay) / length
+            var ny = (bx - ax) / length
+            val mx = (ax + bx) / 2
+            val my = (ay + by) / 2
+            if ((mx - centreX) * nx + (my - centreY) * ny < 0) { nx = -nx; ny = -ny }  // point away from the centre
+            var total = 0.0
+            var count = 0
+            val steps = max(8, (length / 2).toInt())
+            val inside = DoubleArray(smooth.size)
+            val outside = DoubleArray(smooth.size)
+            for (s in 1 until steps) {
+                val t = s.toDouble() / steps
+                val x = ax + (bx - ax) * t
+                val y = ay + (by - ay) * t
+                inside.fill(0.0); outside.fill(0.0)
+                var used = 0
+                for (d in CONTRAST_OFFSETS_PX) {
+                    val ox = (x + nx * d).toInt(); val oy = (y + ny * d).toInt()
+                    val ix = (x - nx * d).toInt(); val iy = (y - ny * d).toInt()
+                    if (ox !in 0 until w || oy !in 0 until h || ix !in 0 until w || iy !in 0 until h) continue
+                    for (c in smooth.indices) { outside[c] += smooth[c][oy * w + ox].toDouble(); inside[c] += smooth[c][iy * w + ix].toDouble() }
+                    used++
+                }
+                if (used < 3) continue
+                var diff = 0.0
+                for (c in smooth.indices) diff = max(diff, abs(outside[c] - inside[c]) / used)
+                total += diff
+                count++
+            }
+            return if (count == 0) 0.0 else total / count
+        }
+
+        /** Fraction of the side's length lying on image edges; samples on the frame count half. */
+        private fun sideSupport(ax: Double, ay: Double, bx: Double, by: Double): Pair<Double, Boolean> {
+            val length = hypot(bx - ax, by - ay)
+            val steps = max(8, length.toInt())
+            var total = 0.0
+            var onBorderCount = 0
+            for (s in 0..steps) {
+                val t = s.toDouble() / steps
+                val x = ax + (bx - ax) * t
+                val y = ay + (by - ay) * t
+                val ix = x.toInt().coerceIn(0, w - 1)
+                val iy = y.toInt().coerceIn(0, h - 1)
+                val onFrame = x <= 2.0 || y <= 2.0 || x >= w - 2.0 || y >= h - 2.0
+                if (onFrame) { onBorderCount++; total += BORDER_SUPPORT_WEIGHT }
+                else if (near[iy * w + ix]) total += 1.0
+            }
+            val samples = steps + 1
+            return (total / samples) to (onBorderCount > samples * 0.8)
+        }
+
+        /** Interior angles must stay near a rectangle's, allowing for perspective. */
+        private fun anglesPlausible(xs: DoubleArray, ys: DoubleArray): Boolean {
+            for (i in 0 until 4) {
+                val p = (i + 3) % 4
+                val n = (i + 1) % 4
+                val ux = xs[p] - xs[i]; val uy = ys[p] - ys[i]
+                val vx = xs[n] - xs[i]; val vy = ys[n] - ys[i]
+                val lu = hypot(ux, uy); val lv = hypot(vx, vy)
+                if (lu < 4 || lv < 4) return false
+                val cos = (ux * vx + uy * vy) / (lu * lv)
+                val deg = Math.toDegrees(Math.acos(cos.coerceIn(-1.0, 1.0)))
+                if (deg < 50.0 || deg > 130.0) return false
+            }
+            val top = hypot(xs[1] - xs[0], ys[1] - ys[0]); val bottom = hypot(xs[2] - xs[3], ys[2] - ys[3])
+            val left = hypot(xs[3] - xs[0], ys[3] - ys[0]); val right = hypot(xs[2] - xs[1], ys[2] - ys[1])
+            val wAvg = (top + bottom) / 2; val hAvg = (left + right) / 2
+            val ratio = max(wAvg, hAvg) / max(1.0, min(wAvg, hAvg))
+            return ratio <= 4.5 && min(top, bottom) / max(top, bottom) > 0.35 && min(left, right) / max(left, right) > 0.35
+        }
+    }
+
+    /** Enumerates quadrilaterals formed by two near-parallel line pairs that cross each other. */
+    private fun forEachQuad(lines: List<Line>, emit: (PixelQuad?) -> Unit) {
+        val n = lines.size
+        for (a in 0 until n) for (b in a + 1 until n) for (c in b + 1 until n) for (d in c + 1 until n) {
+            val set = intArrayOf(a, b, c, d)
+            // Three ways to split four lines into two pairs; accept the split where each pair is roughly parallel.
+            val splits = arrayOf(intArrayOf(0, 1, 2, 3), intArrayOf(0, 2, 1, 3), intArrayOf(0, 3, 1, 2))
+            for (sp in splits) {
+                val p1 = lines[set[sp[0]]]; val p2 = lines[set[sp[1]]]
+                val q1 = lines[set[sp[2]]]; val q2 = lines[set[sp[3]]]
+                if (p1.isBorder && p2.isBorder && q1.isBorder && q2.isBorder) continue
+                if (angleDiff(p1, p2) > 35.0 || angleDiff(q1, q2) > 35.0) continue
+                if (angleDiff(p1, q1) < 40.0 || angleDiff(p1, q2) < 40.0 || angleDiff(p2, q1) < 40.0 || angleDiff(p2, q2) < 40.0) continue
+                val i1 = p1.intersect(q1) ?: continue
+                val i2 = p1.intersect(q2) ?: continue
+                val i3 = p2.intersect(q2) ?: continue
+                val i4 = p2.intersect(q1) ?: continue
+                val pts = listOf(i1, i2, i3, i4)
+                val ordered = Quad.ordered(pts.map { Pt(it.first.toFloat(), it.second.toFloat()) })
+                val borderSides = BooleanArray(4)
+                emit(
+                    PixelQuad(
+                        ordered.tl.x.toDouble(), ordered.tl.y.toDouble(), ordered.tr.x.toDouble(), ordered.tr.y.toDouble(),
+                        ordered.br.x.toDouble(), ordered.br.y.toDouble(), ordered.bl.x.toDouble(), ordered.bl.y.toDouble(), borderSides,
+                    ),
+                )
             }
         }
-        for (y in 0 until h) {
-            for (x in 0 until w) {
-                var sum = 0
-                var n = 0
-                for (k in -r..r) {
-                    val yy = y + k
-                    if (yy in 0 until h) { sum += tmp[yy * w + x]; n++ }
-                }
-                out[y * w + x] = sum / n
+    }
+
+    private fun angleDiff(a: Line, b: Line): Double {
+        val d = abs(a.directionDeg - b.directionDeg)
+        return min(d, 180.0 - d)
+    }
+
+    private fun dilate(src: BooleanArray, w: Int, h: Int, radius: Int): BooleanArray {
+        val out = BooleanArray(w * h)
+        for (y in 0 until h) for (x in 0 until w) {
+            if (!src[y * w + x]) continue
+            for (dy in -radius..radius) for (dx in -radius..radius) {
+                val nx = x + dx; val ny = y + dy
+                if (nx in 0 until w && ny in 0 until h) out[ny * w + nx] = true
             }
         }
         return out
     }
 
-    private fun otsu(gray: IntArray): Int {
-        val hist = IntArray(256)
-        for (v in gray) hist[v.coerceIn(0, 255)]++
-        val total = gray.size.toDouble()
-        var sumAll = 0.0
-        for (i in 0..255) sumAll += i * hist[i].toDouble()
-        var sumB = 0.0
-        var wB = 0.0
-        var best = 0.0
-        var threshold = 127
-        for (t in 0..255) {
-            wB += hist[t]
-            if (wB == 0.0) continue
-            val wF = total - wB
-            if (wF == 0.0) break
-            sumB += t * hist[t].toDouble()
-            val mB = sumB / wB
-            val mF = (sumAll - sumB) / wF
-            val between = wB * wF * (mB - mF) * (mB - mF)
-            if (between > best) { best = between; threshold = t }
-        }
-        return threshold
-    }
 }
