@@ -9,3 +9,13 @@
 - APKs are **debug-signed** and meant for testing. The workflow uses no secrets. For Play Store distribution
   the owner must create an upload key, store it as repository secrets, and add a signed `bundleRelease` job.
   Never commit keystores or credentials.
+
+## Web app on GitHub Pages
+The `Web CI` workflow always tests and builds `web/`. It deploys to GitHub Pages only when the owner has turned
+that on:
+
+1. Repository **Settings -> Pages -> Build and deployment -> Source: GitHub Actions**.
+2. Repository **Settings -> Secrets and variables -> Actions -> Variables -> New variable**: `ENABLE_PAGES` = `true`.
+3. Push to `claude/amazing-babbage-qr2tmb`. The site appears at `https://<user>.github.io/pdf-scanner/`.
+
+The build uses relative paths, so it works under that sub-path. Camera access needs HTTPS, which Pages provides.

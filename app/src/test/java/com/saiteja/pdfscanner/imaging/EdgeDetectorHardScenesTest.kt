@@ -164,6 +164,25 @@ class EdgeDetectorHardScenesTest {
     }
 
     @Test
+    fun `a full frame page with text never yields a text block crop across noise seeds`() {
+        val full = listOf(Pt(0f, 0f), Pt(w.toFloat(), 0f), Pt(w.toFloat(), h.toFloat()), Pt(0f, h.toFloat()))
+        for (seed in 1..12) {
+            val s = scene(full, Triple(0, 0, 0), Triple(230, 230, 225), seed = seed)
+            assertNull("seed $seed", EdgeDetector.detectArgb(s.argb, w, h))
+        }
+    }
+
+    @Test
+    fun `finds the page reliably across noise seeds`() {
+        for (seed in 1..8) {
+            val s = scene(perspectivePage, Triple(110, 100, 95), Triple(225, 222, 212), seed = seed)
+            val q = EdgeDetector.detectArgb(s.argb, w, h)
+            assertNotNull("seed $seed", q)
+            assertCorners(perspectivePage, q!!, tol = 0.06f)
+        }
+    }
+
+    @Test
     fun `detection is reasonably fast`() {
         val s = scene(perspectivePage, Triple(110, 100, 95), Triple(225, 222, 212))
         val start = System.nanoTime()

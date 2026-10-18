@@ -137,8 +137,10 @@ object EdgeDetector {
         }
 
         /**
-         * Average brightness/colour step across the side, comparing the mean of a band on each side
-         * ([CONTRAST_OFFSETS_PX]) so text rows average out but a page-to-desk boundary still shows a step.
+         * Step in the *brightest* level of each colour channel across the side, comparing bands either side
+         * ([CONTRAST_OFFSETS_PX]). Using the band maximum (the paper level) rather than the mean means the edge
+         * of a block of printed text, which has white paper on both sides, shows no step, while a page-to-desk
+         * boundary still does.
          */
         private fun sideContrast(ax: Double, ay: Double, bx: Double, by: Double, centreX: Double, centreY: Double): Double {
             val length = hypot(bx - ax, by - ay)
@@ -162,12 +164,15 @@ object EdgeDetector {
                     val ox = (x + nx * d).toInt(); val oy = (y + ny * d).toInt()
                     val ix = (x - nx * d).toInt(); val iy = (y - ny * d).toInt()
                     if (ox !in 0 until w || oy !in 0 until h || ix !in 0 until w || iy !in 0 until h) continue
-                    for (c in smooth.indices) { outside[c] += smooth[c][oy * w + ox].toDouble(); inside[c] += smooth[c][iy * w + ix].toDouble() }
+                    for (c in smooth.indices) {
+                        outside[c] = max(outside[c], smooth[c][oy * w + ox].toDouble())
+                        inside[c] = max(inside[c], smooth[c][iy * w + ix].toDouble())
+                    }
                     used++
                 }
                 if (used < 3) continue
                 var diff = 0.0
-                for (c in smooth.indices) diff = max(diff, abs(outside[c] - inside[c]) / used)
+                for (c in smooth.indices) diff = max(diff, abs(outside[c] - inside[c]))
                 total += diff
                 count++
             }

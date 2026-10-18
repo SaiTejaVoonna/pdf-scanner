@@ -10,6 +10,18 @@ analytics, no uploads: it has no internet permission at all.
 > **Beta (`1.0.0-beta.1`).** It works end to end, but it is young. Expect rough edges, and please report
 > them. See [docs/ROADMAP.md](docs/ROADMAP.md) for what is done and what is planned.
 
+## Two versions, same principles
+
+| | Android app (`app/`) | Web app (`web/`) |
+| --- | --- | --- |
+| Runs on | Android 8.0+ | Any modern browser: iPhone, Android, desktop. Installable, works offline |
+| Get it | [Download the APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk) | Run it locally (`web/README.md`) or enable GitHub Pages (see [docs/RELEASING.md](docs/RELEASING.md)) |
+| Combine PDFs | By importing their pages as images | Keeps text and vectors (no re-rendering) |
+| Camera | In-app CameraX | In-page live camera, or the phone's own camera app |
+
+The web app is the newer of the two and shares the same page-detection approach. It has fewer features so far
+(no library of saved documents: one working document at a time). See [web/README.md](web/README.md).
+
 ## Download
 
 **[Download the latest beta APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk)**
@@ -18,11 +30,13 @@ asked. It is a debug-signed build for testing, not a Play Store release.
 
 ## Screenshots
 
-_Not added yet._ Put images in `docs/screenshots/` and link them here.
+Web app (captured from the real build in headless Chromium; Android screenshots are not added yet):
 
-| Home | Capture | Crop | Export |
+| Pages | Crop (auto-detected) | Enhance | Export |
 | --- | --- | --- | --- |
-| _placeholder_ | _placeholder_ | _placeholder_ | _placeholder_ |
+| ![Pages](docs/screenshots/web-pages-light.png) | ![Crop](docs/screenshots/web-crop-light.png) | ![Enhance](docs/screenshots/web-enhance-light.png) | ![Export](docs/screenshots/web-export-light.png) |
+
+Dark mode: [pages](docs/screenshots/web-pages-dark.png).
 
 ## What it does today
 
@@ -113,7 +127,7 @@ app/src/main/java/com/saiteja/pdfscanner/
 ```
 
 More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Tests mirror this layout in `app/src/test/`
-([docs/TESTING.md](docs/TESTING.md)).
+([docs/TESTING.md](docs/TESTING.md)). The web app lives in `web/` (see [web/README.md](web/README.md)).
 
 ## Contributing
 

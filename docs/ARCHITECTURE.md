@@ -26,3 +26,9 @@ MVVM with Kotlin coroutines and Jetpack Compose (Material 3). Dependencies are w
   tested on the JVM.
 - **Large images** are decoded with `inSampleSize`, capped on import (3000 px), and processed off the main thread;
   out-of-memory becomes a message, not a crash.
+
+## Web app
+`web/` is a separate TypeScript project (Vite, no framework, `pdf-lib`). `src/core` is pure and DOM-free so it is
+tested in Node; the page detector there is a port of the Kotlin one and both share the same scene tests. State lives
+in `src/store.ts` (IndexedDB for page images, localStorage for settings); rendering and detection glue is in
+`src/imaging.ts`. A service worker caches the app shell for offline use.

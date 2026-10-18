@@ -2,6 +2,10 @@
 
 ## 1.0.0-beta.1
 First beta.
+- **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
+  (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
+- Detector fix (Android and web): a full-frame page with text no longer yields a crop of the text block; the side
+  contrast now compares paper levels (band maximum) instead of means.
 - New page detector (Canny + Hough + scored quadrilaterals) replacing the brightness-only heuristic.
 - Auto-crop is optional: separate switches for camera and imports (imports off by default); per-page controls;
   long-press multi-select with bulk auto-crop, remove crop, rotate, filter and delete.

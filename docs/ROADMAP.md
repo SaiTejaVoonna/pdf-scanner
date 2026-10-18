@@ -14,8 +14,13 @@ Prefer open-source building blocks over a dependency on any single vendor's SDK.
 - Library: search, rename, delete, share; dark mode; accessibility labels
 - CI that builds a downloadable debug APK
 
+## Done: web app (beta)
+Offline PWA in `web/`: camera and import, crop with auto-detect, filters, reorder, bulk actions, PDF export with
+size and quality, combine PDFs (text preserved), settings, installable, browser-tested including offline.
+
 ## Next
-1. **OCR and searchable PDFs** with Tesseract (Apache-2.0), bundled language data, search text in the library,
+0. **Web:** library of several documents, PDF page import/split with pdf.js, live page outline and auto-capture.
+1. **OCR and searchable PDFs** with Tesseract (Tesseract.js on the web) (Apache-2.0), bundled language data, search text in the library,
    suggest document names from the first lines of text.
 2. Folders and multi-select in the library (share/move/delete many documents).
 3. Better detection on difficult photos (more real-photo test cases; learned corner model if a suitably

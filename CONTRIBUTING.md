@@ -6,6 +6,9 @@
    (this file is git-ignored; never commit it).
 3. `./gradlew testDebugUnitTest lintDebug assembleDebug` should pass before you push. CI runs the same.
 
+## Web app
+`cd web && npm ci`, then `npm run dev`, `npm test`, `npm run build`, `npm run e2e` (see [web/README.md](web/README.md)).
+
 ## Guidelines
 - Put code in the package that matches its responsibility (see [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)). Keep `domain/`,
   and the pure parts of `imaging/` and `pdf/`, free of Android classes so they stay JVM-testable.
