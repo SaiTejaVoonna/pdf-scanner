@@ -1,4 +1,5 @@
 import { h } from '../dom';
+import { icon } from './icons';
 import * as store from '../store';
 
 /**
@@ -12,7 +13,7 @@ export function watchForUpdates(reg: ServiceWorkerRegistration): void {
   const hadController = !!navigator.serviceWorker.controller;
   let dismissed = false;
   let banner: HTMLElement;
-  const dismissButton = h('button', { class: 'icon-btn', 'aria-label': 'Dismiss', onclick: () => banner.remove() }, '✕');
+  const dismissButton = h('button', { class: 'icon-btn', 'aria-label': 'Dismiss', onclick: () => banner.remove() }, icon('close', 20));
   const show = (worker: ServiceWorker) => {
     if (shown) return;
     shown = true;

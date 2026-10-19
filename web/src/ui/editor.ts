@@ -2,6 +2,7 @@ import { FILTERS, type FilterName } from '../core/filters';
 import { cloneQuad, fullQuad, isValidCrop, clamp01, type Pt, type Quad } from '../core/geometry';
 import { chips, h, openDialog, toast } from '../dom';
 import { decode, detectCorners, renderPage } from '../imaging';
+import { icon } from './icons';
 import { blobOf, clearDraft, editPages, saveDraft, type PageModel } from '../store';
 
 export interface PageDraftData { corners: Quad; rotation: number; filter: FilterName }
@@ -33,7 +34,7 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
   let dlg!: HTMLDialogElement;
 
   const body = (close: () => void) => {
-    const back = h('button', { class: 'icon-btn', 'aria-label': 'Back', onclick: () => requestClose(close) }, '←');
+    const back = h('button', { class: 'icon-btn', 'aria-label': 'Back', onclick: () => requestClose(close) }, icon('arrow-left'));
     save = h('button', { class: 'btn primary', onclick: () => {
       if (!isValidCrop(corners)) { toast('The corners must form a convex shape that covers part of the page.'); return; }
       editPages([page.id], (p) => ({ ...p, corners: cloneQuad(corners), rotation, filter }));
@@ -149,7 +150,7 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
       canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', showOriginal ? 'Original photo' : 'Preview of the corrected page');
       stageInner.replaceChildren(canvas);
     };
-    const rot = (d: number) => h('button', { class: 'btn', 'aria-label': d > 0 ? 'Rotate right' : 'Rotate left', onclick: () => { rotation = (rotation + d + 360) % 360; touch(); void draw(); } }, d > 0 ? '⟳ Rotate right' : '⟲ Rotate left');
+    const rot = (d: number) => h('button', { class: 'btn', 'aria-label': d > 0 ? 'Rotate right' : 'Rotate left', onclick: () => { rotation = (rotation + d + 360) % 360; touch(); void draw(); } }, icon('rotate', 20), d > 0 ? ' Rotate right' : ' Rotate left');
     const compare = h('button', { class: 'btn', 'aria-pressed': 'false', onclick: () => {
       showOriginal = !showOriginal; compare.setAttribute('aria-pressed', String(showOriginal)); compare.textContent = showOriginal ? 'Show result' : 'Show original'; void draw();
     } }, showOriginal ? 'Show result' : 'Show original');

@@ -2,6 +2,7 @@ import { h, openDialog, toast } from '../dom';
 import { canvasToBlob, renderPage } from '../imaging';
 import { state, type PageModel } from '../store';
 import { openEditor } from './editor';
+import { icon } from './icons';
 
 const ZOOMS = [1, 1.5, 2, 3, 4];
 
@@ -15,10 +16,10 @@ export function openViewer(startId: string): void {
   const img = h('img', { class: 'viewer-img', alt: '', draggable: 'false' });
   const scroller = h('div', { class: 'viewer-scroll', tabindex: '0' }, img);
   const counter = h('span', { class: 'viewer-count', role: 'status' });
-  const prev = h('button', { class: 'icon-btn', 'aria-label': 'Previous page', onclick: () => go(-1) }, '‹');
-  const next = h('button', { class: 'icon-btn', 'aria-label': 'Next page', onclick: () => go(1) }, '›');
-  const zoomOut = h('button', { class: 'icon-btn', 'aria-label': 'Zoom out', onclick: () => setZoom(zoom - 1) }, '−');
-  const zoomIn = h('button', { class: 'icon-btn', 'aria-label': 'Zoom in', onclick: () => setZoom(zoom + 1) }, '+');
+  const prev = h('button', { class: 'icon-btn', 'aria-label': 'Previous page', onclick: () => go(-1) }, icon('chevron-left'));
+  const next = h('button', { class: 'icon-btn', 'aria-label': 'Next page', onclick: () => go(1) }, icon('chevron-right'));
+  const zoomOut = h('button', { class: 'icon-btn', 'aria-label': 'Zoom out', onclick: () => setZoom(zoom - 1) }, icon('minus'));
+  const zoomIn = h('button', { class: 'icon-btn', 'aria-label': 'Zoom in', onclick: () => setZoom(zoom + 1) }, icon('plus'));
   const zoomLabel = h('span', { class: 'viewer-zoom' });
 
   const page = (): PageModel | undefined => state.pages[index];
@@ -52,7 +53,7 @@ export function openViewer(startId: string): void {
   }
 
   const dlg = openDialog((close) => h('div', { class: 'editor viewer' },
-    h('div', { class: 'head' }, h('button', { class: 'icon-btn', 'aria-label': 'Close preview', onclick: close }, '←'), h('h2', {}, 'Preview'),
+    h('div', { class: 'head' }, h('button', { class: 'icon-btn', 'aria-label': 'Close preview', onclick: close }, icon('arrow-left')), h('h2', {}, 'Preview'),
       h('button', { class: 'btn', onclick: () => { const p = page(); if (p) { close(); openEditor(p); } } }, 'Edit this page')),
     scroller,
     h('div', { class: 'tools viewer-bar' }, prev, counter, next, h('span', { class: 'spacer' }), zoomOut, zoomLabel, zoomIn)), 'Preview',

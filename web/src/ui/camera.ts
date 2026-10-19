@@ -1,4 +1,5 @@
 import { h, openDialog, toast } from '../dom';
+import { icon } from './icons';
 import { canvasToBlob, normalize } from '../imaging';
 import { state, type CaptureMode } from '../store';
 
@@ -64,7 +65,7 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
     paint();
     paintCount();
     return h('div', { class: 'camera' }, video, guide, flash,
-      h('div', { class: 'cam-top' }, h('button', { class: 'cam-close', type: 'button', 'aria-label': 'Close', onclick: close }, '✕'), modeBar),
+      h('div', { class: 'cam-top' }, h('button', { class: 'cam-close', type: 'button', 'aria-label': 'Close', onclick: close }, icon('close', 20)), modeBar),
       hint, msg,
       h('div', { class: 'controls' }, h('div', { class: 'shots' }, last, count), shutter, done));
   }, 'Camera', () => { stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });

@@ -9,6 +9,7 @@ First beta.
   side deletion, reorder; one shared source per spread with non-destructive edits; the fold is never guessed silently
   (uncertain fold must be confirmed) and writing touching a crop edge is flagged. Known limit: the fold of the
   open-notebook test photo is found only by hand (flagged as uncertain), curved pages are not flattened, no OCR.
+- Web icons: the emoji are replaced by one hand-drawn outline icon set (`web/src/ui/icons.ts`, 24px grid, `currentColor`, no font or download), so icons look the same on every phone and follow light/dark mode. Preview sheet: `docs/screenshots/web-icons.png`.
 - Web UI polish (visual direction from a reference mock-up, no branding copied): home is one big **Scan pages** button, a quiet
   Single page / Book spread switch and four tool tiles (Import images, Take photo, Combine PDFs, Resize images); the camera
   has a restrained framing guide, an honest status line ("Fit both pages in the frame", it does **not** claim live detection)

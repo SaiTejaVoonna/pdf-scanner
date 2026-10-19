@@ -1,5 +1,6 @@
 import { combinePdfs, pageCount, safeFileName } from '../core/pdf';
 import { download, formatBytes, h, openDialog, toast } from '../dom';
+import { icon } from './icons';
 
 interface Item { file: File; pages: number }
 
@@ -16,9 +17,9 @@ export function openCombine(): void {
     const draw = () => {
       list.replaceChildren(...items.map((it, i) => h('li', {},
         h('span', {}, `${it.file.name} · ${it.pages} p · ${formatBytes(it.file.size)}`),
-        h('button', { class: 'icon-btn', 'aria-label': `Move ${it.file.name} up`, disabled: i === 0, onclick: () => { items.splice(i - 1, 0, items.splice(i, 1)[0]); draw(); } }, '↑'),
-        h('button', { class: 'icon-btn', 'aria-label': `Move ${it.file.name} down`, disabled: i === items.length - 1, onclick: () => { items.splice(i + 1, 0, items.splice(i, 1)[0]); draw(); } }, '↓'),
-        h('button', { class: 'icon-btn', 'aria-label': `Remove ${it.file.name}`, onclick: () => { items.splice(i, 1); draw(); } }, '✕'))));
+        h('button', { class: 'icon-btn', 'aria-label': `Move ${it.file.name} up`, disabled: i === 0, onclick: () => { items.splice(i - 1, 0, items.splice(i, 1)[0]); draw(); } }, icon('arrow-up', 20)),
+        h('button', { class: 'icon-btn', 'aria-label': `Move ${it.file.name} down`, disabled: i === items.length - 1, onclick: () => { items.splice(i + 1, 0, items.splice(i, 1)[0]); draw(); } }, icon('arrow-down', 20)),
+        h('button', { class: 'icon-btn', 'aria-label': `Remove ${it.file.name}`, onclick: () => { items.splice(i, 1); draw(); } }, icon('close', 20)))));
       go.disabled = items.length < 2;
     };
     picker.addEventListener('change', async () => {

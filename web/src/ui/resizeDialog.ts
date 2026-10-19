@@ -3,6 +3,7 @@ import { fitWithin, outputName, searchQuality } from '../core/sizing';
 import { zipStore } from '../core/zip';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, decode } from '../imaging';
+import { icon } from './icons';
 
 interface Item { file: File; w: number; h: number }
 interface Result { name: string; blob: Blob; w: number; h: number; before: number; note?: string }
@@ -37,7 +38,7 @@ export function openResize(): void {
     const draw = () => {
       list.replaceChildren(...items.map((it, i) => h('li', {},
         h('span', {}, `${it.file.name} · ${it.w}×${it.h} · ${formatBytes(it.file.size)}`),
-        h('button', { class: 'icon-btn', 'aria-label': `Remove ${it.file.name}`, onclick: () => { items.splice(i, 1); draw(); } }, '✕'))));
+        h('button', { class: 'icon-btn', 'aria-label': `Remove ${it.file.name}`, onclick: () => { items.splice(i, 1); draw(); } }, icon('close', 20)))));
       go.disabled = items.length === 0;
     };
     picker.addEventListener('change', async () => {

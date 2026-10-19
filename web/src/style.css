@@ -208,3 +208,16 @@ details.more summary { cursor: pointer; min-height: 44px; display: flex; align-i
 .doc-head { flex-wrap: nowrap; }
 .doc-head .titles { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .doc-head .titles .hint { margin-top: 2px; }
+
+/* ---------- outline icons (src/ui/icons.ts) ---------- */
+.icon { flex: none; display: block; }
+.btn .icon, .icon-btn .icon { display: inline-block; vertical-align: middle; }
+.icon-btn { display: inline-flex; align-items: center; justify-content: center; }
+.scan .icon { width: 30px; height: 30px; }
+.tile .big { color: var(--primary); display: flex; }
+.tile .chev { display: flex; }
+.empty-icon { color: var(--primary); opacity: .75; display: flex; justify-content: center; margin-bottom: 4px; }
+header.top .sub { display: flex; align-items: center; gap: 6px; }
+.check .icon { stroke-width: 2.6; }
+.camera .cam-close { display: grid; place-items: center; }
+.btn .icon + * , .btn * + .icon { margin-left: 2px; }

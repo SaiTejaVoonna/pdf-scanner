@@ -12,6 +12,7 @@ import { openResize } from './resizeDialog';
 import { openSettings } from './settingsDialog';
 import { openSpreadEditor, type SpreadDraftData } from './spreadEditor';
 import { thumbUrl } from './thumbs';
+import { icon, type IconName } from './icons';
 import { openViewer } from './viewer';
 
 declare const __APP_VERSION__: string;
@@ -93,14 +94,14 @@ export function mountApp(root: HTMLElement): void {
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },
   retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true } : { mode: cameraMode });
-  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, h('span', { class: 'big', 'aria-hidden': 'true' }, '📷'), 'Scan pages');
+  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, icon('scan', 30), 'Scan pages');
   const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'More ways to add pages and tools' },
-    tile('🖼️', 'Import images', () => importInput.click()),
-    tile('📸', 'Take photo', () => captureInput.click()),
-    tile('📑', 'Combine PDFs', () => openCombine()),
-    tile('📐', 'Resize images', () => openResize()));
+    tile('image', 'Import images', () => importInput.click()),
+    tile('camera', 'Take photo', () => captureInput.click()),
+    tile('combine', 'Combine PDFs', () => openCombine()),
+    tile('resize', 'Resize images', () => openResize()));
   const list = h('ul', { class: 'grid', 'aria-label': 'Pages' });
-  const empty = h('div', { class: 'empty' }, h('div', { style: 'font-size:2.5rem' }, '📄'), h('h2', {}, 'No pages yet'),
+  const empty = h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, icon('document', 56)), h('h2', {}, 'No pages yet'),
     h('p', {}, 'Tap Scan, or import photos. Then make one PDF. Nothing leaves this device.'));
   const docHead = h('div', { class: 'doc-head' });
   const bar = h('div', { class: 'bar' });
@@ -109,8 +110,8 @@ export function mountApp(root: HTMLElement): void {
   root.append(
     h('header', { class: 'top' },
       h('div', { class: 'brand' }, h('h1', {}, 'PDF Scanner', h('span', { class: 'beta' }, `beta ${__APP_VERSION__}`)),
-        h('p', { class: 'sub' }, h('span', { 'aria-hidden': 'true' }, '🔒 '), 'Private, saved on this device')),
-      h('button', { class: 'icon-btn', 'aria-label': 'Settings', onclick: openSettings }, '⚙️')),
+        h('p', { class: 'sub' }, icon('lock', 16), ' Private, saved on this device')),
+      h('button', { class: 'icon-btn', 'aria-label': 'Settings', onclick: openSettings }, icon('gear'))),
     h('main', {}, notice, scanBtn, modeSwitch, modeHint, tiles, docHead, list, empty), bar, importInput, captureInput);
 
   function render() {
@@ -142,7 +143,7 @@ export function mountApp(root: HTMLElement): void {
     docHead.append(h('div', { class: 'titles' }, h('h2', {}, 'Your pages'),
         h('span', { class: 'hint' }, `${state.pages.length} page${state.pages.length === 1 ? '' : 's'}${spreads ? ` · ${spreads} spread${spreads === 1 ? '' : 's'}` : ''}`)),
       h('button', { class: 'btn', onclick: () => { selectMode = true; render(); } }, 'Select'),
-      h('button', { class: 'icon-btn', 'aria-label': 'Start over', onclick: () => { if (confirm('Remove all pages and start over?')) store.clearAll(); } }, '🗑'));
+      h('button', { class: 'icon-btn', 'aria-label': 'Start over', onclick: () => { if (confirm('Remove all pages and start over?')) store.clearAll(); } }, icon('trash')));
   }
 
   /** Small action sheet for one page. */
@@ -175,11 +176,11 @@ export function mountApp(root: HTMLElement): void {
       onclick: () => { if (longPressed) { longPressed = false; return; } if (selecting) store.toggleSelect(p.id); else void editPage(p); },
       onpointerdown: () => { longPressed = false; timer = window.setTimeout(() => { longPressed = true; selectMode = true; store.toggleSelect(p.id); }, 500); },
       onpointerup: () => clearTimeout(timer), onpointerleave: () => clearTimeout(timer), onpointercancel: () => clearTimeout(timer),
-      oncontextmenu: (e: Event) => e.preventDefault() }, img, selecting ? h('span', { class: 'check', 'aria-hidden': 'true' }, selected ? '✓' : '') : null);
+      oncontextmenu: (e: Event) => e.preventDefault() }, img, selecting ? h('span', { class: 'check', 'aria-hidden': 'true' }, selected ? icon('check', 16) : null) : null);
     const spreadNo = p.spread ? state.spreads.findIndex((s) => s.id === p.spread!.id) + 1 : 0;
     const label = h('span', {}, `${index + 1}`, p.spread ? h('small', { class: 'badge' }, `Spread ${spreadNo} · ${p.spread.side}`) : null);
     const bar = h('div', { class: 'card-bar' }, label,
-      selecting ? null : h('button', { class: 'icon-btn', 'aria-label': `Page ${index + 1} menu`, onclick: () => openMenu(p, index, total) }, '⋮'));
+      selecting ? null : h('button', { class: 'icon-btn', 'aria-label': `Page ${index + 1} menu`, onclick: () => openMenu(p, index, total) }, icon('more')));
     return h('li', { class: 'card', 'data-id': p.id, 'data-selected': String(selected) }, thumb, bar);
   }
 
@@ -252,6 +253,6 @@ async function offerDraftResume(): Promise<void> {
       } }, 'Resume'))), 'Resume your edit?');
 }
 
-function tile(icon: string, label: string, onClick: () => void): HTMLElement {
-  return h('button', { class: 'tile', type: 'button', onclick: onClick }, h('span', { class: 'big', 'aria-hidden': 'true' }, icon), h('span', { class: 'label' }, label), h('span', { class: 'chev', 'aria-hidden': 'true' }, '›'));
+function tile(name: IconName, label: string, onClick: () => void): HTMLElement {
+  return h('button', { class: 'tile', type: 'button', onclick: onClick }, h('span', { class: 'big' }, icon(name, 26)), h('span', { class: 'label' }, label), h('span', { class: 'chev' }, icon('chevron-right', 22)));
 }

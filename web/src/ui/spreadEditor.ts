@@ -6,6 +6,7 @@ import { boundaryInk, findGutter, gutterPoints, isValidSpread, splitSpread, turn
 import { chips, h, openDialog, toast } from '../dom';
 import { decode } from '../imaging';
 import * as store from '../store';
+import { icon } from './icons';
 
 export interface SpreadDraftData {
   geo: SpreadGeometry; independent: boolean; left: Quad; right: Quad; filter: FilterName; confirmed: boolean;
@@ -197,7 +198,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       const g = findGutter(analysis, outer);
       geo = { outer, tTop: g.tTop, tBottom: g.tBottom };
       independent = false; confirmed = g.confident; layout(); refresh(); saveDraft();
-    } }, '⟳ Rotate');
+    } }, icon('rotate', 20), ' Rotate');
     const filterChips = chips(FILTERS, filter, (id) => { filter = id; saveDraft(); });
 
     const finish = (ok: boolean) => {
@@ -222,7 +223,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     const dlg = openDialog((close) => {
       void close;
       return h('div', { class: 'editor' },
-        h('div', { class: 'head' }, h('button', { class: 'icon-btn', 'aria-label': 'Cancel', onclick: () => { if (!applied) finish(false); } }, '←'),
+        h('div', { class: 'head' }, h('button', { class: 'icon-btn', 'aria-label': 'Cancel', onclick: () => { if (!applied) finish(false); } }, icon('arrow-left')),
           h('h2', {}, o.mode === 'retake' ? 'Retake spread' : o.mode === 'edit' ? 'Edit spread' : 'Review spread'), apply),
         stage,
         h('div', { class: 'tools' }, banner, sub, h('div', { class: 'row' }, autoBtn, rotateBtn, modeBtn, confirmBtn), filterChips));

@@ -2,6 +2,7 @@ import { buildPdf, defaultName, pdfOverheadBytes, PAGE_SIZES, pickQualityForTarg
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, renderPage } from '../imaging';
 import { state } from '../store';
+import { icon } from './icons';
 import { thumbUrl } from './thumbs';
 
 /** Draws `src` at `maxSide` (never enlarging) onto a fresh canvas. */
@@ -127,7 +128,7 @@ export function openExport(): void {
     status.textContent = '';
     return h('div', { class: 'sheet' },
       h('div', { class: 'sheet-body' },
-        h('button', { class: 'back', type: 'button', onclick: close }, h('span', { 'aria-hidden': 'true' }, '‹ '), 'Back'),
+        h('button', { class: 'back', type: 'button', onclick: close }, icon('chevron-left', 22), 'Back'),
         h('h2', {}, 'Ready to make your PDF'),
         h('p', { class: 'hint lead' }, `${n} page${n === 1 ? '' : 's'}, saved on this device`),
         strip,
