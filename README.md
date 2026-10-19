@@ -15,7 +15,7 @@ analytics, no uploads: it has no internet permission at all.
 | | Android app (`app/`) | Web app (`web/`) |
 | --- | --- | --- |
 | Runs on | Android 8.0+ | Any modern browser: iPhone, Android, desktop. Installable, works offline |
-| Get it | [Download the APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk) | Run it locally (`web/README.md`) or enable GitHub Pages (see [docs/RELEASING.md](docs/RELEASING.md)) |
+| Get it | [Download the APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk) | Run it locally (`web/README.md`) or enable GitHub Pages with one setting (see [docs/RELEASING.md](docs/RELEASING.md)); it then lives at `https://saitejavoonna.github.io/pdf-scanner/` |
 | Combine PDFs | By importing their pages as images | Keeps text and vectors (no re-rendering) |
 | Camera | In-app CameraX | In-page live camera, or the phone's own camera app |
 

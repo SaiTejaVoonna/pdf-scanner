@@ -11,11 +11,14 @@
   Never commit keystores or credentials.
 
 ## Web app on GitHub Pages
-The `Web CI` workflow always tests and builds `web/`. It deploys to GitHub Pages only when the owner has turned
-that on:
+The `Web CI` workflow always tests and builds `web/`, and tries to deploy to GitHub Pages on every push to
+`claude/amazing-babbage-qr2tmb`. Until Pages is switched on that deploy step cannot work (it is allowed to fail
+without failing the run). One setting from the owner turns it on:
 
 1. Repository **Settings -> Pages -> Build and deployment -> Source: GitHub Actions**.
-2. Repository **Settings -> Secrets and variables -> Actions -> Variables -> New variable**: `ENABLE_PAGES` = `true`.
-3. Push to `claude/amazing-babbage-qr2tmb`. The site appears at `https://<user>.github.io/pdf-scanner/`.
+2. Push any change to the branch, or open **Actions -> Web CI -> Re-run all jobs**.
+3. The site appears at `https://<user>.github.io/pdf-scanner/` (for this repo:
+   `https://saitejavoonna.github.io/pdf-scanner/`). Note the `/pdf-scanner/` at the end; the bare
+   `<user>.github.io` address is a different (user) site and will show a 404.
 
 The build uses relative paths, so it works under that sub-path. Camera access needs HTTPS, which Pages provides.
