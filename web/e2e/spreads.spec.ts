@@ -250,11 +250,14 @@ test('a new app version shows an update banner and never reloads over an open ed
   const swPath = new URL('../dist/sw.js', import.meta.url).pathname;
   const original = readFileSync(swPath, 'utf-8');
   writeFileSync(swPath, `${original}\n// release 2`);
-  try {
-    await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg!.update(); });
-  } finally { writeFileSync(swPath, original); }
   const banner = page.locator('.update-banner');
-  await expect(banner).toContainText('A new version is ready');
+  try {
+    // Keep the "release" published until the page has seen it (installing the worker takes a moment).
+    await expect(async () => {
+      await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); await reg!.update(); });
+      await expect(banner).toContainText('A new version is ready', { timeout: 3000 });
+    }).toPass({ timeout: 40_000 });
+  } finally { writeFileSync(swPath, original); }
   await expect(ed).toBeVisible(); // nothing reloaded by itself
   await banner.getByRole('button', { name: 'Update' }).click();
   await page.getByRole('dialog', { name: 'Resume your edit?' }).getByRole('button', { name: 'Resume' }).click(); // the page reloaded; the edit was kept
