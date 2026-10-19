@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { applyFilter, blackAndWhite, enhance, grayscale } from '../src/core/filters';
 import { area, fullQuad, isConvex, isFullFrame, isValidCrop, orderPoints, signedArea, type Quad } from '../src/core/geometry';
 import { boxBlur, createImg, downscale, sampleFactor } from '../src/core/image';
-import { buildPdf, combinePdfs, defaultName, extractPages, layout, pageCount, safeFileName } from '../src/core/pdf';
+import { buildPdf, combinePdfs, defaultName, extractPages, layout, pageCount, pdfOverheadBytes, pickQualityForTarget, QUALITIES, safeFileName } from '../src/core/pdf';
 import { homography, outputSize, rotate90, scaleQuad, warp } from '../src/core/warp';
 
 // The classic minimal 1x1 JPEG.
@@ -148,5 +148,21 @@ describe('pdf', () => {
     expect(safeFileName('notes.PDF')).toBe('notes'); expect(safeFileName('...hidden...')).toBe('hidden');
     expect(safeFileName('///')).toBe('Scan'); expect(safeFileName('x'.repeat(300))).toHaveLength(100);
     expect(defaultName(new Date(2026, 2, 9, 14, 5))).toBe('Scan 2026-03-09 14.05');
+  });
+  it('picks the best quality that fits a size limit, or null when nothing fits', () => {
+    const MB = 1048576;
+    const sizes = { high: 8 * MB, balanced: 3 * MB, small: 1.5 * MB, tiny: 0.6 * MB };
+    expect(pickQualityForTarget(sizes, 10 * MB)).toBe('high');
+    expect(pickQualityForTarget(sizes, 8 * MB)).toBe('high');
+    expect(pickQualityForTarget(sizes, 5 * MB)).toBe('balanced');
+    expect(pickQualityForTarget(sizes, 2 * MB)).toBe('small');
+    expect(pickQualityForTarget(sizes, 1 * MB)).toBe('tiny');
+    expect(pickQualityForTarget(sizes, 0.1 * MB)).toBeNull();
+    expect(pickQualityForTarget({}, 100 * MB)).toBeNull();
+    expect(pickQualityForTarget({ small: 1 * MB }, 2 * MB)).toBe('small');
+  });
+  it('quality presets get smaller down the list and the overhead grows with pages', () => {
+    for (let i = 1; i < QUALITIES.length; i++) { expect(QUALITIES[i].maxSide).toBeLessThan(QUALITIES[i - 1].maxSide); expect(QUALITIES[i].jpeg).toBeLessThanOrEqual(QUALITIES[i - 1].jpeg); }
+    expect(pdfOverheadBytes(10)).toBeGreaterThan(pdfOverheadBytes(1));
   });
 });

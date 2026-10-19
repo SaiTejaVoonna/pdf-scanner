@@ -66,6 +66,28 @@ test('imports images, edits a page, reorders, and exports a valid multipage PDF'
   doc.getPages().forEach((p) => { const { width, height } = p.getSize(); expect([Math.round(width), Math.round(height)].sort()).toEqual([612, 792]); });
 });
 
+test('export shows the estimated size of each quality and can pick one that fits a limit', async ({ page }) => {
+  await importImages(page, 2);
+  await page.getByRole('button', { name: 'Export PDF' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Export PDF' });
+  // Estimates appear on the quality buttons: "High · ≈ 180 KB" and so on, getting smaller down the list.
+  await expect(dlg.getByRole('radio', { name: /Tiny · ≈ [\d.]+ (KB|MB)/ })).toBeVisible();
+  const kb = async (label: RegExp) => { const t = await dlg.getByRole('radio', { name: label }).textContent(); const m = t!.match(/≈ ([\d.]+) (KB|MB|B)/)!; return parseFloat(m[1]) * (m[2] === 'MB' ? 1024 : m[2] === 'KB' ? 1 : 1 / 1024); };
+  const [high, tiny] = [await kb(/^High/), await kb(/^Tiny/)];
+  expect(tiny).toBeLessThan(high);
+  // A generous limit keeps High; an impossible one says so and falls back to Tiny.
+  await dlg.getByLabel(/Keep under \(MB\)/).fill('50');
+  await expect(dlg.getByRole('radio', { name: /^High/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(dlg.getByText(/High fits under 50 MB/)).toBeVisible();
+  await dlg.getByLabel(/Keep under \(MB\)/).fill('0.001');
+  await expect(dlg.getByRole('radio', { name: /^Tiny/ })).toHaveAttribute('aria-checked', 'true');
+  await expect(dlg.getByText(/Even Tiny is about/)).toBeVisible();
+  // The real PDF is then built and its true size is shown.
+  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Download PDF' }).click()]);
+  await download.path();
+  await expect(dlg.getByText(/\.pdf · [\d.]+ (KB|MB|B)/)).toBeVisible();
+});
+
 test('selection mode applies bulk actions to the selected pages only', async ({ page }) => {
   await importImages(page, 3);
   await page.getByRole('button', { name: 'Select page 1' }).first().click();

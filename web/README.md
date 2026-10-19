@@ -30,4 +30,6 @@ e2e/            Playwright tests (real Chromium, fake camera) and the screenshot
 - Camera needs HTTPS (or localhost). If the live camera is blocked, "Take photo" opens the phone's own camera.
 - Scans are kept in IndexedDB on the device. Browsers can clear site data (Safari after about a week without
   use unless the app is installed to the home screen), so export what matters.
+- Export shows an estimated file size for every quality (computed in the browser, within a few percent) and can pick the
+  best quality that fits a "keep under N MB" limit.
 - Offline: a service worker caches the app after the first visit.

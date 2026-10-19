@@ -4,13 +4,29 @@ export type PageSizeName = 'a4' | 'letter' | 'match';
 export const PAGE_SIZES: { id: PageSizeName; label: string }[] = [
   { id: 'a4', label: 'A4' }, { id: 'letter', label: 'US Letter' }, { id: 'match', label: 'Match image' },
 ];
-export type QualityName = 'high' | 'balanced' | 'small';
-/** Longest image side in pixels and JPEG quality (0..1). */
+export type QualityName = 'high' | 'balanced' | 'small' | 'tiny';
+/** Longest image side in pixels and JPEG quality (0..1), best quality first. */
 export const QUALITIES: { id: QualityName; label: string; maxSide: number; jpeg: number }[] = [
   { id: 'high', label: 'High', maxSide: 2480, jpeg: 0.9 },        // about 300 dpi on A4
   { id: 'balanced', label: 'Balanced', maxSide: 1754, jpeg: 0.8 }, // about 150 dpi
   { id: 'small', label: 'Small file', maxSide: 1240, jpeg: 0.65 }, // about 100 dpi
+  { id: 'tiny', label: 'Tiny', maxSide: 900, jpeg: 0.5 },          // about 75 dpi, for upload limits
 ];
+
+/** Rough PDF structure overhead on top of the embedded JPEGs. */
+export const pdfOverheadBytes = (pageCount: number): number => 1500 + 700 * pageCount;
+
+/**
+ * The best quality whose estimated size is within `targetBytes`, or null when even the smallest is too big.
+ * `sizes` holds the estimated total bytes per quality.
+ */
+export function pickQualityForTarget(sizes: Partial<Record<QualityName, number>>, targetBytes: number): QualityName | null {
+  for (const q of QUALITIES) {
+    const size = sizes[q.id];
+    if (size !== undefined && size <= targetBytes) return q.id;
+  }
+  return null;
+}
 
 const FIXED: Record<'a4' | 'letter', [number, number]> = { a4: [595.28, 841.89], letter: [612, 792] };
 const MATCH_DPI = 150;

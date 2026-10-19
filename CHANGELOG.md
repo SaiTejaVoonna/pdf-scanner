@@ -4,6 +4,9 @@
 First beta.
 - **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
   (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
+- Web: the Export dialog shows the **estimated PDF size** (KB/MB) for each quality, adds a **Tiny** preset, and has an optional
+  "Keep under (MB)" box that picks the best quality that fits (estimates were within 0-5% of the real size in a test with
+  two 3000x4000 photos).
 - Web: detected crops get a small outward margin; `npm run bench` scores the detector on a folder of real photos.
 - Detector fix (Android and web): a full-frame page with text no longer yields a crop of the text block; the side
   contrast now compares paper levels (band maximum) instead of means.
