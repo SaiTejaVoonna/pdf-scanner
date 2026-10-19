@@ -96,8 +96,14 @@ export function mountApp(root: HTMLElement): void {
   };
 
   const cameraMode = { get: () => state.settings.captureMode, set: (m: 'single' | 'spread') => store.updateSettings({ captureMode: m }) };
-  const scan = () => openCamera((blob) => ingest([blob], 'camera'), () => captureInput.click(), { mode: cameraMode });
-  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: scan }, h('span', { class: 'big', 'aria-hidden': 'true' }, '📷'), 'Scan');
+  /** Opens the camera; with `retake` (a spread id) it takes one photo and sends it to that spread's retake review. */
+  const scan = (retake?: string) => openCamera(async (blob) => {
+    if (!retake) { await ingest([blob], 'camera'); return; }
+    retaking = retake;
+    try { await reviewSpread(blob); } finally { retaking = null; }
+  }, () => { retaking = retake ?? null; captureInput.click(); },
+  retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true } : { mode: cameraMode });
+  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, h('span', { class: 'big', 'aria-hidden': 'true' }, '📷'), 'Scan');
   const actions = h('div', { class: 'actions' },
     action('📸', 'Take photo', () => captureInput.click()),
     action('🖼️', 'Import images', () => importInput.click()));
@@ -157,7 +163,7 @@ export function mountApp(root: HTMLElement): void {
       return h('div', { class: 'dlg menu' }, h('h2', {}, `Page ${index + 1}`),
         item('Preview', () => openViewer(p.id)),
         item(p.spread ? 'Edit spread' : 'Edit page', () => void editPage(p)),
-        p.spread ? item('Retake spread', () => { retaking = p.spread!.id; scan(); }) : null,
+        p.spread ? item('Retake spread', () => scan(p.spread!.id)) : null,
         item('Move earlier', () => store.movePage(p.id, -1), index === 0),
         item('Move later', () => store.movePage(p.id, 1), index === total - 1),
         item('Select', () => { selectMode = true; store.toggleSelect(p.id); }),

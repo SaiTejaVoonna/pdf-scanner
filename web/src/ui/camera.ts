@@ -31,7 +31,7 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
     hint.textContent = m === 'spread' ? 'Book spread: fit both pages in the frame. You will check the split next.' : 'Single page: fit the page in the frame.';
     segs.forEach(([id, b]) => b.setAttribute('aria-checked', String(id === m)));
   };
-  const segs = opts.mode ? (['single', 'spread'] as const).map((id) => [id, h('button', { class: 'chip', role: 'radio', type: 'button', onclick: () => { opts.mode!.set(id); paint(); } }, id === 'single' ? 'Single page' : 'Book spread')] as const) : [];
+  const segs = opts.mode && !opts.single ? (['single', 'spread'] as const).map((id) => [id, h('button', { class: 'chip', role: 'radio', type: 'button', onclick: () => { opts.mode!.set(id); paint(); } }, id === 'single' ? 'Single page' : 'Book spread')] as const) : [];
   const modeBar = h('div', { class: 'chips cam-modes', role: 'radiogroup', 'aria-label': 'Capture mode' }, ...segs.map(([, b]) => b));
   const stop = () => stream?.getTracks().forEach((t) => t.stop());
 

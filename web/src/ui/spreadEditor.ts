@@ -45,7 +45,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     let left: Quad = o.resume?.left ?? existing.find((p) => p.spread?.side === 'L')?.corners ?? splitSpread(geo)[0];
     let right: Quad = o.resume?.right ?? existing.find((p) => p.spread?.side === 'R')?.corners ?? splitSpread(geo)[1];
     let filter: FilterName = o.resume?.filter ?? existing[0]?.filter ?? store.state.settings.defaultFilter;
-    let confirmed = o.resume?.confirmed ?? (!o.uncertain && o.mode === 'edit');
+    let confirmed = o.resume?.confirmed ?? !o.uncertain;
     let bitmap: ImageBitmap | null = null;
     let analysis: Img | null = null;
     let applied = false;
