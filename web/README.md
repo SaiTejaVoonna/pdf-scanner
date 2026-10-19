@@ -20,7 +20,7 @@ src/core/     Pure TypeScript, no DOM: geometry, filters, perspective warp, page
               scored quadrilaterals), PDF building (pdf-lib). Unit-tested in Node.
 src/imaging.ts  Browser glue: decode (EXIF-aware), normalise, render a page, run detection.
 src/store.ts    State, settings (localStorage) and persistence (IndexedDB).
-src/ui/         Screens: main view, editor, camera, export, combine, settings.
+src/ui/         Screens: main view, editor, viewer (preview), camera, export, combine, resize, settings.
 public/         Manifest, icons, service worker (offline).
 e2e/            Playwright tests (real Chromium, fake camera) and the screenshot script.
 ```

@@ -4,6 +4,9 @@
 First beta.
 - **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
   (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
+- Web, for students: a full-screen **Preview** (page with arrows/swipe, zoom, jump to the editor), a **Show original**
+  compare button in the editor, and a **Resize images** tool (presets or custom pixels, JPEG/PNG, optional "keep each
+  image under X MB" for upload portals, before/after sizes, individual files or one ZIP). Browser-side only.
 - Web: the Export dialog shows the **estimated PDF size** (KB/MB) for each quality, adds a **Tiny** preset, and has an optional
   "Keep under (MB)" box that picks the best quality that fits (estimates were within 0-5% of the real size in a test with
   two 3000x4000 photos).

@@ -24,6 +24,14 @@ for (const scheme of ['light', 'dark']) {
     await page.waitForTimeout(1200);
     await page.screenshot({ path: `${out}web-enhance-${scheme}.png` });
     await ed.getByRole('button', { name: 'Save' }).click();
+    await page.getByRole('button', { name: 'Preview page 1' }).click();
+    await page.waitForTimeout(1200);
+    await page.screenshot({ path: `${out}web-preview-${scheme}.png` });
+    await page.getByRole('button', { name: 'Close preview' }).click();
+    await page.getByRole('button', { name: 'Resize images' }).click();
+    await page.waitForTimeout(400);
+    await page.screenshot({ path: `${out}web-resize-${scheme}.png` });
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
     await page.getByRole('button', { name: 'Export PDF' }).click();
     await page.waitForTimeout(400);
     await page.screenshot({ path: `${out}web-export-${scheme}.png` });

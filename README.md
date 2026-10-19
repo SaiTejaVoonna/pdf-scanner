@@ -37,6 +37,10 @@ Web app (captured from the real build in headless Chromium; Android screenshots 
 | --- | --- | --- | --- |
 | ![Pages](docs/screenshots/web-pages-light.png) | ![Crop](docs/screenshots/web-crop-light.png) | ![Enhance](docs/screenshots/web-enhance-light.png) | ![Export](docs/screenshots/web-export-light.png) |
 
+| Preview | Resize images |
+|---|---|
+| ![Preview](docs/screenshots/web-preview-light.png) | ![Resize](docs/screenshots/web-resize-light.png) |
+
 Dark mode: [pages](docs/screenshots/web-pages-dark.png).
 
 ## What it does today

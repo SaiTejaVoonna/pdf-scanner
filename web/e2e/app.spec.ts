@@ -197,3 +197,60 @@ test('works offline after the first visit (service worker)', async ({ page, cont
   expect((await PDFDocument.load(readFileSync((await download.path())!))).getPageCount()).toBe(1);
   await context.setOffline(false);
 });
+
+test('preview pages through the scans, zoom, and jump to the editor', async ({ page }) => {
+  await importImages(page, 3);
+  await page.getByRole('button', { name: 'Preview page 2' }).click();
+  const viewer = page.getByRole('dialog', { name: 'Preview' });
+  await expect(viewer.getByText('Page 2 of 3')).toBeVisible();
+  await expect(viewer.getByRole('img', { name: 'Page 2 of 3' })).toHaveJSProperty('complete', true);
+  await viewer.getByRole('button', { name: 'Next page' }).click();
+  await expect(viewer.getByText('Page 3 of 3')).toBeVisible();
+  await expect(viewer.getByRole('button', { name: 'Next page' })).toBeDisabled();
+  await page.keyboard.press('ArrowLeft');
+  await expect(viewer.getByText('Page 2 of 3')).toBeVisible();
+  const img = viewer.getByRole('img', { name: 'Page 2 of 3' });
+  const w0 = (await img.boundingBox())!.width;
+  await viewer.getByRole('button', { name: 'Zoom in' }).click();
+  await expect.poll(async () => (await img.boundingBox())!.width).toBeGreaterThan(w0 * 1.3);
+  await viewer.getByRole('button', { name: 'Edit this page' }).click();
+  await expect(page.getByRole('dialog', { name: 'Edit page' })).toBeVisible();
+});
+
+test('editor can compare the result with the original photo', async ({ page }) => {
+  await importImages(page, 1);
+  await page.getByRole('button', { name: 'Edit page 1' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit page' });
+  await editor.getByRole('tab', { name: 'Enhance' }).click();
+  await expect(editor.getByRole('img', { name: 'Preview of the corrected page' })).toBeVisible();
+  await editor.getByRole('button', { name: 'Show original' }).click();
+  await expect(editor.getByRole('img', { name: 'Original photo' })).toBeVisible();
+  await editor.getByRole('button', { name: 'Show result' }).click();
+  await expect(editor.getByRole('img', { name: 'Preview of the corrected page' })).toBeVisible();
+});
+
+test('resizes images to a size and a file-size limit, and downloads a valid ZIP', async ({ page }) => {
+  await page.getByRole('button', { name: 'Resize images' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Resize images' });
+  await dlg.locator('input[type=file]').setInputFiles([png('photo.png', 1600, 2000), png('photo.png', 800, 1000)]);
+  await expect(dlg.locator('.list li')).toHaveCount(2);
+  await dlg.getByRole('radio', { name: 'Small 800' }).click();
+  await dlg.getByLabel('Keep each image under').fill('0.03');
+  await dlg.getByRole('button', { name: 'Resize', exact: true }).click();
+  const rows = dlg.getByRole('list', { name: 'Resized images' }).locator('li');
+  await expect(rows).toHaveCount(2);
+  await expect(rows.nth(0)).toContainText('photo-resized.jpg');
+  await expect(rows.nth(1)).toContainText('photo-resized (2).jpg'); // same input name never overwrites
+  const dl = page.waitForEvent('download');
+  await dlg.getByRole('button', { name: 'Download photo-resized.jpg' }).click();
+  const file = await (await dl).createReadStream();
+  const chunks: Buffer[] = []; for await (const c of file) chunks.push(c as Buffer);
+  const jpg = Buffer.concat(chunks);
+  expect(jpg.length).toBeLessThanOrEqual(0.03 * 1048576);
+  expect([jpg[0], jpg[1]]).toEqual([0xff, 0xd8]);
+  const zipDl = page.waitForEvent('download');
+  await dlg.getByRole('button', { name: 'Download all (ZIP)' }).click();
+  const zipPath = await (await zipDl).path();
+  const { execFileSync } = await import('node:child_process');
+  expect(execFileSync('unzip', ['-t', zipPath]).toString()).toContain('No errors detected');
+});

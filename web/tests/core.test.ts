@@ -166,3 +166,69 @@ describe('pdf', () => {
     expect(pdfOverheadBytes(10)).toBeGreaterThan(pdfOverheadBytes(1));
   });
 });
+
+import { crc32, zipStore } from '../src/core/zip';
+import { fitWithin, outputName, searchQuality } from '../src/core/sizing';
+
+describe('zip', () => {
+  const text = (s: string) => new TextEncoder().encode(s);
+  it('crc32 matches known values', () => {
+    expect(crc32(text('123456789'))).toBe(0xcbf43926);
+    expect(crc32(new Uint8Array())).toBe(0);
+  });
+  it('writes a readable stored zip (local headers, central directory, end record, matching CRCs)', () => {
+    const files = [{ name: 'a.txt', data: text('hello') }, { name: 'dir/é b.bin', data: Uint8Array.from([0, 1, 2, 255]) }];
+    const z = zipStore(files, new Date(2026, 9, 19, 13, 30, 10));
+    const v = new DataView(z.buffer, z.byteOffset, z.byteLength);
+    const end = z.length - 22;
+    expect(v.getUint32(end, true)).toBe(0x06054b50);
+    expect(v.getUint16(end + 10, true)).toBe(2);
+    let c = v.getUint32(end + 16, true);
+    const read: { name: string; data: Uint8Array }[] = [];
+    for (let i = 0; i < 2; i++) {
+      expect(v.getUint32(c, true)).toBe(0x02014b50);
+      const crc = v.getUint32(c + 16, true), size = v.getUint32(c + 20, true), nameLen = v.getUint16(c + 28, true), off = v.getUint32(c + 42, true);
+      const name = new TextDecoder().decode(z.slice(c + 46, c + 46 + nameLen));
+      expect(v.getUint32(off, true)).toBe(0x04034b50);
+      const start = off + 30 + v.getUint16(off + 26, true);
+      const data = z.slice(start, start + size);
+      expect(crc32(data)).toBe(crc);
+      read.push({ name, data });
+      c += 46 + nameLen;
+    }
+    expect(read.map((r) => r.name)).toEqual(['a.txt', 'dir/é b.bin']);
+    expect(new TextDecoder().decode(read[0].data)).toBe('hello');
+    expect(Array.from(read[1].data)).toEqual([0, 1, 2, 255]);
+  });
+  it('rejects empty and duplicate-name archives', () => {
+    expect(() => zipStore([])).toThrow();
+    expect(() => zipStore([{ name: 'x', data: text('1') }, { name: 'x', data: text('2') }])).toThrow();
+  });
+});
+
+describe('sizing', () => {
+  it('fitWithin scales down, keeps aspect, never enlarges', () => {
+    expect(fitWithin(4000, 2000, 2000)).toEqual([2000, 1000]);
+    expect(fitWithin(1500, 2000, 1000)).toEqual([750, 1000]);
+    expect(fitWithin(800, 600, 2048)).toEqual([800, 600]);
+    expect(fitWithin(4000, 3000, null)).toEqual([4000, 3000]);
+    expect(fitWithin(1, 4000, 800)).toEqual([1, 800]);
+  });
+  it('output names are sanitised and unique within a batch', () => {
+    const t = new Set<string>();
+    expect(outputName('IMG_001.JPG', 'jpg', t)).toBe('IMG_001-resized.jpg');
+    expect(outputName('img_001.png', 'jpg', t)).toBe('img_001-resized (2).jpg');
+    expect(outputName('IMG_001.jpeg', 'jpg', t)).toBe('IMG_001-resized (3).jpg');
+    expect(outputName('a/b.jpg', 'jpg', t)).toBe('a b-resized.jpg');
+    expect(outputName(undefined, 'png', t)).toBe('image-resized.png');
+  });
+  it('searchQuality finds the best quality within the limit', async () => {
+    const size = (q: number) => Math.round(q * 1000); // monotonic stand-in for a JPEG encoder
+    const r = await searchQuality(async (q) => size(q), 700);
+    expect(r).not.toBeNull();
+    expect(r!.size).toBeLessThanOrEqual(700);
+    expect(r!.size).toBeGreaterThan(650); // close to the limit, not wastefully low
+    expect((await searchQuality(async (q) => size(q), 5000))!.quality).toBe(0.95); // already fits at the top
+    expect(await searchQuality(async (q) => size(q), 100)).toBeNull(); // even the minimum is too big
+  });
+});

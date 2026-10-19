@@ -8,7 +8,9 @@ import { openCamera } from './camera';
 import { openCombine } from './combineDialog';
 import { openEditor } from './editor';
 import { openExport } from './exportDialog';
+import { openResize } from './resizeDialog';
 import { openSettings } from './settingsDialog';
+import { openViewer } from './viewer';
 
 declare const __APP_VERSION__: string;
 
@@ -50,7 +52,8 @@ export function mountApp(root: HTMLElement): void {
     action('📷', 'Scan with camera', () => openCamera((blob) => ingest([blob], 'camera'), () => captureInput.click())),
     action('📸', 'Take photo', () => captureInput.click()),
     action('🖼️', 'Import images', () => importInput.click()),
-    action('📑', 'Combine PDFs', () => openCombine()));
+    action('📑', 'Combine PDFs', () => openCombine()),
+    action('📐', 'Resize images', () => openResize()));
   const list = h('ul', { class: 'grid', 'aria-label': 'Pages' });
   const empty = h('div', { class: 'empty' }, h('div', { style: 'font-size:2.5rem' }, '📄'), h('h2', {}, 'No pages yet'),
     h('p', {}, 'Scan with the camera or import images, then export one PDF. Everything stays on this device.'));
@@ -85,6 +88,7 @@ export function mountApp(root: HTMLElement): void {
       oncontextmenu: (e: Event) => e.preventDefault() }, img, selecting ? h('span', { class: 'check', 'aria-hidden': 'true' }, selected ? '✓' : '') : null);
     const bar = selecting ? h('div', { class: 'card-bar' }, h('span', {}, `Page ${index + 1}`)) :
       h('div', { class: 'card-bar' }, h('span', {}, `Page ${index + 1}`),
+        h('button', { class: 'icon-btn', 'aria-label': `Preview page ${index + 1}`, onclick: () => openViewer(p.id) }, '👁'),
         h('button', { class: 'icon-btn', 'aria-label': `Select page ${index + 1}`, onclick: () => store.toggleSelect(p.id) }, '☐'),
         h('button', { class: 'icon-btn', 'aria-label': `Move page ${index + 1} earlier`, disabled: index === 0, onclick: () => store.movePage(p.id, -1) }, '←'),
         h('button', { class: 'icon-btn', 'aria-label': `Move page ${index + 1} later`, disabled: index === total - 1, onclick: () => store.movePage(p.id, 1) }, '→'),
@@ -99,6 +103,7 @@ export function mountApp(root: HTMLElement): void {
     bar.hidden = false;
     if (n === 0) {
       bar.append(h('button', { class: 'btn primary', onclick: openExport }, 'Export PDF'),
+        h('button', { class: 'btn', onclick: () => openViewer(state.pages[0].id) }, 'Preview'),
         h('button', { class: 'btn danger', onclick: () => { if (confirm('Remove all pages and start over?')) store.clearAll(); } }, 'Start over'));
       return;
     }

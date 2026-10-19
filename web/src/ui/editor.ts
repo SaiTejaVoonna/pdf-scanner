@@ -114,6 +114,7 @@ export function openEditor(page: PageModel): void {
   }
 
   let renderToken = 0;
+  let showOriginal = false;
   async function renderEnhance() {
     const preview = h('div', { class: 'hint' }, 'Rendering…');
     stageInner.style.width = ''; stageInner.style.height = '';
@@ -121,14 +122,19 @@ export function openEditor(page: PageModel): void {
     const draw = async () => {
       const token = ++renderToken;
       const { maxW, maxH } = fit();
-      const canvas = await renderPage({ ...page, corners, rotation, filter }, Math.round(Math.max(maxW, maxH) * (window.devicePixelRatio || 1)));
+      const shown = showOriginal ? { ...page, corners: fullQuad(), rotation: 0, filter: 'original' as FilterName } : { ...page, corners, rotation, filter };
+      const canvas = await renderPage(shown, Math.round(Math.max(maxW, maxH) * (window.devicePixelRatio || 1)));
       if (token !== renderToken || tab !== 'enhance') return;
       canvas.style.maxWidth = `${maxW}px`; canvas.style.maxHeight = `${maxH}px`;
-      canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', 'Preview of the corrected page');
+      canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', showOriginal ? 'Original photo' : 'Preview of the corrected page');
       stageInner.replaceChildren(canvas);
     };
     const rot = (d: number) => h('button', { class: 'btn', 'aria-label': d > 0 ? 'Rotate right' : 'Rotate left', onclick: () => { rotation = (rotation + d + 360) % 360; dirty = true; void draw(); } }, d > 0 ? '⟳ Rotate right' : '⟲ Rotate left');
-    tools.append(chips(FILTERS, filter, (id) => { filter = id; dirty = true; void draw(); }), h('div', { class: 'row' }, rot(-90), rot(90)));
+    const compare = h('button', { class: 'btn', 'aria-pressed': 'false', onclick: () => {
+      showOriginal = !showOriginal; compare.setAttribute('aria-pressed', String(showOriginal)); compare.textContent = showOriginal ? 'Show result' : 'Show original'; void draw();
+    } }, showOriginal ? 'Show result' : 'Show original');
+    compare.setAttribute('aria-pressed', String(showOriginal));
+    tools.append(chips(FILTERS, filter, (id) => { filter = id; showOriginal = false; compare.setAttribute('aria-pressed', 'false'); compare.textContent = 'Show original'; dirty = true; void draw(); }), h('div', { class: 'row' }, rot(-90), rot(90), compare));
     await draw();
   }
 
