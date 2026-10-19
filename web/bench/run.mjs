@@ -14,7 +14,7 @@ mkdirSync(out, { recursive: true });
 const files = readdirSync(dir).filter((f) => /\.(png|jpe?g|webp)$/i.test(f)).sort();
 if (!files.length) { console.error(`No images found in ${dir}`); process.exit(1); }
 
-const server = spawn('npx', ['vite', '--port', '5199', '--strictPort'], { stdio: 'ignore' });
+const server = spawn('npx', ['vite', '--port', '5199', '--strictPort'], { stdio: 'ignore', detached: true });
 const wait = async () => { for (let i = 0; i < 60; i++) { try { if ((await fetch('http://localhost:5199/')).ok) return; } catch { /* starting */ } await new Promise((r) => setTimeout(r, 500)); } throw new Error('dev server did not start'); };
 try {
   await wait();
@@ -64,4 +64,4 @@ try {
   console.log(`\n${found}/${files.length} detected` + (scored ? `; mean overlap ${(100 * iouSum / scored).toFixed(0)}% over ${scored} with ground truth` : ''));
   console.log(`Annotated images: ${out}`);
   await browser.close();
-} finally { server.kill(); }
+} finally { try { process.kill(-server.pid); } catch { /* already gone */ } }

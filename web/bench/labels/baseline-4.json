@@ -1,0 +1,98 @@
+{
+ "_note": "Hand labels (fractions of the image, corners clockwise from top-left) for the four phone photos Sai Teja supplied. Coordinates only; the photos are private and are not in the repo. P1 spread, P2 app preview shown on a phone screen (weak label), P3 phone showing a white page, P4 dark phone screen (no paper).",
+ "P1-notebook-spread": {
+  "expect": "spread",
+  "pages": [
+   [
+    [
+     0.0,
+     0.2025
+    ],
+    [
+     0.0747,
+     0.2275
+    ],
+    [
+     0.0933,
+     0.845
+    ],
+    [
+     0.0,
+     0.8725
+    ]
+   ],
+   [
+    [
+     0.0747,
+     0.2275
+    ],
+    [
+     0.52,
+     0.245
+    ],
+    [
+     0.6133,
+     0.785
+    ],
+    [
+     0.0933,
+     0.845
+    ]
+   ]
+  ],
+  "file": "495c4de4-image.jpg"
+ },
+ "P2-screen-preview": {
+  "expect": "page",
+  "weak": true,
+  "pages": [
+   [
+    [
+     0.2867,
+     0.325
+    ],
+    [
+     0.65,
+     0.325
+    ],
+    [
+     0.6367,
+     0.7275
+    ],
+    [
+     0.27,
+     0.725
+    ]
+   ]
+  ],
+  "file": "145d9c9f-image.jpg"
+ },
+ "P3-phone-white-page": {
+  "expect": "page",
+  "pages": [
+   [
+    [
+     0.3133,
+     0.39
+    ],
+    [
+     0.66,
+     0.39
+    ],
+    [
+     0.65,
+     0.8925
+    ],
+    [
+     0.3,
+     0.8875
+    ]
+   ]
+  ],
+  "file": "766c1a60-image.jpg"
+ },
+ "P4-dark-screen": {
+  "expect": "none",
+  "file": "91d8f1e6-image.jpg"
+ }
+}
