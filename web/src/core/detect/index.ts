@@ -4,6 +4,7 @@ import { boxBlur, luma, type Img } from '../image';
 import { cannyEdges } from './canny';
 import { borderLines, houghLines, type Line } from './hough';
 import { paperCandidates } from './paper';
+import { contentQuad, inkCrossing, inkNear, inkPoints } from './content';
 import { regionCandidates } from './region';
 
 /**
@@ -18,10 +19,16 @@ import { regionCandidates } from './region';
 const MIN_AREA = 0.12, MAX_AREA = 0.985, MIN_MEAN_SUPPORT = 0.55, MIN_SIDE_SUPPORT = 0.35, BORDER_WEIGHT = 0.5;
 const MIN_SIDE_CONTRAST = 8, FULL_CONTRAST = 25, MAX_NEAR_DENSITY = 0.65, BORDER_PENALTY = 0.9;
 const MIN_PAPER_FRACTION = 0.5;
+const MIN_INK = 300, MAX_CROSSING = 0.04, CONTENT_MARGIN = 0.05, MAX_GROWTH = 1.6;
 const CONTRAST_OFFSETS = [4, 7, 10, 13, 16];
 
-/** `img` should be a small copy (about 400 px); returns normalized corners or null. */
-export function detectPage(img: Img): Quad | null {
+export interface Candidate { source: 'lines' | 'region' | 'paper'; quad: Quad; score: number; paper: number }
+
+/**
+ * `img` should be a small copy (about 400 px); returns normalized corners or null. `trace` (benchmarks and debugging) is called
+ * with every candidate that survives the basic checks, with the score it would have.
+ */
+export function detectPage(img: Img, trace?: (c: Candidate) => void): Quad | null {
   const { width: w, height: h, data } = img;
   if (w < 32 || h < 32) return null;
   const n = w * h;
@@ -36,10 +43,13 @@ export function detectPage(img: Img): Quad | null {
   const smooth = channels.map((c) => blur2(c, w, h));
   const scorer = new Scorer(near, smooth, w, h);
   let best: { quad: Quad; score: number } | null = null;
+  let source: Candidate['source'] = 'lines';
   const consider = (px: Pt[] | null) => {
     if (!px) return;
     const s = scorer.score(px);
-    if (!s || (best && s.score <= best.score)) return;
+    if (!s) return;
+    if (trace) { const pf = scorer.paperFraction(s.quad); trace({ source, quad: s.quad, score: s.score * Math.pow(pf, 3), paper: pf }); }
+    if (best && s.score <= best.score) return;
     // Only the few candidates that could win pay for the (slower) "is this mostly paper?" check.
     const pf = scorer.paperFraction(s.quad);
     if (pf < MIN_PAPER_FRACTION) return;
@@ -53,15 +63,25 @@ export function detectPage(img: Img): Quad | null {
 
   const gray = new Int32Array(n);
   for (let i = 0; i < n; i++) gray[i] = luma(channels[0][i], channels[1][i], channels[2][i]);
+  source = 'region';
   for (const q of regionCandidates(gray, w, h)) consider(q.map((p) => ({ x: p.x * w, y: p.y * h })));
   const white = new Int32Array(n);
   for (let i = 0; i < n; i++) white[i] = Math.min(channels[0][i], channels[1][i], channels[2][i]);
+  source = 'paper';
   for (const q of paperCandidates(white, w, h)) consider(q.map((p) => ({ x: p.x * w, y: p.y * h })));
 
   const result = best as { quad: Quad; score: number } | null;
   if (!result || !isValidCrop(result.quad)) return null;
   const loose = padQuad(result.quad, CROP_MARGIN);
-  return isValidCrop(loose) ? loose : result.quad;
+  const chosen = isValidCrop(loose) ? loose : result.quad;
+  // Never cut writing: if the chosen outline runs through lines of text (a shadow or a stack of sheets fooled the edge search),
+  // fall back to a box around the nearby writing, unless that box would be much bigger than the outline.
+  const ink = inkPoints(img);
+  if (ink.length >= MIN_INK && inkCrossing(ink, chosen, w, h) > MAX_CROSSING) {
+    const box = contentQuad(inkNear(ink, chosen, w, h, 0.25), w, h, CONTENT_MARGIN);
+    if (box && isValidCrop(box) && area(box) <= MAX_GROWTH * area(chosen)) return box;
+  }
+  return chosen;
 }
 
 /** Fraction of the page size added around the detected corners: clipping page edges is worse than a sliver of desk. */

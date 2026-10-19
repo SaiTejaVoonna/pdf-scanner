@@ -36,6 +36,15 @@ adds the least area). Every candidate, whatever produced it, must also pass a ch
 white as its own 90th percentile, and its score is multiplied by that fraction cubed. Dark paper on a bright table is
 still handled by the older brightness segmentation.
 
+## Never cut the writing (web)
+Edges found from brightness can lie along a shadow or a stack of sheets instead of the page. After the best outline is chosen,
+`detect/content.ts` finds "ink" (thin dark strokes with bright paper on both sides, in dense areas) and measures how often
+writing continues on both sides of an outline edge. If that happens along more than 4% of an edge, the outline is replaced by
+a minimum-area rectangle around the nearby writing (grown 5%), unless that box would be more than 1.6x bigger than the outline.
+The result can include some background, but it does not remove writing. A page that has writing right up to its edge is not
+cut by a correct edge, so clean crops are unchanged. This fallback only runs when an outline was found; it never invents
+one on a photo with no document (noise and texture still return nothing).
+
 ## Book spreads (web)
 `detectSpread` takes the outer outline from the page detector (or the inset frame when none is found), then looks for the fold:
 for 30 rows across the spread it records up to three dark local minima, votes for the straight line most rows agree with

@@ -1,5 +1,5 @@
 {
- "_note": "Hand labels (fractions of the image, corners clockwise from top-left) for the four phone photos Sai Teja supplied. Coordinates only; the photos are private and are not in the repo. P1 spread, P2 app preview shown on a phone screen (weak label), P3 phone showing a white page, P4 dark phone screen (no paper).",
+ "_note": "Hand labels (fractions of the image, corners clockwise from top-left) for the five phone photos Sai Teja supplied. Coordinates only; the photos are private and are not in the repo. P1 spread, P2 app preview shown on a phone screen (weak label), P3 phone showing a white page, P4 dark phone screen (no paper), P5 letterhead page in a folder (the previous detector cut the writing).",
  "P1-notebook-spread": {
   "expect": "spread",
   "pages": [
@@ -94,5 +94,30 @@
  "P4-dark-screen": {
   "expect": "none",
   "file": "91d8f1e6-image.jpg"
+ },
+ "P5-letterhead-in-folder": {
+  "file": "p6.jpg",
+  "expect": "page",
+  "pages": [
+   [
+    [
+     0.181,
+     0.116
+    ],
+    [
+     0.867,
+     0.094
+    ],
+    [
+     0.87,
+     0.9
+    ],
+    [
+     0.127,
+     0.843
+    ]
+   ]
+  ],
+  "note": "White letterhead page on a white folder with a stack of sheets behind; its left half is in shadow. The previous detector cut the writing here."
  }
 }

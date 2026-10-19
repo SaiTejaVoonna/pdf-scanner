@@ -38,7 +38,7 @@ cd web && npm ci && npm run typecheck && npm test && npm run build && npm run e2
   kept, cancel changes nothing, side deleted then retake, reorder then retake), reload recovery of documents and unsaved
   edits (spread and page editors), storage-full behaviour (warning, nothing lost, export works, recovers), service-worker
   update banner that never reloads over an open edit, and mobile layout at 360x640 and 390x700.
-- **Detection acceptance:** `node bench/score.mjs <photos> web/bench/labels/baseline-4.json` (raw detection vs hand labels;
+- **Detection acceptance:** `node bench/score.mjs <photos> web/bench/labels/baseline-5.json` (raw detection vs hand labels;
   see [BASELINE.md](BASELINE.md)). Held-out photos are still needed before any accuracy claim.
 - **Memory:** `node bench/memory.mjs 12 3000` (desktop Linux; phones not measured).
 - Not covered: real phone cameras and Safari/iOS behaviour (no iPhone or Android device was available).
