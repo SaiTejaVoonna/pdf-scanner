@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { spreadPng } from './helpers';
+import { draftGone, pagesPersisted } from './persist';
 
 const spread = (name: string, o?: { fold?: number; seed?: number }) => ({ name, mimeType: 'image/png', buffer: spreadPng(800, 600, o) });
 const pagesList = (page: Page) => page.getByRole('list', { name: 'Pages' }).locator('li');
@@ -179,6 +180,7 @@ test('spreads survive a reload and keep their badges', async ({ page }) => {
   await bookMode(page);
   await importSpread(page);
   await importSpread(page, spread('b.png', { seed: 2 }));
+  await pagesPersisted(page, 4);
   await page.reload();
   await expect(pagesList(page)).toHaveCount(4);
   expect(await pagesList(page).locator('.badge').allTextContents()).toEqual(['Spread 1 · L', 'Spread 1 · R', 'Spread 2 · L', 'Spread 2 · R']);
@@ -205,7 +207,7 @@ test('an unsaved spread review is recovered after a reload (resume or discard)',
   await expect.poll(async () => Math.abs(((await again.boundingBox())?.x ?? 0) - moved)).toBeLessThan(6);
   await expect(review(page).getByRole('button', { name: 'Apply' })).toBeEnabled(); // moving the fold had confirmed it
   await review(page).getByRole('button', { name: 'Cancel' }).click();
-  await page.waitForTimeout(500); // the discard is written to IndexedDB asynchronously
+  await draftGone(page); // the discard is written to IndexedDB asynchronously
   await page.reload();
   await expect(page.getByRole('dialog', { name: 'Resume your edit?' })).toHaveCount(0); // cancelling discards the draft
   await expect(pagesList(page)).toHaveCount(0);

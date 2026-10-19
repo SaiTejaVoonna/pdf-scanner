@@ -2,6 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { pagePng } from './helpers';
+import { pagesPersisted } from './persist';
 
 const png = (name: string, w?: number, h?: number) => ({ name, mimeType: 'image/png', buffer: pagePng(w, h) });
 
@@ -115,7 +116,7 @@ test('unreadable files are reported and do not break the app', async ({ page }) 
 
 test('scans are kept across a reload', async ({ page }) => {
   await importImages(page, 2);
-  await page.waitForTimeout(500); // allow the IndexedDB write to finish
+  await pagesPersisted(page, 2); // the IndexedDB write is asynchronous
   await page.reload();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
   page.once('dialog', (d) => d.accept());
