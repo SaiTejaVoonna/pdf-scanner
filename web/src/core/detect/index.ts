@@ -1,4 +1,5 @@
 import { area, isValidCrop, orderPoints, type Pt, type Quad } from '../geometry';
+import { findGutter, midGutter, splitSpread, turnOuter, type SpreadGeometry } from '../spread';
 import { boxBlur, luma, type Img } from '../image';
 import { cannyEdges } from './canny';
 import { borderLines, houghLines, type Line } from './hough';
@@ -242,3 +243,41 @@ function dilate(src: Uint8Array, w: number, h: number, radius: number): Uint8Arr
   }
   return out;
 }
+
+export interface SpreadDetection extends SpreadGeometry {
+  /** True when the gutter could not be found: the geometry holds a guessed midpoint that the user must confirm. */
+  uncertain: boolean;
+  /** True when no page outline was found either and the outline is just the frame (inset). */
+  outlineGuessed: boolean;
+}
+
+const INSET = 0.03;
+
+/**
+ * Two-page spread: the outer outline from the page detector plus the gutter valley. Tries both orientations (vertical
+ * valley = pages side by side; horizontal valley = photo taken sideways, where the top page is treated as the first).
+ * Never returns "nothing": when unsure it returns a flagged guess so the review screen can ask the user.
+ */
+export function detectSpread(img: Img): SpreadDetection {
+  const found = detectPage(img);
+  const outer: Quad = found ?? [{ x: INSET, y: INSET }, { x: 1 - INSET, y: INSET }, { x: 1 - INSET, y: 1 - INSET }, { x: INSET, y: 1 - INSET }];
+  let best: { outer: Quad; g: ReturnType<typeof findGutter> } | null = null;
+  for (const turns of [0, 1]) {
+    const o = turnOuter(outer, turns);
+    const g = findGutter(img, o);
+    if (!best || (g.confident && (!best.g.confident || g.score > best.g.score))) best = { outer: o, g };
+  }
+  const { outer: o, g } = best!;
+  return { outer: o, tTop: g.tTop, tBottom: g.tBottom, uncertain: !g.confident, outlineGuessed: !found };
+}
+
+export interface Detection { pages: Quad[]; spread?: SpreadDetection }
+
+/** Benchmark entry point: 'page' gives one crop (or none), 'spread' gives the two page crops of a spread. */
+export function detectDocument(img: Img, mode: 'page' | 'spread' = 'page'): Detection | null {
+  if (mode === 'page') { const q = detectPage(img); return q ? { pages: [q] } : null; }
+  const spread = detectSpread(img);
+  return { pages: splitSpread(spread), spread };
+}
+
+export { midGutter };

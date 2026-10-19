@@ -33,7 +33,7 @@ try {
       const d = c.getContext('2d').getImageData(0, 0, w, h);
       const t0 = performance.now();
       const img = { data: d.data, width: w, height: h };
-      const detected = mod.detectDocument ? mod.detectDocument(img) : (() => { const q = mod.detectPage(img); return q ? { pages: [q] } : null; })();
+      const detected = mod.detectDocument(img, lab.expect === 'spread' ? 'spread' : 'page');
       const ms = Math.round(performance.now() - t0);
       const quads = detected ? detected.pages : [];
       const inside = (q, x, y) => { let sg = 0; for (let i = 0; i < 4; i++) { const p = q[i], rr = q[(i + 1) % 4]; const cr = (rr.x - p.x) * (y - p.y) - (rr.y - p.y) * (x - p.x); const k = cr >= 0 ? 1 : -1; if (!sg) sg = k; else if (sg !== k) return false; } return true; };
@@ -46,16 +46,23 @@ try {
         const D = quads.some((q) => inside(q, x, y)), L = labelled.some((q) => inside(q, x, y)), K = keep.some((q) => inside(q, x, y));
         if (D) det++; if (L) lab_++; if (D && L) both++; if (D || L) uni++; if (K) { keepArea++; if (D) keepIn++; }
       }
-      return { ms, found: quads.length, quads, iou: uni ? both / uni : 0, loss: keepArea ? 1 - keepIn / keepArea : 0, extra: det ? 1 - both / det : 0, uncertain: detected?.uncertain ?? null };
+      const pageIou = quads.length === labelled.length && labelled.length > 1 ? labelled.map((lq, k) => { let bo = 0, un = 0; for (let i = 0; i < N; i++) for (let j = 0; j < N; j++) { const x = (i + .5) / N, y = (j + .5) / N, A = inside(quads[k], x, y), B = inside(lq, x, y); if (A && B) bo++; if (A || B) un++; } return un ? bo / un : 0; }) : null;
+      return { ms, pageIou, found: quads.length, quads, iou: uni ? both / uni : 0, loss: keepArea ? 1 - keepIn / keepArea : 0, extra: det ? 1 - both / det : 0, uncertain: detected?.spread?.uncertain ?? null, gutter: detected?.spread ? [detected.spread.tTop, detected.spread.tBottom] : null };
     }, { b64, lab });
     const expectNone = lab.expect === 'none';
     const pass = expectNone ? r.found === 0 : r.found > 0 && r.loss <= 0.005 && r.extra <= 0.15;
-    rows.push({ id, expect: lab.expect, weak: !!lab.weak, ...r, pass });
+    // Spreads: a confident gutter must be right (AUTO); an uncertain one is flagged for the user (REVIEW, safe); confident but wrong fails.
+    let verdict = pass ? 'PASS' : 'FAIL';
+    if (lab.expect === 'spread') {
+      const split = r.pageIou && r.pageIou.every((v) => v >= 0.85);
+      verdict = !pass ? 'FAIL' : r.uncertain ? 'REVIEW' : split ? 'AUTO' : 'FAIL';
+    }
+    rows.push({ id, expect: lab.expect, weak: !!lab.weak, ...r, verdict, pass: verdict !== 'FAIL' });
   }
   await browser.close();
 } finally { try { process.kill(-server.pid); } catch { /* already gone */ } }
 const pct = (v) => `${(v * 100).toFixed(1)}%`;
 console.log('id'.padEnd(24), 'expect'.padEnd(7), 'found', 'IoU'.padStart(6), 'loss'.padStart(7), 'extra'.padStart(7), 'ms'.padStart(5), 'pass');
-for (const r of rows) console.log(r.id.padEnd(24), r.expect.padEnd(7), String(r.found).padEnd(5), pct(r.iou).padStart(6), pct(r.loss).padStart(7), pct(r.extra).padStart(7), String(r.ms).padStart(5), r.pass ? 'PASS' : 'FAIL');
-console.log(`\n${rows.filter((r) => r.pass).length}/${rows.length} pass (loss <= 0.5% of must-keep area, extra background <= 15%; "none" expects no detection)`);
+for (const r of rows) console.log(r.id.padEnd(24), r.expect.padEnd(7), String(r.found).padEnd(5), pct(r.iou).padStart(6), pct(r.loss).padStart(7), pct(r.extra).padStart(7), String(r.ms).padStart(5), r.verdict, r.pageIou ? `per-page IoU ${r.pageIou.map(pct).join(' / ')}` : '', r.gutter ? `gutter t=${r.gutter.map((v) => v.toFixed(2)).join('/')}${r.uncertain ? ' UNCERTAIN' : ''}` : '');
+console.log(`\n${rows.filter((r) => r.pass).length}/${rows.length} pass; REVIEW = gutter flagged uncertain, needs the user (loss <= 0.5% of must-keep area, extra background <= 15%; "none" expects no detection)`);
 if (outFile) writeFileSync(outFile, JSON.stringify(rows, null, 1));
