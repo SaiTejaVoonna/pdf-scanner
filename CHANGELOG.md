@@ -4,6 +4,16 @@
 First beta.
 - **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
   (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
+- Web, **book spreads**: Single page / Book spread mode; review screen with 4 outer corners + a tiltable fold (2 handles)
+  or independent per-page corners; 3 spreads give 6 ordered pages; mixed single pages and spreads; retake (others kept),
+  side deletion, reorder; one shared source per spread with non-destructive edits; the fold is never guessed silently
+  (uncertain fold must be confirmed) and writing touching a crop edge is flagged. Known limit: the fold of the
+  open-notebook test photo is found only by hand (flagged as uncertain), curved pages are not flattened, no OCR.
+- Web UI: new mobile layout (mode switch, big Scan button, tools row, per-page menu, coherent selection mode), camera shows a
+  spread guide, "Update ready" banner (the new version never takes over an open editor), draft recovery after reload,
+  clear message when browser storage is full, safe handling of service-worker updates.
+- Benchmarks: `bench/score.mjs` with hand labels, `docs/BASELINE.md` (old 0/4, current 4/4 on four photos), `bench/memory.mjs`,
+  `docs/ML_EVALUATION.md` (DocAligner measured, not adopted, not bundled).
 - Web detector: new **paper-colour** candidate generator (whiteness threshold, morphological clean-up, convex-hull quad fit)
   plus an "is the inside mostly paper?" check. On four real cluttered phone photos (bed sheet and laptop, phone on a
   patterned cloth, a phone screen) the old detector returned huge boxes around the clutter; the new one frames the

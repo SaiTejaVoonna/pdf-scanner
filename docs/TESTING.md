@@ -32,6 +32,15 @@ cd web && npm ci && npm run typecheck && npm test && npm run build && npm run e2
   nudging, reorder, export a valid multipage PDF (opened and checked), bulk selection, persistence across reload,
   settings, live camera capture, camera-denied guidance, combine PDFs, no requests to other origins, and a
   service-worker **offline** reload that still scans and exports.
-- Not covered: real phone cameras and Safari/iOS behaviour.
+- **Spread and robustness tests** (`web/e2e/spreads.spec.ts`, `web/tests/spread.test.ts`, `web/tests/store.test.ts`): gutter finder
+  (clear, tilted, off-centre, absent, faint), writing-at-the-edge check, 3 spreads give 6 ordered pages and export, an
+  uncertain fold blocks Apply until confirmed, tilt and per-page corners, mixed single/spread documents, retake (others
+  kept, cancel changes nothing, side deleted then retake, reorder then retake), reload recovery of documents and unsaved
+  edits (spread and page editors), storage-full behaviour (warning, nothing lost, export works, recovers), service-worker
+  update banner that never reloads over an open edit, and mobile layout at 360x640 and 390x700.
+- **Detection acceptance:** `node bench/score.mjs <photos> web/bench/labels/baseline-4.json` (raw detection vs hand labels;
+  see [BASELINE.md](BASELINE.md)). Held-out photos are still needed before any accuracy claim.
+- **Memory:** `node bench/memory.mjs 12 3000` (desktop Linux; phones not measured).
+- Not covered: real phone cameras and Safari/iOS behaviour (no iPhone or Android device was available).
 
 - **Detection benchmark on real photos:** `npm run bench -- <folder>` (see [PAGE_DETECTION.md](PAGE_DETECTION.md)).

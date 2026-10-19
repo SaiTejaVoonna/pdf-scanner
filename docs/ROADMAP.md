@@ -18,6 +18,10 @@ Prefer open-source building blocks over a dependency on any single vendor's SDK.
 Offline PWA in `web/`: camera and import, crop with auto-detect, filters, reorder, bulk actions, PDF export with
 size and quality, combine PDFs (text preserved), settings, installable, browser-tested including offline.
 
+## Done: web book spreads (beta, awaiting review)
+Single page / Book spread modes, spread review with tiltable fold and per-page correction, ordered multi-spread documents,
+retake, drafts, update banner. Not done: curved-page flattening, OCR, held-out accuracy evidence.
+
 ## Next
 0. **Web:** library of several documents, PDF page import/split with pdf.js, live page outline and auto-capture.
 1. **OCR and searchable PDFs** with Tesseract (Tesseract.js on the web) (Apache-2.0), bundled language data, search text in the library,

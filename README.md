@@ -19,9 +19,18 @@ analytics, no uploads: it has no internet permission at all.
 | Combine PDFs | By importing their pages as images | Keeps text and vectors (no re-rendering) |
 | File size | Quality presets | Quality presets with the **estimated size in MB** shown, plus "keep under N MB" |
 | Camera | In-app CameraX | In-page live camera, or the phone's own camera app |
+| Open books | Not supported | **Book spread** mode: one photo becomes a left and a right page (see below) |
 
 The web app is the newer of the two and shares the same page-detection approach. It has fewer features so far
 (no library of saved documents: one working document at a time). See [web/README.md](web/README.md).
+
+## Web app: book spreads
+Switch **Single page / Book spread** above the Scan button. A spread photo opens a review screen with the four outer
+corners and two fold handles that slide along the top and bottom edges (so the split can tilt); "Adjust each page" gives
+every page its own four corners. The photo's pages are added **left, then right**, so 3 spreads make 6 pages. A fold the
+app cannot find is shown as an uncertain middle and the spread cannot be applied until you move or confirm it; writing that
+touches a crop edge is flagged. One shared source photo per spread, edits are non-destructive, and a spread can be edited,
+retaken (other pages and their order are kept) or have one side deleted. Not included: OCR and flattening curved pages.
 
 ## Download
 
@@ -33,15 +42,15 @@ asked. It is a debug-signed build for testing, not a Play Store release.
 
 Web app (captured from the real build in headless Chromium; Android screenshots are not added yet):
 
-| Pages | Crop (auto-detected) | Enhance | Export |
+| Pages (single + spreads) | Review a book spread | Fold not found: confirm first | Selection |
 | --- | --- | --- | --- |
-| ![Pages](docs/screenshots/web-pages-light.png) | ![Crop](docs/screenshots/web-crop-light.png) | ![Enhance](docs/screenshots/web-enhance-light.png) | ![Export](docs/screenshots/web-export-light.png) |
+| ![Pages](docs/screenshots/web-pages-light.png) | ![Spread](docs/screenshots/web-spread-review-light.png) | ![Uncertain](docs/screenshots/web-spread-uncertain-light.png) | ![Selection](docs/screenshots/web-selection-light.png) |
 
-| Preview | Resize images |
-|---|---|
-| ![Preview](docs/screenshots/web-preview-light.png) | ![Resize](docs/screenshots/web-resize-light.png) |
+| Crop | Enhance | Export | Camera (spread guide) |
+| --- | --- | --- | --- |
+| ![Crop](docs/screenshots/web-crop-light.png) | ![Enhance](docs/screenshots/web-enhance-light.png) | ![Export](docs/screenshots/web-export-light.png) | ![Camera](docs/screenshots/web-camera-spread-light.png) |
 
-Dark mode: [pages](docs/screenshots/web-pages-dark.png).
+More: [each-page adjust](docs/screenshots/web-spread-each-page-light.png), [page menu](docs/screenshots/web-page-menu-light.png), [preview](docs/screenshots/web-preview-light.png), [resize](docs/screenshots/web-resize-light.png), [dark pages](docs/screenshots/web-pages-dark.png), [dark home](docs/screenshots/web-home-empty-dark.png). The photos in the spread shots are synthetic.
 
 ## What it does today
 

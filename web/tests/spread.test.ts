@@ -9,13 +9,13 @@ const outerPx = [{ x: 40, y: 30 }, { x: 360, y: 30 }, { x: 360, y: 270 }, { x: 4
 const outerQ = outerPx.map((p) => ({ x: p.x / W, y: p.y / H })) as Quad;
 
 /** Two bright pages on a darker desk with a soft dark fold, writing rows, optional fold tilt. */
-function spreadImg(o: { gutterX?: number; tilt?: number; fold?: number; writingToFold?: boolean; seed?: number } = {}): Img {
+function spreadImg(o: { gutterX?: number; tilt?: number; fold?: number; foldWidth?: number; writingToFold?: boolean; seed?: number } = {}): Img {
   const img = createImg(W, H), rnd = rng(o.seed ?? 1);
   const gx0 = o.gutterX ?? 200, tilt = o.tilt ?? 0, fold = o.fold ?? 0.35;
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const onPage = x >= 40 && x <= 360 && y >= 30 && y <= 270;
     let v = onPage ? 228 : 90;
-    if (onPage && fold > 0) { const d = x - (gx0 + tilt * (y - 150)); v -= 228 * fold * Math.exp(-(d * d) / 200); }
+    if (onPage && fold > 0) { const d = x - (gx0 + tilt * (y - 150)); v -= 228 * fold * Math.exp(-(d * d) / (o.foldWidth ?? 200)); }
     // handwriting: short dark dashes in rows, away from the fold unless asked
     if (onPage && y > 50 && y % 16 < 3) {
       const d = Math.abs(x - (gx0 + tilt * (y - 150)));
@@ -97,6 +97,11 @@ describe('boundaryInk', () => {
     const cut: Quad = [{ x: 0.2, y: outerQ[0].y }, { x: 0.5, y: outerQ[0].y }, { x: 0.5, y: outerQ[3].y }, { x: 0.2, y: outerQ[3].y }];
     const ink = boundaryInk(spreadImg({ fold: 0 }), cut);
     expect(ink[3]).toBeGreaterThan(0.1);
+  });
+  it('ignores a narrow but soft fold shadow too (not writing)', () => {
+    const half: Quad = [{ x: 0.1, y: outerQ[0].y }, { x: 0.5, y: outerQ[0].y }, { x: 0.5, y: outerQ[3].y }, { x: 0.1, y: outerQ[3].y }];
+    const ink = boundaryInk(spreadImg({ fold: 0.45, foldWidth: 45 }), half);
+    expect(ink[1]).toBeLessThan(0.05);
   });
   it('ignores a wide dark fold shadow (not writing)', () => {
     const half: Quad = [{ x: 0.1, y: outerQ[0].y }, { x: 0.5, y: outerQ[0].y }, { x: 0.5, y: outerQ[3].y }, { x: 0.1, y: outerQ[3].y }];

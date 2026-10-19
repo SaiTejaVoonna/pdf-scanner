@@ -180,6 +180,11 @@ export function boundaryInk(img: Img, quad: Quad): [number, number, number, numb
       let d0 = -1;
       for (let d = 0; d <= 3; d++) if (lum(x + nx * d, y + ny * d) < dark) { d0 = d; break; }
       if (d0 < 0) continue;
+      // Strokes have sharp edges: a pixel 3 px either way is much brighter. A soft fold shadow changes slowly.
+      const here = lum(x + nx * d0, y + ny * d0);
+      let brightest = 0;
+      for (const k of [2, 3, 4]) brightest = Math.max(brightest, lum(x + nx * (d0 + k), y + ny * (d0 + k)), lum(x + nx * (d0 - k), y + ny * (d0 - k)));
+      if (brightest - here < paper * 0.25) continue;
       // Width of the dark run through this point, inward and outward: strokes are thin, a fold shadow or the desk is wide.
       let run = 0;
       while (run < 14 && lum(x + nx * (d0 + run), y + ny * (d0 + run)) < dark) run++;

@@ -36,6 +36,15 @@ adds the least area). Every candidate, whatever produced it, must also pass a ch
 white as its own 90th percentile, and its score is multiplied by that fraction cubed. Dark paper on a bright table is
 still handled by the older brightness segmentation.
 
+## Book spreads (web)
+`detectSpread` takes the outer outline from the page detector (or the inset frame when none is found), then looks for the fold:
+for 30 rows across the spread it records up to three dark local minima, votes for the straight line most rows agree with
+(slope limited), and keeps it only if a dip along that line is present in at least 75% of rows. Two orientations are tried
+(a sideways photo has a horizontal fold). When the fold is not clearly found the result is the middle, flagged **uncertain**:
+the review screen then refuses to apply until the user moves or confirms it. A separate check flags crop edges that cut
+through thin dark strokes (writing); wide or soft dark areas such as the fold shadow are ignored. Curved pages are not
+flattened: a quad cannot undo a curve.
+
 ## Crop margin
 Detected corners are moved outwards by a small margin (1.2% of the page size, `CROP_MARGIN`) because clipping a page
 edge or printed footer is worse than including a sliver of desk.
