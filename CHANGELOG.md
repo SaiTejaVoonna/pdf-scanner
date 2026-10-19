@@ -9,6 +9,12 @@ First beta.
   side deletion, reorder; one shared source per spread with non-destructive edits; the fold is never guessed silently
   (uncertain fold must be confirmed) and writing touching a crop edge is flagged. Known limit: the fold of the
   open-notebook test photo is found only by hand (flagged as uncertain), curved pages are not flattened, no OCR.
+- Web UI polish (visual direction from a reference mock-up, no branding copied): home is one big **Scan pages** button, a quiet
+  Single page / Book spread switch and four tool tiles (Import images, Take photo, Combine PDFs, Resize images); the camera
+  has a restrained framing guide, an honest status line ("Fit both pages in the frame", it does **not** claim live detection)
+  and a running page count; **Make PDF** opens a "Ready to make your PDF" sheet with the page count, page thumbnails,
+  quality cards with estimated sizes, Create PDF, Share and Keep scanning (file name, page size and keep-under-MB sit under
+  "More options"). There is no Compress PDF tile: compressing an existing PDF is not a feature of this app (see ROADMAP).
 - Web UI: new mobile layout (mode switch, big Scan button, tools row, per-page menu, coherent selection mode), camera shows a
   spread guide, "Update ready" banner (the new version never takes over an open editor), draft recovery after reload,
   clear message when browser storage is full, safe handling of service-worker updates.

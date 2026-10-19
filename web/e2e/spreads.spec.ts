@@ -19,6 +19,21 @@ async function importSpread(page: Page, file = spread('book.png'), apply = true)
   }
 }
 
+/** Waits until an editor draft has really been written to IndexedDB (instead of sleeping and hoping). */
+/** Waits until the layout has stopped moving (the editor re-fits once its tool row has been laid out). */
+async function settled(locator: ReturnType<Page['locator']>) {
+  let last = '';
+  await expect.poll(async () => { const b = await locator.boundingBox(); const now = JSON.stringify(b); const same = now === last; last = now; return same; }, { timeout: 15_000, intervals: [300] }).toBe(true);
+}
+
+async function draftSaved(page: Page) {
+  await expect.poll(() => page.evaluate(() => new Promise<boolean>((res) => {
+    const r = indexedDB.open('pdf-scanner', 1);
+    r.onsuccess = () => { const g = r.result.transaction('meta').objectStore('meta').get('draft'); g.onsuccess = () => { r.result.close(); res(g.result !== undefined); }; g.onerror = () => res(false); };
+    r.onerror = () => res(false);
+  })), { timeout: 15_000 }).toBe(true);
+}
+
 test.beforeEach(async ({ page }) => {
   const rate = Number(process.env.E2E_CPU_THROTTLE ?? 1);
   if (rate > 1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate });
@@ -31,9 +46,9 @@ test('3 spreads become 6 pages in reading order, exported as one PDF', async ({ 
   await expect(pagesList(page)).toHaveCount(6);
   const badges = await pagesList(page).locator('.badge').allTextContents();
   expect(badges).toEqual(['Spread 1 · L', 'Spread 1 · R', 'Spread 2 · L', 'Spread 2 · R', 'Spread 3 · L', 'Spread 3 · R']);
-  await page.getByRole('button', { name: /Export PDF/ }).click();
+  await page.getByRole('button', { name: /Make PDF/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Export PDF' });
-  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Download PDF' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Create PDF' }).click()]);
   const doc = await PDFDocument.load(readFileSync((await download.path())!));
   expect(doc.getPageCount()).toBe(6);
 });
@@ -180,7 +195,7 @@ test('an unsaved spread review is recovered after a reload (resume or discard)',
   const top = ed.getByRole('button', { name: /Fold, top end/ });
   await top.focus(); for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight');
   const moved = (await top.boundingBox())!.x;
-  await page.waitForTimeout(900); // the draft is saved shortly after each change
+  await draftSaved(page); // the draft is saved shortly after each change
   await page.reload();
   const dlg = page.getByRole('dialog', { name: 'Resume your edit?' });
   await expect(dlg).toBeVisible();
@@ -190,6 +205,7 @@ test('an unsaved spread review is recovered after a reload (resume or discard)',
   await expect.poll(async () => Math.abs(((await again.boundingBox())?.x ?? 0) - moved)).toBeLessThan(6);
   await expect(review(page).getByRole('button', { name: 'Apply' })).toBeEnabled(); // moving the fold had confirmed it
   await review(page).getByRole('button', { name: 'Cancel' }).click();
+  await page.waitForTimeout(500); // the discard is written to IndexedDB asynchronously
   await page.reload();
   await expect(page.getByRole('dialog', { name: 'Resume your edit?' })).toHaveCount(0); // cancelling discards the draft
   await expect(pagesList(page)).toHaveCount(0);
@@ -200,9 +216,10 @@ test('an unsaved page-editor change is recovered after a reload', async ({ page 
   await page.getByRole('button', { name: 'Edit page 1' }).click();
   const ed = page.getByRole('dialog', { name: 'Edit page' });
   const tl = ed.getByRole('button', { name: /Top left corner/ });
+  await settled(tl);
   await tl.focus(); for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
   const moved = (await tl.boundingBox())!.x;
-  await page.waitForTimeout(900);
+  await draftSaved(page);
   await page.reload();
   await page.getByRole('dialog', { name: 'Resume your edit?' }).getByRole('button', { name: 'Resume' }).click();
   const again = page.getByRole('dialog', { name: 'Edit page' }).getByRole('button', { name: /Top left corner/ });
@@ -223,10 +240,10 @@ test('when the browser is out of storage the user is told, nothing is half-added
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'p.png', mimeType: 'image/png', buffer: spreadPng(400, 500, { fold: 0 }) }]);
   await expect(page.getByText(/no space left/)).toBeVisible();
   await expect(pagesList(page)).toHaveCount(1); // still in memory
-  await page.getByRole('button', { name: /Export PDF/ }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Download PDF' }).click()]);
+  await page.getByRole('button', { name: /Make PDF/ }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Create PDF' }).click()]);
   expect((await PDFDocument.load(readFileSync((await download.path())!))).getPageCount()).toBe(1);
-  await page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Keep scanning' }).click();
   // Space comes back: the next successful save clears the warning.
   await page.evaluate(() => { (window as unknown as { __full: boolean }).__full = false; });
   await page.getByRole('button', { name: 'Page 1 menu' }).click();
@@ -244,6 +261,7 @@ test('a new app version shows an update banner and never reloads over an open ed
   await page.getByRole('button', { name: 'Edit page 1' }).click();
   const ed = page.getByRole('dialog', { name: 'Edit page' });
   const tl = ed.getByRole('button', { name: /Top left corner/ });
+  await settled(tl);
   await tl.focus(); for (let i = 0; i < 5; i++) await page.keyboard.press('ArrowRight');
   const moved = (await tl.boundingBox())!.x;
   // Publish a byte-different service worker, as a new release would (the preview server serves dist/ from disk).
@@ -270,7 +288,7 @@ for (const vp of [{ width: 360, height: 640 }, { width: 390, height: 700 }]) {
     await page.setViewportSize(vp);
     const noOverflow = () => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1);
     expect(await noOverflow()).toBe(true);
-    await expect(page.getByRole('button', { name: 'Scan', exact: true })).toBeInViewport();
+    await expect(page.getByRole('button', { name: 'Scan pages', exact: true })).toBeInViewport();
     await bookMode(page);
     for (const n of [1, 2]) await importSpread(page, spread(`b${n}.png`, { seed: n }), n === 1);
     const ed = review(page);
@@ -286,6 +304,6 @@ for (const vp of [{ width: 360, height: 640 }, { width: 390, height: 700 }]) {
     await ed.getByRole('button', { name: 'Apply' }).click();
     await expect(pagesList(page)).toHaveCount(4);
     expect(await noOverflow()).toBe(true);
-    await expect(page.getByRole('button', { name: /Export PDF/ })).toBeInViewport();
+    await expect(page.getByRole('button', { name: /Make PDF/ })).toBeInViewport();
   });
 }

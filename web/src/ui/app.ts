@@ -1,7 +1,7 @@
 import { FILTERS, type FilterName } from '../core/filters';
 import { fullQuad } from '../core/geometry';
 import { h, openDialog, toast } from '../dom';
-import { canvasToBlob, decode, detectCorners, detectSpreadIn, normalize, renderPage } from '../imaging';
+import { decode, detectCorners, detectSpreadIn, normalize } from '../imaging';
 import * as store from '../store';
 import { state, subscribe, type PageModel } from '../store';
 import { openCamera } from './camera';
@@ -11,6 +11,7 @@ import { openExport } from './exportDialog';
 import { openResize } from './resizeDialog';
 import { openSettings } from './settingsDialog';
 import { openSpreadEditor, type SpreadDraftData } from './spreadEditor';
+import { thumbUrl } from './thumbs';
 import { openViewer } from './viewer';
 
 declare const __APP_VERSION__: string;
@@ -50,18 +51,6 @@ async function ingest(files: Blob[], source: 'camera' | 'import', names: string[
   if (failed && !names.length) toast(`${failed} image(s) could not be added.`);
 }
 
-const thumbs = new Map<string, Promise<string>>();
-const thumbKey = (p: PageModel) => `${p.id}|${p.rotation}|${p.filter}|${p.w}x${p.h}|${p.corners.map((c) => `${c.x.toFixed(4)},${c.y.toFixed(4)}`).join(';')}`;
-function thumbUrl(p: PageModel): Promise<string> {
-  const key = thumbKey(p);
-  let hit = thumbs.get(key);
-  if (!hit) {
-    hit = renderPage(p, 360).then((c) => canvasToBlob(c, 'image/jpeg', 0.8)).then((b) => URL.createObjectURL(b));
-    thumbs.set(key, hit);
-  }
-  return hit;
-}
-
 /** Opens the right editor for a page: the spread editor for spread pages, the page editor otherwise. */
 async function editPage(p: PageModel): Promise<void> {
   if (p.spread) {
@@ -92,7 +81,8 @@ export function mountApp(root: HTMLElement): void {
       class: 'chip', role: 'radio', type: 'button', 'aria-checked': String(id === m),
       onclick: () => store.updateSettings({ captureMode: id }),
     }, id === 'single' ? 'Single page' : 'Book spread')));
-    modeHint.textContent = m === 'spread' ? 'Each photo of an open book becomes two pages: left, then right. You check the split before it is added.' : 'Each photo becomes one page.';
+    modeHint.hidden = m !== 'spread';
+    modeHint.textContent = 'One photo of an open book becomes two pages, left then right. You check the split before it is added.';
   };
 
   const cameraMode = { get: () => state.settings.captureMode, set: (m: 'single' | 'spread') => store.updateSettings({ captureMode: m }) };
@@ -103,24 +93,25 @@ export function mountApp(root: HTMLElement): void {
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },
   retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true } : { mode: cameraMode });
-  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, h('span', { class: 'big', 'aria-hidden': 'true' }, '📷'), 'Scan');
-  const actions = h('div', { class: 'actions' },
-    action('📸', 'Take photo', () => captureInput.click()),
-    action('🖼️', 'Import images', () => importInput.click()));
-  const tools = h('div', { class: 'tools-row', role: 'group', 'aria-label': 'Tools' },
-    action('📑', 'Combine PDFs', () => openCombine()),
-    action('📐', 'Resize images', () => openResize()));
+  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, h('span', { class: 'big', 'aria-hidden': 'true' }, '📷'), 'Scan pages');
+  const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'More ways to add pages and tools' },
+    tile('🖼️', 'Import images', () => importInput.click()),
+    tile('📸', 'Take photo', () => captureInput.click()),
+    tile('📑', 'Combine PDFs', () => openCombine()),
+    tile('📐', 'Resize images', () => openResize()));
   const list = h('ul', { class: 'grid', 'aria-label': 'Pages' });
   const empty = h('div', { class: 'empty' }, h('div', { style: 'font-size:2.5rem' }, '📄'), h('h2', {}, 'No pages yet'),
-    h('p', {}, 'Scan with the camera or import images, then export one PDF. Everything stays on this device.'));
+    h('p', {}, 'Tap Scan, or import photos. Then make one PDF. Nothing leaves this device.'));
   const docHead = h('div', { class: 'doc-head' });
   const bar = h('div', { class: 'bar' });
   const notice = h('p', { class: 'notice', hidden: true });
 
   root.append(
-    h('header', { class: 'top' }, h('h1', {}, 'PDF Scanner', h('span', { class: 'beta' }, `beta ${__APP_VERSION__}`)),
+    h('header', { class: 'top' },
+      h('div', { class: 'brand' }, h('h1', {}, 'PDF Scanner', h('span', { class: 'beta' }, `beta ${__APP_VERSION__}`)),
+        h('p', { class: 'sub' }, h('span', { 'aria-hidden': 'true' }, '🔒 '), 'Private, saved on this device')),
       h('button', { class: 'icon-btn', 'aria-label': 'Settings', onclick: openSettings }, '⚙️')),
-    h('main', {}, notice, modeSwitch, modeHint, scanBtn, actions, tools, docHead, list, empty), bar, importInput, captureInput);
+    h('main', {}, notice, scanBtn, modeSwitch, modeHint, tiles, docHead, list, empty), bar, importInput, captureInput);
 
   function render() {
     const pages = state.pages;
@@ -148,9 +139,8 @@ export function mountApp(root: HTMLElement): void {
       return;
     }
     const spreads = state.spreads.length;
-    docHead.append(h('strong', {}, `${state.pages.length} page${state.pages.length === 1 ? '' : 's'}`),
-      h('span', { class: 'hint' }, spreads ? `${spreads} spread${spreads === 1 ? '' : 's'}` : ''),
-      h('span', { class: 'spacer' }),
+    docHead.append(h('div', { class: 'titles' }, h('h2', {}, 'Your pages'),
+        h('span', { class: 'hint' }, `${state.pages.length} page${state.pages.length === 1 ? '' : 's'}${spreads ? ` · ${spreads} spread${spreads === 1 ? '' : 's'}` : ''}`)),
       h('button', { class: 'btn', onclick: () => { selectMode = true; render(); } }, 'Select'),
       h('button', { class: 'icon-btn', 'aria-label': 'Start over', onclick: () => { if (confirm('Remove all pages and start over?')) store.clearAll(); } }, '🗑'));
   }
@@ -199,7 +189,7 @@ export function mountApp(root: HTMLElement): void {
     if (state.pages.length === 0) { bar.hidden = true; return; }
     bar.hidden = false;
     if (n === 0 && !selectMode) {
-      bar.append(h('button', { class: 'btn primary', onclick: openExport }, `Export PDF (${state.pages.length})`),
+      bar.append(h('button', { class: 'btn primary', onclick: openExport }, `Make PDF (${state.pages.length})`),
         h('button', { class: 'btn', onclick: () => openViewer(state.pages[0].id) }, 'Preview'));
       return;
     }
@@ -262,6 +252,6 @@ async function offerDraftResume(): Promise<void> {
       } }, 'Resume'))), 'Resume your edit?');
 }
 
-function action(icon: string, label: string, onClick: () => void): HTMLElement {
-  return h('button', { class: 'btn action', type: 'button', onclick: onClick }, h('span', { class: 'big', 'aria-hidden': 'true' }, icon), label);
+function tile(icon: string, label: string, onClick: () => void): HTMLElement {
+  return h('button', { class: 'tile', type: 'button', onclick: onClick }, h('span', { class: 'big', 'aria-hidden': 'true' }, icon), h('span', { class: 'label' }, label), h('span', { class: 'chev', 'aria-hidden': 'true' }, '›'));
 }

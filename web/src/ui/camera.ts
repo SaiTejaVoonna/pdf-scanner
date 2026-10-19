@@ -1,6 +1,6 @@
 import { h, openDialog, toast } from '../dom';
 import { canvasToBlob, normalize } from '../imaging';
-import type { CaptureMode } from '../store';
+import { state, type CaptureMode } from '../store';
 
 export interface CameraOptions {
   /** Current Single page / Book spread mode and a way to change it from the camera screen. */
@@ -23,12 +23,14 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
   const last = h('img', { class: 'last-shot', alt: '', hidden: true });
   const flash = h('div', { class: 'flash', 'aria-hidden': 'true' });
   let lastUrl = '';
-  const guide = h('div', { class: 'guide', 'aria-hidden': 'true' });
-  const hint = h('div', { class: 'cam-hint' });
+  const guide = h('div', { class: 'guide', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
+  const hint = h('div', { class: 'cam-hint', role: 'status' });
+  const count = h('span', { class: 'shot-count' });
+  const paintCount = () => { const n = state.pages.length; count.textContent = n ? `${n} page${n === 1 ? '' : 's'}` : ''; };
   const paint = () => {
     const m = opts.mode?.get() ?? 'single';
     guide.className = `guide ${m}`;
-    hint.textContent = m === 'spread' ? 'Book spread: fit both pages in the frame. You will check the split next.' : 'Single page: fit the page in the frame.';
+    hint.textContent = opts.single ? 'Retake: fit both pages in the frame' : m === 'spread' ? 'Fit both pages in the frame' : 'Fit the page in the frame';
     segs.forEach(([id, b]) => b.setAttribute('aria-checked', String(id === m)));
   };
   const segs = opts.mode && !opts.single ? (['single', 'spread'] as const).map((id) => [id, h('button', { class: 'chip', role: 'radio', type: 'button', onclick: () => { opts.mode!.set(id); paint(); } }, id === 'single' ? 'Single page' : 'Book spread')] as const) : [];
@@ -52,6 +54,7 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
         if (lastUrl) URL.revokeObjectURL(lastUrl);
         lastUrl = URL.createObjectURL(blob);
         last.src = lastUrl; last.alt = `Last captured page (page ${shots} of this session)`; last.hidden = false;
+        paintCount();
         flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
         toast(opts.mode?.get() === 'spread' ? `Spread ${shots} added. Take the next one, or tap Done.` : `Page ${shots} saved. Take the next one, or tap Done.`);
         if (opts.single) dialog.close();
@@ -59,8 +62,11 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
       finally { shutter.disabled = false; }
     });
     paint();
-    return h('div', { class: 'camera' }, video, guide, hint, msg, flash, modeBar,
-      h('div', { class: 'controls' }, last, h('button', { class: 'btn', onclick: close }, 'Close'), shutter, done));
+    paintCount();
+    return h('div', { class: 'camera' }, video, guide, flash,
+      h('div', { class: 'cam-top' }, h('button', { class: 'cam-close', type: 'button', 'aria-label': 'Close', onclick: close }, '✕'), modeBar),
+      hint, msg,
+      h('div', { class: 'controls' }, h('div', { class: 'shots' }, last, count), shutter, done));
   }, 'Camera', () => { stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });
   dialog.classList.add('full');
 

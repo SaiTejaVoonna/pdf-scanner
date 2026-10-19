@@ -2,6 +2,7 @@ import { buildPdf, defaultName, pdfOverheadBytes, PAGE_SIZES, pickQualityForTarg
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, renderPage } from '../imaging';
 import { state } from '../store';
+import { thumbUrl } from './thumbs';
 
 /** Draws `src` at `maxSide` (never enlarging) onto a fresh canvas. */
 function scaled(src: HTMLCanvasElement, maxSide: number): HTMLCanvasElement {
@@ -29,24 +30,25 @@ export function openExport(): void {
     const input = h('input', { type: 'text', value: name, maxlength: '100', oninput: () => { name = input.value; } });
     const target = h('input', { type: 'number', min: '0.05', step: '0.1', inputmode: 'decimal', placeholder: 'e.g. 2', 'aria-describedby': 'size-hint' });
     const progress = h('progress', { max: '1', value: '0', hidden: true, 'aria-label': 'Export progress' });
-    const status = h('div', { class: 'hint', role: 'status' }, `${state.pages.length} page(s) will be exported as one PDF.`);
+    const status = h('div', { class: 'hint', role: 'status' });
     const sizeHint = h('div', { class: 'hint', id: 'size-hint', role: 'status' }, 'Calculating file sizes…');
-    const dl = h('button', { class: 'btn primary' }, 'Download PDF');
-    const share = h('button', { class: 'btn' }, 'Share');
-    const cancel = h('button', { class: 'btn', onclick: close }, 'Close');
+    const dl = h('button', { class: 'btn primary wide' }, 'Create PDF');
+    const share = h('button', { class: 'btn wide' }, 'Share');
+    const cancel = h('button', { class: 'btn wide', onclick: close }, 'Keep scanning');
     const canShare = typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
 
-    // Quality chips that show the estimated size once it is known.
+    // Quality cards that show the estimated size once it is known.
+    const QUALITY_NOTES: Record<QualityName, string> = { high: 'Sharpest', balanced: 'Good quality and size', small: 'Smaller file', tiny: 'Smallest file' };
     const qualityButtons = QUALITIES.map((q) => {
-      const b = h('button', { type: 'button', class: 'chip', role: 'radio', 'aria-checked': String(q.id === quality) }, q.label);
+      const b = h('button', { type: 'button', class: 'qcard', role: 'radio', 'aria-checked': String(q.id === quality) }, h('strong', {}, q.label), h('span', { class: 'note' }, QUALITY_NOTES[q.id]), h('span', { class: 'size' }, 'Calculating…'));
       b.addEventListener('click', () => select(q.id));
       return b;
     });
     const select = (id: QualityName) => { quality = id; qualityButtons.forEach((b, i) => b.setAttribute('aria-checked', String(QUALITIES[i].id === id))); };
-    const qualityRow = h('div', { class: 'chips', role: 'radiogroup', 'aria-label': 'PDF quality' }, ...qualityButtons);
+    const qualityRow = h('div', { class: 'qcards', role: 'radiogroup', 'aria-label': 'PDF quality' }, ...qualityButtons);
     const drawSizes = () => qualityButtons.forEach((b, i) => {
       const e = estimates[QUALITIES[i].id];
-      b.textContent = e === undefined ? QUALITIES[i].label : `${QUALITIES[i].label} · ≈ ${formatBytes(e)}`;
+      b.querySelector('.size')!.textContent = e === undefined ? 'Calculating…' : `≈ ${formatBytes(e)}`;
     });
     const applyTarget = () => {
       const mb = parseFloat(target.value);
@@ -57,6 +59,13 @@ export function openExport(): void {
       else { select('tiny'); sizeHint.textContent = `Even Tiny is about ${formatBytes(estimates.tiny!)}, more than ${mb} MB. Remove pages or split the document.`; }
     };
     target.addEventListener('input', applyTarget);
+
+    const strip = h('ul', { class: 'thumbstrip', 'aria-label': 'Pages in the PDF' });
+    state.pages.forEach((p, i) => {
+      const img = h('img', { alt: `Page ${i + 1}`, draggable: 'false' });
+      thumbUrl(p).then((u) => { img.src = u; }).catch(() => undefined);
+      strip.append(h('li', {}, img, h('span', {}, String(i + 1))));
+    });
 
     // Work out the size of every quality in the background, one page at a time.
     void (async () => {
@@ -114,11 +123,21 @@ export function openExport(): void {
     dl.addEventListener('click', () => void run('download'));
     share.addEventListener('click', () => void run('share'));
     if (!canShare) share.hidden = true;
-    return h('div', { class: 'dlg' }, h('h2', {}, 'Export PDF'),
-      h('label', { class: 'field' }, 'File name', input),
-      h('div', {}, h('div', { class: 'hint' }, 'Page size'), chips(PAGE_SIZES, size, (id) => { size = id; })),
-      h('div', {}, h('div', { class: 'hint' }, 'PDF quality (estimated file size)'), qualityRow),
-      h('label', { class: 'field' }, 'Keep under (MB), optional', target), sizeHint,
-      progress, status, h('div', { class: 'row end' }, cancel, share, dl));
-  }, 'Export PDF', () => { closed = true; });
+    const n = state.pages.length;
+    status.textContent = '';
+    return h('div', { class: 'sheet' },
+      h('div', { class: 'sheet-body' },
+        h('button', { class: 'back', type: 'button', onclick: close }, h('span', { 'aria-hidden': 'true' }, '‹ '), 'Back'),
+        h('h2', {}, 'Ready to make your PDF'),
+        h('p', { class: 'hint lead' }, `${n} page${n === 1 ? '' : 's'}, saved on this device`),
+        strip,
+        h('h3', {}, 'Image quality'), qualityRow, sizeHint,
+        h('details', { class: 'more' }, h('summary', {}, 'More options'),
+          h('label', { class: 'field' }, 'File name', input),
+          h('div', {}, h('div', { class: 'hint' }, 'Page size'), chips(PAGE_SIZES, size, (id) => { size = id; })),
+          h('label', { class: 'field' }, 'Keep under (MB), optional', target),
+          h('p', { class: 'hint' }, 'We try to pick the best quality that fits. The final size is shown after the PDF is made, and if nothing fits you are told.')),
+        progress, status),
+      h('div', { class: 'sheet-actions' }, dl, share, cancel));
+  }, 'Export PDF', () => { closed = true; }).classList.add('sheetdlg');
 }

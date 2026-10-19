@@ -106,6 +106,8 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       fitted = { w: maxW, h: maxH };
       const s = Math.min(maxW / bitmap.width, maxH / bitmap.height);
       const w = Math.round(bitmap.width * s), hh = Math.round(bitmap.height * s);
+      // A relayout rebuilds the handles; keep keyboard focus on the same one.
+      const focusedLabel = stageInner.contains(document.activeElement) ? (document.activeElement as HTMLElement).getAttribute('aria-label') : null;
       stageInner.replaceChildren();
       const c = document.createElement('canvas'); c.width = w; c.height = hh;
       c.getContext('2d')!.drawImage(bitmap, 0, 0, w, hh);
@@ -172,6 +174,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
         }
       }
       draw();
+      if (focusedLabel) [...stageInner.querySelectorAll<HTMLElement>('[aria-label]')].find((e) => e.getAttribute('aria-label') === focusedLabel)?.focus();
     }
 
     // ---- toolbar actions

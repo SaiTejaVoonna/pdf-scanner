@@ -20,7 +20,7 @@ test.beforeEach(async ({ page }) => {
 test('starts empty, with the privacy-friendly basics in place', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
   await expect(page.getByText('No pages yet')).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Export PDF' })).toBeHidden();
+  await expect(page.getByRole('button', { name: /Make PDF/ })).toBeHidden();
   // The app never talks to another origin.
   const external: string[] = [];
   page.on('request', (r) => { if (new URL(r.url()).origin !== 'http://localhost:4173' && !r.url().startsWith('blob:') && !r.url().startsWith('data:')) external.push(r.url()); });
@@ -54,12 +54,13 @@ test('imports images, edits a page, reorders, and exports a valid multipage PDF'
   await page.getByRole('button', { name: 'Page 1 menu' }).click();
   await page.getByRole('dialog', { name: 'Page 1 menu' }).getByRole('button', { name: 'Move later' }).click();
 
-  await page.getByRole('button', { name: 'Export PDF' }).click();
+  await page.getByRole('button', { name: /Make PDF/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Export PDF' });
+  await dlg.getByText('More options').click();
   await dlg.getByLabel('File name').fill('My: test/scan');
   await dlg.getByRole('radio', { name: 'US Letter' }).click();
   await dlg.getByRole('radio', { name: 'Balanced' }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Download PDF' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Create PDF' }).click()]);
   expect(download.suggestedFilename()).toBe('My test scan.pdf');
   const path = await download.path();
   const doc = await PDFDocument.load(readFileSync(path));
@@ -69,14 +70,15 @@ test('imports images, edits a page, reorders, and exports a valid multipage PDF'
 
 test('export shows the estimated size of each quality and can pick one that fits a limit', async ({ page }) => {
   await importImages(page, 2);
-  await page.getByRole('button', { name: 'Export PDF' }).click();
+  await page.getByRole('button', { name: /Make PDF/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Export PDF' });
-  // Estimates appear on the quality buttons: "High · ≈ 180 KB" and so on, getting smaller down the list.
-  await expect(dlg.getByRole('radio', { name: /Tiny · ≈ [\d.]+ (KB|MB)/ })).toBeVisible();
+  // Estimates appear on the quality cards ("≈ 180 KB" and so on), getting smaller down the list.
+  await expect(dlg.getByRole('radio', { name: /Tiny.*≈ [\d.]+ (KB|MB)/ })).toBeVisible();
   const kb = async (label: RegExp) => { const t = await dlg.getByRole('radio', { name: label }).textContent(); const m = t!.match(/≈ ([\d.]+) (KB|MB|B)/)!; return parseFloat(m[1]) * (m[2] === 'MB' ? 1024 : m[2] === 'KB' ? 1 : 1 / 1024); };
   const [high, tiny] = [await kb(/^High/), await kb(/^Tiny/)];
   expect(tiny).toBeLessThan(high);
   // A generous limit keeps High; an impossible one says so and falls back to Tiny.
+  await dlg.getByText('More options').click();
   await dlg.getByLabel(/Keep under \(MB\)/).fill('50');
   await expect(dlg.getByRole('radio', { name: /^High/ })).toHaveAttribute('aria-checked', 'true');
   await expect(dlg.getByText(/High fits under 50 MB/)).toBeVisible();
@@ -84,7 +86,7 @@ test('export shows the estimated size of each quality and can pick one that fits
   await expect(dlg.getByRole('radio', { name: /^Tiny/ })).toHaveAttribute('aria-checked', 'true');
   await expect(dlg.getByText(/Even Tiny is about/)).toBeVisible();
   // The real PDF is then built and its true size is shown.
-  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Download PDF' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Create PDF' }).click()]);
   await download.path();
   await expect(dlg.getByText(/\.pdf · [\d.]+ (KB|MB|B)/)).toBeVisible();
 });
@@ -102,7 +104,7 @@ test('selection mode applies bulk actions to the selected pages only', async ({ 
   page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(1);
-  await expect(page.getByRole('button', { name: 'Export PDF' })).toBeVisible();
+  await expect(page.getByRole('button', { name: /Make PDF/ })).toBeVisible();
 });
 
 test('unreadable files are reported and do not break the app', async ({ page }) => {
@@ -143,7 +145,7 @@ test('settings are stored and auto-crop on import crops the page', async ({ page
 });
 
 test('live camera captures pages (fake camera) and shows a clear message if blocked', async ({ page }) => {
-  await page.getByRole('button', { name: 'Scan', exact: true }).click();
+  await page.getByRole('button', { name: 'Scan pages', exact: true }).click();
   const cam = page.getByRole('dialog', { name: 'Camera' });
   const shutter = cam.getByRole('button', { name: 'Capture page' });
   await expect(shutter).toBeEnabled();
@@ -161,7 +163,7 @@ test('camera denied shows guidance and a fallback', async ({ browser }) => {
   const p = await ctx.newPage();
   await p.addInitScript(() => { navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('no', 'NotAllowedError')); });
   await p.goto('/');
-  await p.getByRole('button', { name: 'Scan', exact: true }).click();
+  await p.getByRole('button', { name: 'Scan pages', exact: true }).click();
   await expect(p.getByRole('alert')).toContainText('Camera access was denied');
   await expect(p.getByRole('button', { name: 'Use phone camera instead' })).toBeVisible();
   await ctx.close();
@@ -194,8 +196,8 @@ test('works offline after the first visit (service worker)', async ({ page, cont
   await page.reload();
   await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
   await importImages(page, 1);
-  await page.getByRole('button', { name: 'Export PDF' }).click();
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Download PDF' }).click()]);
+  await page.getByRole('button', { name: /Make PDF/ }).click();
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Create PDF' }).click()]);
   expect((await PDFDocument.load(readFileSync((await download.path())!))).getPageCount()).toBe(1);
   await context.setOffline(false);
 });
@@ -288,4 +290,42 @@ test('combine lets you name the output file', async ({ page }) => {
   const dl = page.waitForEvent('download');
   await dlg.getByRole('button', { name: 'Combine & download' }).click();
   expect((await dl).suggestedFilename()).toBe('Lab report.pdf');
+});
+
+test('home has one obvious action and quiet tools; Compress PDF is not offered because the feature does not exist', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await expect(page.getByRole('button', { name: 'Scan pages', exact: true })).toBeInViewport();
+  const tools = page.getByRole('group', { name: /More ways/ });
+  for (const t of ['Import images', 'Take photo', 'Combine PDFs', 'Resize images']) await expect(tools.getByRole('button', { name: t })).toBeInViewport();
+  await expect(page.getByRole('button', { name: /Compress PDF/ })).toHaveCount(0);
+  await expect(page.getByText('Private, saved on this device')).toBeVisible();
+});
+
+test('make-PDF sheet shows page count, thumbnails and quality cards; Keep scanning goes back without losing pages', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 780 });
+  await importImages(page, 3);
+  await page.getByRole('button', { name: /Make PDF \(3\)/ }).click();
+  const dlg = page.getByRole('dialog', { name: 'Export PDF' });
+  await expect(dlg.getByRole('heading', { name: 'Ready to make your PDF' })).toBeVisible();
+  await expect(dlg.getByText('3 pages, saved on this device')).toBeVisible();
+  await expect(dlg.getByRole('list', { name: 'Pages in the PDF' }).locator('li')).toHaveCount(3);
+  await expect(dlg.getByRole('radio')).toHaveCount(4);
+  await expect(dlg.getByRole('button', { name: 'Create PDF' })).toBeInViewport();
+  await expect(dlg.getByRole('button', { name: 'Keep scanning' })).toBeInViewport();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
+  await dlg.getByRole('button', { name: 'Keep scanning' }).click();
+  await expect(dlg).toBeHidden();
+  await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(3);
+});
+
+test('camera screen is honest: a framing guide and mode switch, no claim of live detection, and a running page count', async ({ page }) => {
+  await importImages(page, 1);
+  await page.getByRole('button', { name: 'Scan pages', exact: true }).click();
+  const cam = page.getByRole('dialog', { name: 'Camera' });
+  await expect(cam.getByText('Fit the page in the frame')).toBeVisible();
+  await cam.getByRole('radio', { name: 'Book spread' }).click();
+  await expect(cam.getByText('Fit both pages in the frame')).toBeVisible();
+  await expect(cam.getByText(/detected/i)).toHaveCount(0);
+  await expect(cam.getByText('1 page', { exact: true })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Close' })).toBeVisible();
 });

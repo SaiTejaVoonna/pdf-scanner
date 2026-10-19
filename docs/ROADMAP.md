@@ -23,7 +23,7 @@ Single page / Book spread modes, spread review with tiltable fold and per-page c
 retake, drafts, update banner. Not done: curved-page flattening, OCR, held-out accuracy evidence.
 
 ## Next
-0. **Web:** library of several documents, PDF page import/split with pdf.js, live page outline and auto-capture.
+0. **Web:** compress an existing PDF (not implemented: Resize images shrinks photos only), library of several documents, PDF page import/split with pdf.js, live page outline and auto-capture.
 1. **OCR and searchable PDFs** with Tesseract (Tesseract.js on the web) (Apache-2.0), bundled language data, search text in the library,
    suggest document names from the first lines of text.
 2. Folders and multi-select in the library (share/move/delete many documents).

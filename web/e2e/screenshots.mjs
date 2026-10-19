@@ -64,11 +64,11 @@ for (const scheme of ['light', 'dark']) {
     await shot(page, 'web-resize-light');
     await page.getByRole('button', { name: 'Close', exact: true }).click();
 
-    await page.getByRole('button', { name: /Export PDF/ }).click(); await page.waitForTimeout(1500);
+    await page.getByRole('button', { name: /Make PDF/ }).click(); await page.waitForTimeout(1500);
     await shot(page, 'web-export-light');
-    await page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Close' }).click();
+    await page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Keep scanning' }).click();
 
-    await page.getByRole('button', { name: 'Scan', exact: true }).click(); await page.waitForTimeout(1500);
+    await page.getByRole('button', { name: 'Scan pages', exact: true }).click(); await page.waitForTimeout(1500);
     await shot(page, 'web-camera-spread-light');
   }
   await ctx.close();

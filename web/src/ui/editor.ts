@@ -63,11 +63,14 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
     cropTab.setAttribute('aria-selected', String(tab === 'crop')); enhTab.setAttribute('aria-selected', String(tab === 'enhance'));
     // Keep the tool row's height while it is rebuilt so the stage is measured at its final size.
     const toolsHeight = tools.offsetHeight;
+    // A relayout rebuilds the handles; keep keyboard focus on the same one.
+    const focusedLabel = stageInner.contains(document.activeElement) ? (document.activeElement as HTMLElement).getAttribute('aria-label') : null;
     stageInner.replaceChildren(); tools.replaceChildren();
     if (toolsHeight) tools.style.minHeight = `${toolsHeight}px`;
     const mine = ++screenSeq;
     if (tab === 'crop') await renderCrop(mine); else await renderEnhance();
     if (mine === screenSeq) tools.style.minHeight = '';
+    if (focusedLabel && mine === screenSeq) [...stageInner.querySelectorAll<HTMLElement>('[aria-label]')].find((e) => e.getAttribute('aria-label') === focusedLabel)?.focus();
   }
 
   const fit = () => {
