@@ -4,6 +4,13 @@
 First beta.
 - **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
   (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
+- Web detector: new **paper-colour** candidate generator (whiteness threshold, morphological clean-up, convex-hull quad fit)
+  plus an "is the inside mostly paper?" check. On four real cluttered phone photos (bed sheet and laptop, phone on a
+  patterned cloth, a phone screen) the old detector returned huge boxes around the clutter; the new one frames the
+  page/screen, and correctly declines a dark screen. Synthetic tests added.
+- Web fixes: the crop screen no longer clips the bottom corners of tall photos on phones; camera capture flashes, shows
+  the last shot and a "Page N saved" message; imported/captured pages scroll into view highlighted; Combine PDFs has a
+  file-name field.
 - Web, for students: a full-screen **Preview** (page with arrows/swipe, zoom, jump to the editor), a **Show original**
   compare button in the editor, and a **Resize images** tool (presets or custom pixels, JPEG/PNG, optional "keep each
   image under X MB" for upload portals, before/after sizes, individual files or one ZIP). Browser-side only.

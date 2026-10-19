@@ -49,10 +49,16 @@ export function openEditor(page: PageModel): void {
     tab = t; render();
   }
 
+  let screenSeq = 0; // a newer render supersedes an older one still waiting on the image decode
   async function render() {
     cropTab.setAttribute('aria-selected', String(tab === 'crop')); enhTab.setAttribute('aria-selected', String(tab === 'enhance'));
+    // Keep the tool row's height while it is rebuilt so the stage is measured at its final size.
+    const toolsHeight = tools.offsetHeight;
     stageInner.replaceChildren(); tools.replaceChildren();
-    if (tab === 'crop') await renderCrop(); else await renderEnhance();
+    if (toolsHeight) tools.style.minHeight = `${toolsHeight}px`;
+    const mine = ++screenSeq;
+    if (tab === 'crop') await renderCrop(mine); else await renderEnhance();
+    if (mine === screenSeq) tools.style.minHeight = '';
   }
 
   const fit = () => {
@@ -60,9 +66,11 @@ export function openEditor(page: PageModel): void {
     return { maxW: Math.max(100, maxW), maxH: Math.max(100, maxH) };
   };
 
-  async function renderCrop() {
+  async function renderCrop(mine: number) {
     bitmap ??= await decode(blob!);
+    if (mine !== screenSeq) return;
     const { maxW, maxH } = fit();
+    fitted = { w: maxW, h: maxH };
     const s = Math.min(maxW / bitmap.width, maxH / bitmap.height);
     const w = Math.round(bitmap.width * s), h2 = Math.round(bitmap.height * s);
     const c = document.createElement('canvas'); c.width = w; c.height = h2;
@@ -138,6 +146,15 @@ export function openEditor(page: PageModel): void {
     await draw();
   }
 
+  // The stage shrinks when the tool row below it fills in or a phone toolbar appears; refit so no corner is clipped.
+  let fitted = { w: 0, h: 0 };
+  const watch = new ResizeObserver(() => {
+    const now = fit();
+    if (tab !== 'crop' || (Math.abs(now.maxW - fitted.w) < 3 && Math.abs(now.maxH - fitted.h) < 3)) return;
+    void render();
+  });
+  watch.observe(stage);
+  dlg.addEventListener('close', () => watch.disconnect());
   void render();
   void save;
 }

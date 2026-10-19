@@ -27,6 +27,15 @@ owner's phone testing so far was of the earlier, simpler detector, whose weaknes
 this rewrite. Busy scenes with several overlapping papers can still fail. Contributions of difficult test photos (that you have the
 right to share) are welcome.
 
+## Paper-colour candidates (web)
+Line-based candidates alone were fooled by clutter (patterned bedding, keyboards, floors): long straight lines are
+everywhere. The web detector therefore also looks at colour. Paper is usually the whitest thing in the photo, so the
+per-pixel minimum of R, G, B is thresholded at two Otsu levels, the mask is opened (erode then dilate) to cut thin
+bridges, and a quadrilateral is fitted around each large blob's convex hull (repeatedly dropping the edge whose removal
+adds the least area). Every candidate, whatever produced it, must also pass a check that most of its interior is as
+white as its own 90th percentile, and its score is multiplied by that fraction cubed. Dark paper on a bright table is
+still handled by the older brightness segmentation.
+
 ## Crop margin
 Detected corners are moved outwards by a small margin (1.2% of the page size, `CROP_MARGIN`) because clipping a page
 edge or printed footer is worse than including a sliver of desk.

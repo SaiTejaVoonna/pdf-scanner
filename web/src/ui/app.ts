@@ -15,6 +15,9 @@ import { openViewer } from './viewer';
 declare const __APP_VERSION__: string;
 
 /** Adds image files/blobs as pages, normalising them and (if the setting is on) auto-cropping. */
+let justAdded: string | null = null;
+let highlight: (id: string) => void = () => {};
+
 async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = []): Promise<void> {
   const auto = source === 'camera' ? state.settings.autoCropCamera : state.settings.autoCropImport;
   let failed = 0;
@@ -22,9 +25,12 @@ async function ingest(files: Blob[], source: 'camera' | 'import', names: string[
     try {
       const { blob, w, h: ph } = await normalize(files[i]);
       const corners = auto ? (await detectCorners(blob)) ?? fullQuad() : fullQuad();
-      store.addPage(blob, w, ph, corners);
+      const added = store.addPage(blob, w, ph, corners);
+      justAdded = added.id;
+      highlight(added.id);
     } catch { failed++; if (names[i]) toast(`${names[i]} could not be read as an image.`); }
   }
+  if (justAdded && source !== 'camera') toast(`${files.length - failed} page${files.length - failed === 1 ? '' : 's'} added.`);
   if (failed && !names.length) toast(`${failed} image(s) could not be added.`);
 }
 
@@ -72,6 +78,7 @@ export function mountApp(root: HTMLElement): void {
     list.hidden = pages.length === 0;
     list.replaceChildren(...pages.map((p, i) => card(p, i, pages.length)));
     renderBar();
+
   }
 
   function card(p: PageModel, index: number, total: number): HTMLElement {
@@ -93,7 +100,7 @@ export function mountApp(root: HTMLElement): void {
         h('button', { class: 'icon-btn', 'aria-label': `Move page ${index + 1} earlier`, disabled: index === 0, onclick: () => store.movePage(p.id, -1) }, '←'),
         h('button', { class: 'icon-btn', 'aria-label': `Move page ${index + 1} later`, disabled: index === total - 1, onclick: () => store.movePage(p.id, 1) }, '→'),
         h('button', { class: 'icon-btn', 'aria-label': `Delete page ${index + 1}`, onclick: () => { if (confirm(`Delete page ${index + 1}?`)) store.removePages([p.id]); } }, '🗑'));
-    return h('li', { class: 'card', 'data-selected': String(selected) }, thumb, bar);
+    return h('li', { class: 'card', 'data-id': p.id, 'data-selected': String(selected) }, thumb, bar);
   }
 
   function renderBar() {
@@ -128,6 +135,10 @@ export function mountApp(root: HTMLElement): void {
       h('button', { class: 'btn', onclick: store.clearSelection }, 'Done'));
   }
 
+  highlight = (id) => {
+    const el = list.querySelector(`[data-id="${id}"]`);
+    if (el) { el.scrollIntoView({ block: 'center', behavior: 'smooth' }); el.classList.add('fresh'); }
+  };
   subscribe(render);
   render();
 }

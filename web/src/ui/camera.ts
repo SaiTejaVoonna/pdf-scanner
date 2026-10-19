@@ -12,6 +12,9 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
   const msg = h('div', { class: 'msg', hidden: true, role: 'alert' });
   const shutter = h('button', { class: 'shutter', 'aria-label': 'Capture page', disabled: true });
   const done = h('button', { class: 'btn' }, 'Done');
+  const last = h('img', { class: 'last-shot', alt: '', hidden: true });
+  const flash = h('div', { class: 'flash', 'aria-hidden': 'true' });
+  let lastUrl = '';
   const stop = () => stream?.getTracks().forEach((t) => t.stop());
 
   const dialog = openDialog((close) => {
@@ -28,12 +31,17 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
         await onShot(blob);
         shots++;
         done.textContent = `Done (${shots})`;
+        if (lastUrl) URL.revokeObjectURL(lastUrl);
+        lastUrl = URL.createObjectURL(blob);
+        last.src = lastUrl; last.alt = `Last captured page (page ${shots} of this session)`; last.hidden = false;
+        flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+        toast(`Page ${shots} saved. Take the next one, or tap Done.`);
       } catch { toast('Could not capture the photo. Please try again.'); }
       finally { shutter.disabled = false; }
     });
-    return h('div', { class: 'camera' }, video, msg,
-      h('div', { class: 'controls' }, h('button', { class: 'btn', onclick: close }, 'Close'), shutter, done));
-  }, 'Camera', stop);
+    return h('div', { class: 'camera' }, video, msg, flash,
+      h('div', { class: 'controls' }, last, h('button', { class: 'btn', onclick: close }, 'Close'), shutter, done));
+  }, 'Camera', () => { stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });
   dialog.classList.add('full');
 
   const fail = (text: string) => { msg.hidden = false; msg.textContent = text; shutter.disabled = true;

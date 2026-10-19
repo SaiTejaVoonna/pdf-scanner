@@ -2,6 +2,7 @@ import { area, isValidCrop, orderPoints, type Pt, type Quad } from '../geometry'
 import { boxBlur, luma, type Img } from '../image';
 import { cannyEdges } from './canny';
 import { borderLines, houghLines, type Line } from './hough';
+import { paperCandidates } from './paper';
 import { regionCandidates } from './region';
 
 /**
@@ -15,6 +16,7 @@ import { regionCandidates } from './region';
  */
 const MIN_AREA = 0.12, MAX_AREA = 0.985, MIN_MEAN_SUPPORT = 0.55, MIN_SIDE_SUPPORT = 0.35, BORDER_WEIGHT = 0.5;
 const MIN_SIDE_CONTRAST = 8, FULL_CONTRAST = 25, MAX_NEAR_DENSITY = 0.65, BORDER_PENALTY = 0.9;
+const MIN_PAPER_FRACTION = 0.5;
 const CONTRAST_OFFSETS = [4, 7, 10, 13, 16];
 
 /** `img` should be a small copy (about 400 px); returns normalized corners or null. */
@@ -36,7 +38,12 @@ export function detectPage(img: Img): Quad | null {
   const consider = (px: Pt[] | null) => {
     if (!px) return;
     const s = scorer.score(px);
-    if (s && (!best || s.score > best.score)) best = s;
+    if (!s || (best && s.score <= best.score)) return;
+    // Only the few candidates that could win pay for the (slower) "is this mostly paper?" check.
+    const pf = scorer.paperFraction(s.quad);
+    if (pf < MIN_PAPER_FRACTION) return;
+    s.score *= Math.pow(pf, 3);
+    if (!best || s.score > best.score) best = s;
   };
 
   const minVotes = Math.max(12, Math.floor(0.25 * Math.min(w, h)));
@@ -46,6 +53,9 @@ export function detectPage(img: Img): Quad | null {
   const gray = new Int32Array(n);
   for (let i = 0; i < n; i++) gray[i] = luma(channels[0][i], channels[1][i], channels[2][i]);
   for (const q of regionCandidates(gray, w, h)) consider(q.map((p) => ({ x: p.x * w, y: p.y * h })));
+  const white = new Int32Array(n);
+  for (let i = 0; i < n; i++) white[i] = Math.min(channels[0][i], channels[1][i], channels[2][i]);
+  for (const q of paperCandidates(white, w, h)) consider(q.map((p) => ({ x: p.x * w, y: p.y * h })));
 
   const result = best as { quad: Quad; score: number } | null;
   if (!result || !isValidCrop(result.quad)) return null;
@@ -101,6 +111,37 @@ class Scorer {
     const contrastFactor = Math.sqrt(Math.min(1, contrastSum / genuine / FULL_CONTRAST));
     const score = Math.pow(a, 0.7) * mean * mean * (0.5 + 0.5 * weakest) * contrastFactor * Math.pow(BORDER_PENALTY, borders);
     return { quad, score };
+  }
+
+  /**
+   * How much of the quad's interior looks like paper: pixels at least 80% as white as the quad's own bright level
+   * (its 90th percentile). Paper with text scores ~0.9; a box around fabric, a keyboard and a floor scores far less.
+   */
+  paperFraction(q: Quad): number {
+    const { w, h, smooth } = this;
+    const xs = q.map((p) => p.x * w), ys = q.map((p) => p.y * h);
+    const y0 = Math.max(0, Math.floor(Math.min(...ys))), y1 = Math.min(h - 1, Math.ceil(Math.max(...ys)));
+    const x0 = Math.max(0, Math.floor(Math.min(...xs))), x1 = Math.min(w - 1, Math.ceil(Math.max(...xs)));
+    const hist = new Int32Array(256);
+    let count = 0;
+    for (let y = y0; y <= y1; y += 2) for (let x = x0; x <= x1; x += 2) {
+      let inside = true;
+      for (let i = 0; i < 4 && inside; i++) {
+        const j = (i + 1) % 4;
+        if ((xs[j] - xs[i]) * (y - ys[i]) - (ys[j] - ys[i]) * (x - xs[i]) < 0) inside = false;
+      }
+      if (!inside) continue;
+      const k = y * w + x;
+      hist[Math.min(255, Math.max(0, Math.min(smooth[0][k], smooth[1][k], smooth[2][k])))]++;
+      count++;
+    }
+    if (count < 20) return 0;
+    let acc = 0, p90 = 255;
+    for (let v = 0; v < 256; v++) { acc += hist[v]; if (acc >= count * 0.9) { p90 = v; break; } }
+    const cut = p90 * 0.8;
+    let paper = 0;
+    for (let v = Math.ceil(cut); v < 256; v++) paper += hist[v];
+    return paper / count;
   }
 
   /** Fraction of the side's length lying on image edges; samples on the frame count half. */

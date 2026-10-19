@@ -254,3 +254,35 @@ test('resizes images to a size and a file-size limit, and downloads a valid ZIP'
   const { execFileSync } = await import('node:child_process');
   expect(execFileSync('unzip', ['-t', zipPath]).toString()).toContain('No errors detected');
 });
+
+test('crop screen never clips the corners of a tall photo on a phone-sized screen', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 700 });
+  await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [png('tall.png', 600, 1600)]);
+  await page.getByRole('button', { name: 'Edit page 1' }).click();
+  const editor = page.getByRole('dialog', { name: 'Edit page' });
+  const stage = editor.locator('.stage');
+  await expect(editor.getByRole('button', { name: /Bottom left corner/ })).toBeVisible();
+  await expect.poll(async () => {
+    const s = (await stage.boundingBox())!;
+    const handles = await Promise.all(['Top left', 'Top right', 'Bottom right', 'Bottom left'].map(async (n) => (await editor.getByRole('button', { name: new RegExp(`${n} corner`) }).boundingBox())!));
+    // Each handle's centre must be inside the visible stage.
+    return handles.every((b) => b.x + b.width / 2 >= s.x - 1 && b.x + b.width / 2 <= s.x + s.width + 1 && b.y + b.height / 2 >= s.y - 1 && b.y + b.height / 2 <= s.y + s.height + 1);
+  }).toBe(true);
+});
+
+test('taking pages gives feedback: a message, and the new page is highlighted', async ({ page }) => {
+  await importImages(page, 2);
+  await expect(page.getByText('2 pages added.')).toBeVisible();
+  await expect(page.locator('.card.fresh')).toHaveCount(1);
+});
+
+test('combine lets you name the output file', async ({ page }) => {
+  await page.getByRole('button', { name: 'Combine PDFs' }).click();
+  const dlg = page.getByRole('dialog', { name: 'Combine PDFs' });
+  const doc = async (n: number) => { const d = await PDFDocument.create(); for (let i = 0; i < n; i++) d.addPage([200, 200]); return Buffer.from(await d.save()); };
+  await dlg.locator('input[type=file]').setInputFiles([{ name: 'a.pdf', mimeType: 'application/pdf', buffer: await doc(1) }, { name: 'b.pdf', mimeType: 'application/pdf', buffer: await doc(2) }]);
+  await dlg.getByLabel('File name').fill('Lab report');
+  const dl = page.waitForEvent('download');
+  await dlg.getByRole('button', { name: 'Combine & download' }).click();
+  expect((await dl).suggestedFilename()).toBe('Lab report.pdf');
+});

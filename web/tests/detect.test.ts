@@ -22,6 +22,10 @@ describe('detectPage', () => {
   it('clutter behind the page (folder strip and blue card)', () => {
     expectCorners(persp, detectPage(scene({ page: persp, bg: [150, 140, 130], paper: [235, 235, 228], clutter: true, seed: 3 })), 0.06);
   });
+  it('strongly textured, fairly light background (a bed sheet) with clutter', () => {
+    const page: Pt[] = [{ x: 90, y: 100 }, { x: 250, y: 90 }, { x: 270, y: 330 }, { x: 80, y: 345 }];
+    for (const seed of [2, 4, 6]) expectCorners(page, detectPage(scene({ page, bg: [150, 135, 125], paper: [240, 238, 235], bgTexture: 45, clutter: true, shadow: 15, seed })), 0.07);
+  });
   it('low contrast page', () => {
     expectCorners(persp, detectPage(scene({ page: persp, bg: [165, 160, 155], paper: [205, 202, 196], bgTexture: 8, shadow: 10, seed: 5 })), 0.06);
   });
