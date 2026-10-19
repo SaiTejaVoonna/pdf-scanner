@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isConvex, type Pt, type Quad } from '../src/core/geometry';
-import { detectPage } from '../src/core/detect';
+import { detectPage, padQuad } from '../src/core/detect';
 import { createImg } from '../src/core/image';
 import { rng, scene } from './scenes';
 
@@ -67,6 +67,15 @@ describe('detectPage', () => {
     for (let seed = 1; seed <= 8; seed++) {
       expectCorners(persp, detectPage(scene({ page: persp, bg: [110, 100, 95], paper: [225, 222, 212], seed })), 0.06);
     }
+  });
+  it('pads the crop outwards, stays inside the image and keeps a valid shape', () => {
+    const q: Quad = [{ x: 0.2, y: 0.2 }, { x: 0.8, y: 0.2 }, { x: 0.8, y: 0.8 }, { x: 0.2, y: 0.8 }];
+    const p = padQuad(q, 0.05);
+    expect(p[0].x).toBeLessThan(0.2); expect(p[2].x).toBeGreaterThan(0.8);
+    expect(p[0].y).toBeLessThan(0.2); expect(p[2].y).toBeGreaterThan(0.8);
+    const edge: Quad = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 1, y: 1 }, { x: 0, y: 1 }];
+    padQuad(edge, 0.1).forEach((pt) => { expect(pt.x).toBeGreaterThanOrEqual(0); expect(pt.x).toBeLessThanOrEqual(1); expect(pt.y).toBeGreaterThanOrEqual(0); expect(pt.y).toBeLessThanOrEqual(1); });
+    expect(isConvex(p)).toBe(true);
   });
   it('rejects tiny images without throwing', () => {
     expect(detectPage(createImg(4, 4))).toBeNull();

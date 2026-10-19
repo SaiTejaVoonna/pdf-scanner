@@ -33,3 +33,5 @@ cd web && npm ci && npm run typecheck && npm test && npm run build && npm run e2
   settings, live camera capture, camera-denied guidance, combine PDFs, no requests to other origins, and a
   service-worker **offline** reload that still scans and exports.
 - Not covered: real phone cameras and Safari/iOS behaviour.
+
+- **Detection benchmark on real photos:** `npm run bench -- <folder>` (see [PAGE_DETECTION.md](PAGE_DETECTION.md)).

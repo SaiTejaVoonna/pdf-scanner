@@ -4,6 +4,7 @@
 First beta.
 - **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
   (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
+- Web: detected crops get a small outward margin; `npm run bench` scores the detector on a folder of real photos.
 - Detector fix (Android and web): a full-frame page with text no longer yields a crop of the text block; the side
   contrast now compares paper levels (band maximum) instead of means.
 - New page detector (Canny + Hough + scored quadrilaterals) replacing the brightness-only heuristic.

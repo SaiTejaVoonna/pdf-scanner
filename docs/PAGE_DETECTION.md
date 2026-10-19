@@ -26,3 +26,28 @@ colour-only difference, clutter, cut-off pages). It has **not** yet been run aga
 owner's phone testing so far was of the earlier, simpler detector, whose weaknesses on a cluttered photo motivated
 this rewrite. Busy scenes with several overlapping papers can still fail. Contributions of difficult test photos (that you have the
 right to share) are welcome.
+
+## Crop margin
+Detected corners are moved outwards by a small margin (1.2% of the page size, `CROP_MARGIN`) because clipping a page
+edge or printed footer is worse than including a sliver of desk.
+
+## Real-photo check and benchmark
+One real, difficult photo (a letter inside a folder on marble, with a blue card behind it, blurry edges and fingers at
+the bottom) was tried on the web detector. It returned a plausible crop around the *folder and papers*, but its bottom
+edge landed on a printed rule above the letter's footer, so the footer was cut off. Raising the contrast threshold
+did not fix that: it produced worse quads built from the image frame, and the synthetic tests passed at every
+setting, so the synthetic suite cannot tell good from bad on real photos. Tuning one constant against one photo
+would be guesswork, so it was not done.
+
+To measure instead of guess, use the benchmark:
+
+```bash
+cd web
+# put photos in a folder (they never leave your machine); optionally add <name>.json next to a photo with the true
+# corners: {"corners": [[x, y], [x, y], [x, y], [x, y]]} as 0..1 fractions, clockwise from the top-left
+npm run bench -- /path/to/photos /path/to/output
+```
+
+It runs the real detector in Chromium, writes `<name>-detected.png` with the result drawn on each photo, and prints
+how many were found and, where ground truth exists, the mean overlap (IoU). `bench/photos/` is git-ignored so private
+documents cannot be committed by accident.

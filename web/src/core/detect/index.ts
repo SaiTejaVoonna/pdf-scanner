@@ -48,7 +48,21 @@ export function detectPage(img: Img): Quad | null {
   for (const q of regionCandidates(gray, w, h)) consider(q.map((p) => ({ x: p.x * w, y: p.y * h })));
 
   const result = best as { quad: Quad; score: number } | null;
-  return result && isValidCrop(result.quad) ? result.quad : null;
+  if (!result || !isValidCrop(result.quad)) return null;
+  const loose = padQuad(result.quad, CROP_MARGIN);
+  return isValidCrop(loose) ? loose : result.quad;
+}
+
+/** Fraction of the page size added around the detected corners: clipping page edges is worse than a sliver of desk. */
+export const CROP_MARGIN = 0.012;
+
+/** Moves each corner away from the centre by `margin` of the quad's size, staying inside the image. */
+export function padQuad(q: Quad, margin: number): Quad {
+  const cx = (q[0].x + q[1].x + q[2].x + q[3].x) / 4, cy = (q[0].y + q[1].y + q[2].y + q[3].y) / 4;
+  return q.map((p) => ({
+    x: Math.min(1, Math.max(0, p.x + (p.x - cx) * margin * 2)),
+    y: Math.min(1, Math.max(0, p.y + (p.y - cy) * margin * 2)),
+  })) as Quad;
 }
 
 const blur2 = (c: Int32Array, w: number, h: number) => boxBlur(c, w, h, 2);
