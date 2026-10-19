@@ -1,6 +1,8 @@
 // Offline support: cache the app shell on install, then serve from cache and refresh in the background.
-// Bump VERSION to force a refresh of cached files.
-const VERSION = 'pdf-scanner-v1';
+// VERSION is replaced at build time (vite.config.ts), so every release is a different file and the browser sees an update.
+// An updated worker waits until the page asks it to take over (the "Update ready" banner), so an open editor is never
+// swapped under the user; the very first install activates straight away.
+const VERSION = '__BUILD_ID__';
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
@@ -11,8 +13,11 @@ self.addEventListener('install', (event) => {
     for (const m of html.matchAll(/(?:src|href)="(\.\/assets\/[^"]+)"/g)) urls.add(m[1]);
     await cache.put('./', index);
     await Promise.all([...urls].filter((u) => u !== './').map((u) => cache.add(u).catch(() => undefined)));
-    await self.skipWaiting();
   })());
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {

@@ -51,7 +51,8 @@ test('imports images, edits a page, reorders, and exports a valid multipage PDF'
   await expect(editor).toBeHidden();
 
   // Reorder: move page 1 later.
-  await page.getByRole('button', { name: 'Move page 1 later' }).click();
+  await page.getByRole('button', { name: 'Page 1 menu' }).click();
+  await page.getByRole('dialog', { name: 'Page 1 menu' }).getByRole('button', { name: 'Move later' }).click();
 
   await page.getByRole('button', { name: 'Export PDF' }).click();
   const dlg = page.getByRole('dialog', { name: 'Export PDF' });
@@ -90,7 +91,8 @@ test('export shows the estimated size of each quality and can pick one that fits
 
 test('selection mode applies bulk actions to the selected pages only', async ({ page }) => {
   await importImages(page, 3);
-  await page.getByRole('button', { name: 'Select page 1' }).first().click();
+  await page.getByRole('button', { name: 'Select', exact: true }).click();
+  await page.getByRole('button', { name: 'Select page 1' }).click();
   await expect(page.getByRole('status').filter({ hasText: '1 selected' })).toBeVisible();
   await page.getByRole('button', { name: 'Select page 3' }).click(); // thumb toggles in selection mode
   await expect(page.getByRole('status').filter({ hasText: '2 selected' })).toBeVisible();
@@ -141,7 +143,7 @@ test('settings are stored and auto-crop on import crops the page', async ({ page
 });
 
 test('live camera captures pages (fake camera) and shows a clear message if blocked', async ({ page }) => {
-  await page.getByRole('button', { name: 'Scan with camera' }).click();
+  await page.getByRole('button', { name: 'Scan', exact: true }).click();
   const cam = page.getByRole('dialog', { name: 'Camera' });
   const shutter = cam.getByRole('button', { name: 'Capture page' });
   await expect(shutter).toBeEnabled();
@@ -159,7 +161,7 @@ test('camera denied shows guidance and a fallback', async ({ browser }) => {
   const p = await ctx.newPage();
   await p.addInitScript(() => { navigator.mediaDevices.getUserMedia = () => Promise.reject(new DOMException('no', 'NotAllowedError')); });
   await p.goto('/');
-  await p.getByRole('button', { name: 'Scan with camera' }).click();
+  await p.getByRole('button', { name: 'Scan', exact: true }).click();
   await expect(p.getByRole('alert')).toContainText('Camera access was denied');
   await expect(p.getByRole('button', { name: 'Use phone camera instead' })).toBeVisible();
   await ctx.close();
@@ -200,7 +202,8 @@ test('works offline after the first visit (service worker)', async ({ page, cont
 
 test('preview pages through the scans, zoom, and jump to the editor', async ({ page }) => {
   await importImages(page, 3);
-  await page.getByRole('button', { name: 'Preview page 2' }).click();
+  await page.getByRole('button', { name: 'Page 2 menu' }).click();
+  await page.getByRole('dialog', { name: 'Page 2 menu' }).getByRole('button', { name: 'Preview' }).click();
   const viewer = page.getByRole('dialog', { name: 'Preview' });
   await expect(viewer.getByText('Page 2 of 3')).toBeVisible();
   await expect(viewer.getByRole('img', { name: 'Page 2 of 3' })).toHaveJSProperty('complete', true);

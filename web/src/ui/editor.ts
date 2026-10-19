@@ -2,20 +2,27 @@ import { FILTERS, type FilterName } from '../core/filters';
 import { cloneQuad, fullQuad, isValidCrop, clamp01, type Pt, type Quad } from '../core/geometry';
 import { chips, h, openDialog, toast } from '../dom';
 import { decode, detectCorners, renderPage } from '../imaging';
-import { blobOf, editPages, type PageModel } from '../store';
+import { blobOf, clearDraft, editPages, saveDraft, type PageModel } from '../store';
+
+export interface PageDraftData { corners: Quad; rotation: number; filter: FilterName }
 
 const CORNER_NAMES = ['Top left corner', 'Top right corner', 'Bottom right corner', 'Bottom left corner'];
 
 /** Page editor: Crop (draggable, keyboard-adjustable corners, auto-detect) and Enhance (filter, rotate). */
-export function openEditor(page: PageModel): void {
+export function openEditor(page: PageModel, resume?: PageDraftData): void {
   const blob = blobOf(page.id);
   if (!blob) { toast('This page image is missing.'); return; }
-  let corners: Quad = cloneQuad(page.corners);
-  let rotation = page.rotation;
-  let filter: FilterName = page.filter;
+  let corners: Quad = cloneQuad(resume?.corners ?? page.corners);
+  let rotation = resume?.rotation ?? page.rotation;
+  let filter: FilterName = resume?.filter ?? page.filter;
   let tab: 'crop' | 'enhance' = 'crop';
   let bitmap: ImageBitmap | null = null;
-  let dirty = false;
+  let dirty = !!resume;
+  let saved = false;
+  let draftTimer: number | undefined;
+  const flush = () => { window.clearTimeout(draftTimer); if (dirty && !saved) saveDraft({ kind: 'page', id: page.id, data: { corners, rotation, filter } satisfies PageDraftData }); };
+  /** Marks unsaved edits and remembers them, so a reload or an app update does not lose them. */
+  const touch = () => { dirty = true; window.clearTimeout(draftTimer); draftTimer = window.setTimeout(flush, 400); };
 
   const stageInner = h('div', { class: 'stage-inner' });
   const stage = h('div', { class: 'stage' }, stageInner);
@@ -30,6 +37,7 @@ export function openEditor(page: PageModel): void {
     save = h('button', { class: 'btn primary', onclick: () => {
       if (!isValidCrop(corners)) { toast('The corners must form a convex shape that covers part of the page.'); return; }
       editPages([page.id], (p) => ({ ...p, corners: cloneQuad(corners), rotation, filter }));
+      saved = true; clearDraft();
       close();
     } }, 'Save');
     cropTab.onclick = () => setTab('crop');
@@ -40,7 +48,8 @@ export function openEditor(page: PageModel): void {
   };
   const requestClose = (close: () => void) => { if (!dirty || confirm('Discard your changes to this page?')) close(); };
 
-  dlg = openDialog(body, 'Edit page', () => bitmap?.close());
+  window.addEventListener('app-flush-drafts', flush);
+  dlg = openDialog(body, 'Edit page', () => { bitmap?.close(); window.removeEventListener('app-flush-drafts', flush); window.clearTimeout(draftTimer); if (!saved) clearDraft(); });
   dlg.classList.add('full');
   dlg.addEventListener('cancel', (e) => { if (dirty && !confirm('Discard your changes to this page?')) e.preventDefault(); });
 
@@ -107,17 +116,17 @@ export function openEditor(page: PageModel): void {
       poly.setAttribute('d', `M0,0H${w}V${h2}H0Z M${pts.join(' L')}Z`);
       handles.forEach((el, i) => { el.style.left = `${corners[i].x * w}px`; el.style.top = `${corners[i].y * h2}px`; });
     };
-    const move = (i: number, p: Pt) => { corners[i] = { x: clamp01(p.x), y: clamp01(p.y) }; dirty = true; draw(); };
+    const move = (i: number, p: Pt) => { corners[i] = { x: clamp01(p.x), y: clamp01(p.y) }; touch(); draw(); };
     draw();
 
     const auto = h('button', { class: 'btn', onclick: async () => {
       auto.disabled = true; auto.textContent = 'Detecting…';
       try {
         const q = await detectCorners(blob!);
-        if (q) { corners = q; dirty = true; draw(); } else toast('No page edges found. Adjust the corners manually.');
+        if (q) { corners = q; touch(); draw(); } else toast('No page edges found. Adjust the corners manually.');
       } finally { auto.disabled = false; auto.textContent = 'Auto-detect'; }
     } }, 'Auto-detect');
-    const reset = h('button', { class: 'btn', onclick: () => { corners = fullQuad(); dirty = true; draw(); } }, 'Full image');
+    const reset = h('button', { class: 'btn', onclick: () => { corners = fullQuad(); touch(); draw(); } }, 'Full image');
     tools.append(h('p', { class: 'hint' }, 'Drag the corners to match the page edges (or use the arrow keys).'), h('div', { class: 'row' }, auto, reset));
   }
 
@@ -137,12 +146,12 @@ export function openEditor(page: PageModel): void {
       canvas.setAttribute('role', 'img'); canvas.setAttribute('aria-label', showOriginal ? 'Original photo' : 'Preview of the corrected page');
       stageInner.replaceChildren(canvas);
     };
-    const rot = (d: number) => h('button', { class: 'btn', 'aria-label': d > 0 ? 'Rotate right' : 'Rotate left', onclick: () => { rotation = (rotation + d + 360) % 360; dirty = true; void draw(); } }, d > 0 ? '⟳ Rotate right' : '⟲ Rotate left');
+    const rot = (d: number) => h('button', { class: 'btn', 'aria-label': d > 0 ? 'Rotate right' : 'Rotate left', onclick: () => { rotation = (rotation + d + 360) % 360; touch(); void draw(); } }, d > 0 ? '⟳ Rotate right' : '⟲ Rotate left');
     const compare = h('button', { class: 'btn', 'aria-pressed': 'false', onclick: () => {
       showOriginal = !showOriginal; compare.setAttribute('aria-pressed', String(showOriginal)); compare.textContent = showOriginal ? 'Show result' : 'Show original'; void draw();
     } }, showOriginal ? 'Show result' : 'Show original');
     compare.setAttribute('aria-pressed', String(showOriginal));
-    tools.append(chips(FILTERS, filter, (id) => { filter = id; showOriginal = false; compare.setAttribute('aria-pressed', 'false'); compare.textContent = 'Show original'; dirty = true; void draw(); }), h('div', { class: 'row' }, rot(-90), rot(90), compare));
+    tools.append(chips(FILTERS, filter, (id) => { filter = id; showOriginal = false; compare.setAttribute('aria-pressed', 'false'); compare.textContent = 'Show original'; touch(); void draw(); }), h('div', { class: 'row' }, rot(-90), rot(90), compare));
     await draw();
   }
 

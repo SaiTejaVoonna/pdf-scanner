@@ -1,7 +1,7 @@
 import { applyFilter } from './core/filters';
 import { isFullFrame, isValidCrop, type Quad } from './core/geometry';
 import { downscale, type Img } from './core/image';
-import { detectPage } from './core/detect';
+import { detectPage, detectSpread, type SpreadDetection } from './core/detect';
 import { outputSize, rotate90, scaleQuad, warp } from './core/warp';
 import { blobOf, type PageModel } from './store';
 
@@ -38,6 +38,26 @@ export async function normalize(file: Blob): Promise<{ blob: Blob; w: number; h:
     g.drawImage(bmp, 0, 0, w, h);
     return { blob: await canvasToBlob(c, 'image/jpeg', 0.92), w, h };
   } finally { bmp.close(); }
+}
+
+/** Decodes `blob` into a small RGBA copy (about 400 px) for detection and warnings. */
+export async function analysisImage(blob: Blob): Promise<Img> {
+  const bmp = await decode(blob);
+  try {
+    const s = Math.min(1, DETECT_SIDE / Math.max(bmp.width, bmp.height));
+    const w = Math.max(32, Math.round(bmp.width * s)), h = Math.max(32, Math.round(bmp.height * s));
+    const c = canvas(w, h);
+    const g = ctx2d(c);
+    g.drawImage(bmp, 0, 0, w, h);
+    const d = g.getImageData(0, 0, w, h);
+    await new Promise((r) => setTimeout(r));
+    return { data: d.data, width: w, height: h };
+  } finally { bmp.close(); }
+}
+
+/** Outline and fold of a two-page spread; `uncertain` is set when the fold had to be guessed. */
+export async function detectSpreadIn(blob: Blob): Promise<SpreadDetection> {
+  return detectSpread(await analysisImage(blob));
 }
 
 /** Finds the page corners in a source image, or null when nothing convincing is found. */
