@@ -1,6 +1,7 @@
 import { applyFilter } from './core/filters';
 import { isFullFrame, isValidCrop, type Quad } from './core/geometry';
 import { downscale, type Img } from './core/image';
+import { detectAnchored } from './core/anchor';
 import { detectPage, detectSpread, type SpreadDetection } from './core/detect';
 import { outputSize, rotate90, scaleQuad, warp } from './core/warp';
 import { blobOf, type PageModel } from './store';
@@ -58,6 +59,11 @@ export async function analysisImage(blob: Blob): Promise<Img> {
 /** Outline and fold of a two-page spread; `uncertain` is set when the fold had to be guessed. */
 export async function detectSpreadIn(blob: Blob, guideX?: number): Promise<SpreadDetection> {
   return detectSpread(await analysisImage(blob), guideX);
+}
+
+/** Page corners using the camera's anchor lines (see core/anchor), or null when nothing convincing is found. */
+export async function detectAnchoredIn(blob: Blob): Promise<Quad | null> {
+  return detectAnchored(await analysisImage(blob)).quad;
 }
 
 /** Finds the page corners in a source image, or null when nothing convincing is found. */

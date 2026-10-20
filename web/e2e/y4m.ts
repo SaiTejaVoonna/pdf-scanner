@@ -1,6 +1,6 @@
 import { writeFileSync } from 'node:fs';
 
-export interface Scene { name: string; page: { x: number; y: number } | null; /** an open book: two pages with a dark fold between them */ book?: boolean; /** frames to take sliding in from the left before it rests */ slide?: number; frames: number }
+export interface Scene { name: string; page: { x: number; y: number } | null; /** an open book: two pages with a dark fold between them */ book?: boolean; /** a mottled floor, no page at all */ floor?: boolean; /** frames to take sliding in from the left before it rests */ slide?: number; frames: number }
 
 const W = 640, H = 480, FPS = 10, PW = 330, PH = 420, BW = 460, BH = 360;
 
@@ -18,6 +18,7 @@ export function writeVideo(file: string, scenes: Scene[]): number {
         const gx = ox + pw / 2;
         const text = on && r > sc.page!.y + 36 && (r - sc.page!.y) % 26 < 8 && c > ox + 30 && c < ox + pw - 30 && (!sc.book || Math.abs(c - gx) > 26) && ((c * 7 + r * 3) % 11) < 8;
         let v = text ? 55 : on ? 232 + (((c * 3 + r) % 5) - 2) : 78 + (((c * 5 + r * 3) % 9) - 4);
+        if (sc.floor) v = 130 + 30 * Math.sin(c / 23 + r / 31) + 25 * Math.cos(c / 11 - r / 17) + (((c * 7 + r * 13) % 11) - 5);
         if (on && sc.book && !text) v -= 200 * Math.exp(-((c - gx) * (c - gx)) / 160);
         y[r * W + c] = v;
       }

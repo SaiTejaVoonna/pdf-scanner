@@ -17,7 +17,8 @@ export class LiveLoop {
   private id = 0;
   private stopped = false;
   mode: LiveRequest['mode'] = 'single';
-  constructor(private video: HTMLVideoElement, private onResult: (r: { quad: Quad | null; fold?: [Pt, Pt]; both?: boolean; sharp: number; t: number; ms: number }) => void, private onFail: () => void) {}
+  anchors = false;
+  constructor(private video: HTMLVideoElement, private onResult: (r: { quad: Quad | null; fold?: [Pt, Pt]; both?: boolean; sure: boolean; why: LiveReply['why']; anchor: LiveReply['anchor']; sharp: number; t: number; ms: number }) => void, private onFail: () => void) {}
 
   start(): void {
     try { this.worker = new DetectWorker(); } catch { this.onFail(); return; }
@@ -25,7 +26,7 @@ export class LiveLoop {
     this.worker.onmessage = (e: MessageEvent<LiveReply>) => {
       if (this.stopped) return;
       if (e.data.error) { this.stop(); this.onFail(); return; }
-      this.onResult({ quad: e.data.quad, fold: e.data.fold, both: e.data.both, sharp: e.data.sharp, t: performance.now(), ms: e.data.ms });
+      this.onResult({ quad: e.data.quad, fold: e.data.fold, both: e.data.both, sure: e.data.sure, why: e.data.why, anchor: e.data.anchor, sharp: e.data.sharp, t: performance.now(), ms: e.data.ms });
       this.timer = window.setTimeout(() => this.send(), Math.max(0, MIN_GAP_MS - e.data.ms));
     };
     this.send();
@@ -43,6 +44,6 @@ export class LiveLoop {
     const ctx = this.canvas.getContext('2d', { willReadFrequently: true })!;
     ctx.drawImage(v, 0, 0, w, h);
     const px = ctx.getImageData(0, 0, w, h);
-    this.worker.postMessage({ id: ++this.id, mode: this.mode, width: w, height: h, data: px.data.buffer } satisfies LiveRequest, [px.data.buffer]);
+    this.worker.postMessage({ id: ++this.id, mode: this.mode, anchors: this.anchors, width: w, height: h, data: px.data.buffer } satisfies LiveRequest, [px.data.buffer]);
   }
 }

@@ -246,3 +246,4 @@ dialog.full .toasts { bottom: 150px; }
 
 .camera .cam-hint { white-space: normal; text-align: center; max-width: calc(100% - 24px); }
 .camera .spread-note { top: calc(190px + env(safe-area-inset-top)); }
+.camera .cam-auto { gap: 6px; }

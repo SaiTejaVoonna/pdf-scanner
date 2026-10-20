@@ -1,7 +1,7 @@
 import { FILTERS, type FilterName } from '../core/filters';
 import { fullQuad } from '../core/geometry';
 import { h, openDialog, toast } from '../dom';
-import { decode, detectCorners, detectSpreadIn, normalize } from '../imaging';
+import { decode, detectAnchoredIn, detectCorners, detectSpreadIn, normalize } from '../imaging';
 import * as store from '../store';
 import { state, subscribe, type PageModel } from '../store';
 import { GUIDE_X } from '../core/spread';
@@ -52,7 +52,8 @@ async function addSpreadQuietly(blob: Blob, foldOnGuide: boolean): Promise<void>
 }
 
 /** Adds image files/blobs, honouring Single page / Book spread mode. */
-async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = [], foldOnGuide = false): Promise<void> {
+async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = [], meta: { foldOnGuide?: boolean; anchored?: boolean } = {}): Promise<void> {
+  const foldOnGuide = !!meta.foldOnGuide;
   const mode = state.settings.captureMode;
   let failed = 0, added = 0;
   for (let i = 0; i < files.length; i++) {
@@ -61,7 +62,8 @@ async function ingest(files: Blob[], source: 'camera' | 'import', names: string[
       if (mode === 'spread') { if (await reviewSpread(files[i])) added += 2; continue; }
       const auto = source === 'camera' ? state.settings.autoCropCamera : state.settings.autoCropImport;
       const { blob, w, h: ph } = await normalize(files[i]);
-      const corners = auto ? (await detectCorners(blob)) ?? fullQuad() : fullQuad();
+      // From the in-app camera with guide lines, the page edge placed on a line is used; otherwise (or if no line was used) the normal search.
+      const corners = auto ? (meta.anchored ? await detectAnchoredIn(blob) : null) ?? (await detectCorners(blob)) ?? fullQuad() : fullQuad();
       const page = store.addPage(blob, w, ph, corners);
       highlight(page.id); added++;
     } catch { failed++; if (names[i]) toast(`${names[i]} could not be read as an image.`); }
@@ -107,7 +109,7 @@ export function mountApp(root: HTMLElement): void {
   const cameraMode = { get: () => state.settings.captureMode, set: (m: 'single' | 'spread') => store.updateSettings({ captureMode: m }) };
   /** Opens the camera; with `retake` (a spread id) it takes one photo and sends it to that spread's retake review. */
   const scan = (retake?: string) => openCamera(async (blob, meta) => {
-    if (!retake) { await ingest([blob], 'camera', [], meta.foldOnGuide); return; }
+    if (!retake) { await ingest([blob], 'camera', [], meta); return; }
     retaking = retake;
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },

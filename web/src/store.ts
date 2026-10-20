@@ -17,11 +17,11 @@ export interface Spread extends SpreadGeometry {
   check?: boolean;
 }
 export type CaptureMode = 'single' | 'spread';
-export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode }
+export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode; /** Two guide lines on the single-page camera; the edge on a line is the page's anchor. */ anchorLines: boolean }
 /** Unsaved editor state, kept so a reload or crash does not lose it. */
 export interface Draft { kind: 'page' | 'spread' | 'newSpread'; id: string; data: unknown; savedAt: number }
 
-const DEFAULT_SETTINGS: Settings = { autoCropCamera: true, autoCropImport: false, defaultFilter: 'original', captureMode: 'single' };
+const DEFAULT_SETTINGS: Settings = { autoCropCamera: true, autoCropImport: false, defaultFilter: 'original', captureMode: 'single', anchorLines: true };
 const SETTINGS_KEY = 'pdf-scanner.settings';
 
 type Listener = () => void;
