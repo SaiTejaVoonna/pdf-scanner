@@ -22,7 +22,7 @@ export interface CameraOptions {
  * Live in-page camera. `onShot` receives each captured JPEG. If the browser blocks the camera the dialog says why
  * and the user can still use "Take photo" (the phone's own camera app) or import images.
  */
-export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () => void, opts: CameraOptions = {}): void {
+export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean }) => Promise<void>, fallback: () => void, opts: CameraOptions = {}): void {
   let stream: MediaStream | null = null;
   let shots = 0;
   const video = h('video', { autoplay: true, playsinline: true, muted: true, 'aria-label': 'Camera preview' });
@@ -65,7 +65,7 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
     hint.classList.toggle('cam-warn', auto && spread && spreadSeen === 'one');
     hint.textContent = !auto ? base
       : liveState === 'cooldown' ? 'Captured. Turn the page'
-      : spread && spreadSeen === 'one' ? 'Only one page, or no fold seen. Fit both pages, fold on the line'
+      : spread && spreadSeen === 'one' ? 'Fold not confirmed. Put the fold on the line, or capture anyway'
       : liveState === 'steady' ? (spread ? 'Both pages found. Hold steady…' : 'Hold steady…')
       : base;
     const a = state.pages.length + 1;
@@ -92,7 +92,7 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
         c.getContext('2d')!.drawImage(video, 0, 0);
         const raw = await canvasToBlob(c, 'image/jpeg', 0.95);
         const { blob } = await normalize(raw);
-        await onShot(blob);
+        await onShot(blob, { foldOnGuide: opts.mode?.get() === 'spread' && !opts.single });
         shots++;
         done.textContent = `Done (${shots})`;
         if (lastUrl) URL.revokeObjectURL(lastUrl);

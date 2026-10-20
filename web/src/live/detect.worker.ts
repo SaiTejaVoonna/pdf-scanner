@@ -1,6 +1,6 @@
 import { detectPage, detectSpread } from '../core/detect';
 import type { Pt, Quad } from '../core/geometry';
-import { splitSpread } from '../core/spread';
+import { GUIDE_X, splitSpread } from '../core/spread';
 import { sharpness } from './frame';
 
 export interface LiveRequest { id: number; mode: 'single' | 'spread'; width: number; height: number; data: ArrayBuffer }
@@ -18,7 +18,7 @@ self.onmessage = (e: MessageEvent<LiveRequest>) => {
     const img = { width, height, data: new Uint8ClampedArray(data) };
     let quad: Quad | null, fold: [Pt, Pt] | undefined, both: boolean | undefined;
     if (mode === 'spread') {
-      const sp = detectSpread(img);
+      const sp = detectSpread(img, GUIDE_X);
       quad = sp.outlineGuessed ? null : sp.outer;
       if (quad) { const [left] = splitSpread(sp); fold = [left[1], left[2]]; both = !sp.uncertain; }
     } else quad = detectPage(img);

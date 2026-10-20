@@ -56,8 +56,8 @@ export async function analysisImage(blob: Blob): Promise<Img> {
 }
 
 /** Outline and fold of a two-page spread; `uncertain` is set when the fold had to be guessed. */
-export async function detectSpreadIn(blob: Blob): Promise<SpreadDetection> {
-  return detectSpread(await analysisImage(blob));
+export async function detectSpreadIn(blob: Blob, guideX?: number): Promise<SpreadDetection> {
+  return detectSpread(await analysisImage(blob), guideX);
 }
 
 /** Finds the page corners in a source image, or null when nothing convincing is found. */

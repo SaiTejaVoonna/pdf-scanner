@@ -232,7 +232,7 @@ header.top .sub { display: flex; align-items: center; gap: 6px; }
 .camera .cam-hint { top: calc(122px + env(safe-area-inset-top)); }
 .camera .msg { top: calc(200px + env(safe-area-inset-top)); }
 /* Fold line: dark core with white edges, visible on any background */
-.camera .guide.spread::after { content: ''; position: absolute; left: calc(50% - 4px); top: 8%; bottom: 8%; width: 8px; background: #0b0c10; border: 0 solid #fff; border-left-width: 2px; border-right-width: 2px; border-radius: 2px; box-shadow: 0 0 0 1px #0008, 0 0 10px #000a; }
+.camera .guide.spread::after { content: ''; position: absolute; left: calc(50% - 3px); top: 8%; bottom: 8%; width: 6px; background: #0b0c10; border: 0 solid #fff; border-left-width: 2px; border-right-width: 2px; border-radius: 2px; box-shadow: 0 0 0 1px #0008, 0 0 10px #000a; }
 .camera .cam-hint.cam-warn { background: #5b4700; }
 .camera .spread-note { position: absolute; left: 50%; transform: translateX(-50%); top: calc(166px + env(safe-area-inset-top)); background: #fffd; color: #111; padding: 4px 12px; border-radius: 999px; font-size: .85rem; white-space: nowrap; pointer-events: none; z-index: 2; }
 .camera .shutter { position: relative; }
@@ -243,3 +243,6 @@ header.top .sub { display: flex; align-items: center; gap: 6px; }
 .toast { pointer-events: auto; }
 dialog.full .toasts { bottom: 150px; }
 .camera .guide.fold-live::after { display: none; }
+
+.camera .cam-hint { white-space: normal; text-align: center; max-width: calc(100% - 24px); }
+.camera .spread-note { top: calc(190px + env(safe-area-inset-top)); }

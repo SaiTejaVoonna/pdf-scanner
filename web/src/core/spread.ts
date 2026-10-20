@@ -50,6 +50,33 @@ export function findGutter(img: Img, outer: Quad): GutterResult {
   return confident ? { ...fit.result, dipRate: dip } : { tTop: 0.5, tBottom: 0.5, confident: false, score: fit.result.score * dip, dipRate: dip };
 }
 
+/** The camera's fold guide is a vertical line in the middle of the picture. */
+export const GUIDE_X = 0.5;
+
+export interface GuideFold { tTop: number; tBottom: number; dip: number; /** the guide line crosses the outline near its middle */ central: boolean }
+
+const GUIDE_REACH = 0.06, GUIDE_STEP = 0.01;
+
+/**
+ * The camera shows a vertical guide at image x = `guideX`; the person puts the fold on it. So the fold is taken to run
+ * along that line, clipped to the outline, and only checked (not searched for): the line may slide a little sideways
+ * (and so tilt-free) to sit on the darkest valley, and `dip` says how many rows really show a valley there.
+ */
+export function foldFromGuide(img: Img, outer: Quad, guideX = GUIDE_X): GuideFold {
+  const cross = (a: Pt, b: Pt) => (Math.abs(b.x - a.x) < 1e-6 ? 0.5 : (guideX - a.x) / (b.x - a.x));
+  const top = cross(outer[0], outer[1]), bottom = cross(outer[3], outer[2]);
+  const central = top > 0.3 && top < 0.7 && bottom > 0.3 && bottom < 0.7;
+  const t0 = Math.min(0.95, Math.max(0.05, top)), b0 = Math.min(0.95, Math.max(0.05, bottom));
+  let best = { d: 0, dip: -1 };
+  for (let d = -GUIDE_REACH; d <= GUIDE_REACH + 1e-9; d += GUIDE_STEP) {
+    const a = Math.min(0.95, Math.max(0.05, t0 + d)), b = Math.min(0.95, Math.max(0.05, b0 + d));
+    const dip = dipRate(img, outer, a, b - a);
+    // Prefer the guide itself when it is about as good as a sideways shift.
+    if (dip > best.dip + 0.04 || (Math.abs(d) < 1e-9 && dip >= best.dip - 0.04)) best = { d, dip };
+  }
+  return { tTop: Math.min(0.95, Math.max(0.05, t0 + best.d)), tBottom: Math.min(0.95, Math.max(0.05, b0 + best.d)), dip: best.dip, central };
+}
+
 /** Fraction of rows where the luminance along the line t = a + b*s is darker than at 0.04 to either side. */
 export function dipRate(img: Img, outer: Quad, a: number, b: number): number {
   const { width: w, height: h, data } = img;

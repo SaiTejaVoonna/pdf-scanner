@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cloneQuad, fullQuad, type Quad } from '../src/core/geometry';
 import { createImg, type Img } from '../src/core/image';
-import { boundaryInk, findGutter, gutterPoints, isValidSpread, midGutter, splitSpread, turnOuter } from '../src/core/spread';
+import { boundaryInk, findGutter, foldFromGuide, gutterPoints, isValidSpread, midGutter, splitSpread, turnOuter } from '../src/core/spread';
 import { rng } from './scenes';
 
 const W = 400, H = 300;
@@ -107,5 +107,26 @@ describe('boundaryInk', () => {
     const half: Quad = [{ x: 0.1, y: outerQ[0].y }, { x: 0.5, y: outerQ[0].y }, { x: 0.5, y: outerQ[3].y }, { x: 0.1, y: outerQ[3].y }];
     const ink = boundaryInk(spreadImg({ fold: 0.5 }), half);
     expect(ink[1]).toBeLessThan(0.1);
+  });
+});
+
+describe('fold placed on the camera guide', () => {
+  it('confirms a fold that sits on the centre line, even a little off or tilted', () => {
+    for (const o of [{}, { gutterX: 206 }, { tilt: 0.04 }, { gutterX: 192, seed: 3 }]) {
+      const f = foldFromGuide(spreadImg(o), outerQ);
+      expect(f.central).toBe(true);
+      expect(f.dip, JSON.stringify(o)).toBeGreaterThanOrEqual(0.55);
+    }
+  });
+  it('does not confirm a missing fold or one far from the guide (the caller shows yellow)', () => {
+    expect(foldFromGuide(spreadImg({ fold: 0 }), outerQ).dip).toBeLessThan(0.55);
+    expect(foldFromGuide(spreadImg({ gutterX: 275 }), outerQ).dip).toBeLessThan(0.55);
+  });
+  it('is not fooled by a column of writing when there is no real fold', () => {
+    expect(foldFromGuide(spreadImg({ fold: 0, writingToFold: true }), outerQ).dip).toBeLessThan(0.55);
+  });
+  it('flags an outline that is not centred on the guide', () => {
+    const shifted = outerQ.map((p) => ({ x: p.x - 0.3, y: p.y })) as Quad;
+    expect(foldFromGuide(spreadImg(), shifted).central).toBe(false);
   });
 });

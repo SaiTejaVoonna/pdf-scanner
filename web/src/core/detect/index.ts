@@ -1,5 +1,5 @@
 import { area, isValidCrop, orderPoints, type Pt, type Quad } from '../geometry';
-import { findGutter, midGutter, splitSpread, turnOuter, type SpreadGeometry } from '../spread';
+import { findGutter, foldFromGuide, midGutter, splitSpread, turnOuter, type SpreadGeometry } from '../spread';
 import { boxBlur, luma, type Img } from '../image';
 import { cannyEdges } from './canny';
 import { borderLines, houghLines, type Line } from './hough';
@@ -272,15 +272,22 @@ export interface SpreadDetection extends SpreadGeometry {
 }
 
 const INSET = 0.03;
+/** Share of rows that must show a valley on the guide line before a camera spread counts as confirmed (green). */
+const GUIDE_MIN_DIP = 0.55;
 
 /**
  * Two-page spread: the outer outline from the page detector plus the gutter valley. Tries both orientations (vertical
  * valley = pages side by side; horizontal valley = photo taken sideways, where the top page is treated as the first).
  * Never returns "nothing": when unsure it returns a flagged guess so the review screen can ask the user.
  */
-export function detectSpread(img: Img): SpreadDetection {
+export function detectSpread(img: Img, guideX?: number): SpreadDetection {
   const found = detectPage(img);
   const outer: Quad = found ?? [{ x: INSET, y: INSET }, { x: 1 - INSET, y: INSET }, { x: 1 - INSET, y: 1 - INSET }, { x: INSET, y: 1 - INSET }];
+  if (guideX !== undefined) {
+    // In-app camera: the fold was placed on the guide line, so use it (and just check it) instead of searching.
+    const f = foldFromGuide(img, outer, guideX);
+    return { outer, tTop: f.tTop, tBottom: f.tBottom, uncertain: !(f.central && f.dip >= GUIDE_MIN_DIP), outlineGuessed: !found };
+  }
   let best: { outer: Quad; g: ReturnType<typeof findGutter> } | null = null;
   for (const turns of [0, 1]) {
     const o = turnOuter(outer, turns);

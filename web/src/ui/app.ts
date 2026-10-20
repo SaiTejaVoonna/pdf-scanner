@@ -4,6 +4,7 @@ import { h, openDialog, toast } from '../dom';
 import { decode, detectCorners, detectSpreadIn, normalize } from '../imaging';
 import * as store from '../store';
 import { state, subscribe, type PageModel } from '../store';
+import { GUIDE_X } from '../core/spread';
 import { openCamera } from './camera';
 import { openCombine } from './combineDialog';
 import { openEditor, type PageDraftData } from './editor';
@@ -38,9 +39,10 @@ async function reviewSpread(blob: Blob): Promise<boolean> {
  * A camera capture of a spread is added at once with the detected split (no review screen in the middle of scanning).
  * Unsure captures get a "Check" badge in the page list; Undo removes both pages.
  */
-async function addSpreadQuietly(blob: Blob): Promise<void> {
+async function addSpreadQuietly(blob: Blob, foldOnGuide: boolean): Promise<void> {
   const { blob: normal, w, h: ph } = await normalize(blob);
-  const d = await detectSpreadIn(normal);
+  // From the in-app camera the fold was placed on the centre guide, so it is used as the fold; otherwise it is searched for.
+  const d = await detectSpreadIn(normal, foldOnGuide ? GUIDE_X : undefined);
   const before = state.pages.length;
   const spread = store.addSpread(normal, w, ph, { outer: d.outer, tTop: d.tTop, tBottom: d.tBottom }, d.uncertain || d.outlineGuessed);
   const ids = state.pages.filter((p) => p.spread?.id === spread.id).map((p) => p.id);
@@ -50,12 +52,12 @@ async function addSpreadQuietly(blob: Blob): Promise<void> {
 }
 
 /** Adds image files/blobs, honouring Single page / Book spread mode. */
-async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = []): Promise<void> {
+async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = [], foldOnGuide = false): Promise<void> {
   const mode = state.settings.captureMode;
   let failed = 0, added = 0;
   for (let i = 0; i < files.length; i++) {
     try {
-      if (mode === 'spread' && source === 'camera') { await addSpreadQuietly(files[i]); continue; }
+      if (mode === 'spread' && source === 'camera') { await addSpreadQuietly(files[i], foldOnGuide); continue; }
       if (mode === 'spread') { if (await reviewSpread(files[i])) added += 2; continue; }
       const auto = source === 'camera' ? state.settings.autoCropCamera : state.settings.autoCropImport;
       const { blob, w, h: ph } = await normalize(files[i]);
@@ -104,8 +106,8 @@ export function mountApp(root: HTMLElement): void {
 
   const cameraMode = { get: () => state.settings.captureMode, set: (m: 'single' | 'spread') => store.updateSettings({ captureMode: m }) };
   /** Opens the camera; with `retake` (a spread id) it takes one photo and sends it to that spread's retake review. */
-  const scan = (retake?: string) => openCamera(async (blob) => {
-    if (!retake) { await ingest([blob], 'camera'); return; }
+  const scan = (retake?: string) => openCamera(async (blob, meta) => {
+    if (!retake) { await ingest([blob], 'camera', [], meta.foldOnGuide); return; }
     retaking = retake;
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },
