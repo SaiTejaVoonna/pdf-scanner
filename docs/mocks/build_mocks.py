@@ -71,8 +71,9 @@ def desk(title, nav, body, active='Home'):
     items = [('home','Home'),('folder','Documents'),('gear','Settings')]
     side = '<h4>PDF Scanner</h4>' + ''.join(f'<div class="{"on" if n==active else ""}">{ic(i,18)}{n}</div>' for i,n in items) + '<div style="margin-top:auto;font-size:11px">Saved on this device · offline</div>'
     return f'<div class="col"><h3>{title}</h3><div class="dk"><div class="chrome"><b></b><b></b><b></b><span>saitejavoonna.github.io/pdf-scanner</span></div><div class="dkb"><div class="side">{side}</div><div class="main">{body}</div></div></div></div>'
+CSS_EXTRA_PLACEHOLDER = ''
 def page(name, label, *cols, cls=''):
-    open(name+'.html','w').write(f'<!doctype html><meta charset="utf-8"><title>{label}</title><style>{CSS}</style><body class="{cls}">{"".join(cols)}</body>')
+    open(name+'.html','w').write(f'<!doctype html><meta charset="utf-8"><title>{label}</title><style>{CSS}</style>{globals().get("CSS_EXTRA", "")}<body class="{cls}">{"".join(cols)}</body>')
 
 # 1 HOME ------------------------------------------------------------
 tiles = [('img','Import'),('comb','Combine PDFs'),('small','Make smaller'),('sign','Sign'),('id','ID card'),('board','Whiteboard')]
@@ -223,3 +224,57 @@ page('mock-8-settings','Settings', m_set, d_set)
 
 # 9 LIGHT THEME -----------------------------------------------------
 page('mock-9-light-theme','Light theme', m_home.replace('double-column home','Light: home'), m_pages.replace('your pages (edit mode)','Light: your pages'), m_pdf.replace('Create PDF sheet','Light: Create PDF'), cls='light')
+
+# 10/11 GUIDES, LEVEL, FREE MODE, PAGES SHEET -----------------------
+CSS_EXTRA = '''
+<style>
+.vline{position:absolute;top:150px;height:340px;width:6px;margin-left:-3px;background:#0b0c10;border-left:2px solid #fff;border-right:2px solid #fff;border-radius:2px;box-shadow:0 0 0 1px #0008,0 0 10px #000a}
+.vline.g{border-color:#fff}.vline .tag{position:absolute;bottom:-26px;left:50%;transform:translateX(-50%);font-size:11px;background:#000b;color:#fff;border-radius:99px;padding:2px 8px;white-space:nowrap}
+.det{position:absolute;border:3px solid var(--ok);background:#34c75922}.det.y{border-color:var(--warn);background:#ffcc0022}
+.cam .hdr,.cam .pill,.cam .lvl{position:relative;z-index:2}.lvl{display:inline-flex;gap:8px;align-items:center;background:#000a;color:#fff;border-radius:99px;padding:5px 12px;font-size:12px;font-weight:600}
+.bubble{width:46px;height:8px;border-radius:99px;background:#fff3;position:relative}.bubble i{position:absolute;top:-2px;width:12px;height:12px;border-radius:50%;background:var(--ok);left:17px}.bubble.off i{background:var(--warn);left:36px}
+.mode3{display:flex;background:#000a;border-radius:99px;padding:3px;color:#fff}.mode3 b{padding:0 12px;height:36px;border-radius:99px;display:grid;place-items:center;font-size:13px;font-weight:600}.mode3 .on{background:#fff;color:#111}
+.paper{position:absolute;background:#f6f5f0;overflow:hidden}.paper i{display:block;height:5px;margin:14px 18px 0;background:#9b9ba0;opacity:.55;border-radius:3px}
+.sheetcam{position:absolute;left:0;right:0;bottom:0;background:var(--surface);border-radius:24px 24px 0 0;padding:12px 14px 16px;box-shadow:0 -20px 40px #000c;border-top:1px solid var(--line);z-index:5}
+.mg{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px}.mg .c{height:84px;position:relative;background:var(--bg);border-radius:10px;padding:5px}.mg .c .mn{width:18px;height:18px;right:-5px;top:-5px}.mg .c .nb{left:8px;bottom:8px;font-size:10px;padding:1px 6px}.mg .c .dg{right:8px;bottom:8px;padding:0 3px}
+</style>'''
+def cam2(title, mode_on, top_extra, body, status, status_cls='', level_off=None, auto='Smart', sheet=''):
+    m3 = ''.join(f'<b class="{"on" if n==mode_on else ""}">{n}</b>' for n in ['Single','Spread','Free'])
+    lv = '' if level_off is None else f'<span class="lvl"><span class="bubble {"off" if level_off else ""}"><i></i></span>{"Tilted 14°: hold flat" if level_off else "Level"}</span>'
+    pill = f'<span class="pill" style="{status_cls}"><span class="dot" style="{"background:var(--warn)" if "5b4700" in status_cls else ""}"></span>{status}</span>'
+    return f'''<div class="col"><h3>{title}</h3><div class="ph"><div class="sb" style="position:absolute;z-index:6;left:0;right:0;color:#ddd"><span>9:41</span><span></span></div>
+<div style="padding-top:18px;display:flex;flex-direction:column;flex:1;min-height:0"><div class="cam" style="background:linear-gradient(#4b5056,#3a3e43)">
+<div class="hdr"><div class="ib d">{ic("x",20)}</div><div class="mode3">{m3}</div><div class="ib d">{ic("bolt",20)}</div></div>
+<div style="text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center;margin-top:-2px">{pill}{lv}{top_extra}</div>{body}{sheet}</div>
+<div class="ctl"><div style="text-align:center"><div style="width:44px;height:56px;border-radius:8px;border:2px solid #fff;background:#f3f1ea;margin:0 auto 3px"></div><span style="font-size:11px;color:#aaa">4 pages</span></div><div class="shut"></div>
+<div style="text-align:center"><div class="ib" style="background:#2a2d33;border:2px solid var(--ok);margin:0 auto 4px"><b>A</b></div><span style="font-size:11px;color:#aaa">Auto · {auto}</span></div></div></div></div></div>'''
+paper = lambda l,t,w,h,rot=0: f'<div class="paper" style="left:{l}px;top:{t}px;width:{w}px;height:{h}px;transform:rotate({rot}deg)">{L(16)}</div>'
+A = cam2('A. Single page: two side lines, page found (green)', 'Single', '', 
+  paper(58,160,244,330,-1.5)+'<div class="det" style="left:56px;top:158px;width:248px;height:334px;transform:rotate(-1.5deg)"></div>'
+  +'<div class="vline" style="left:40px"><span class="tag">left edge</span></div><div class="vline" style="left:320px"><span class="tag" style="transform:translateX(-80%)">right edge</span></div>',
+  'Page found. Hold steady', level_off=False)
+B = cam2('B. Page smaller than the lines: yellow, capture anyway', 'Single', '', 
+  paper(90,200,180,250,3)+'<div class="det y" style="left:88px;top:198px;width:184px;height:254px;transform:rotate(3deg)"></div>'
+  +'<div class="vline" style="left:40px"><span class="tag">left edge</span></div><div class="vline" style="left:320px"><span class="tag" style="transform:translateX(-80%)">right edge</span></div>',
+  'Not sure. Move closer, or capture anyway', 'background:#5b4700', level_off=True)
+C = cam2('C. Free mode: no lines (receipts, ID cards, anything)', 'Free', '',
+  paper(100,230,150,190,-6)+'<div class="det" style="left:98px;top:228px;width:154px;height:194px;transform:rotate(-6deg)"></div>'
+  +'<div style="position:absolute;left:30px;right:30px;top:150px;bottom:60px;border:2px dashed #fff5;border-radius:18px"></div>',
+  'Page found. Hold steady', level_off=False)
+page('mock-10-guides-single','Single page guides', A, B, C)
+
+D = cam2('D. Book spread: one centre line, edges found and shown in green', 'Spread', '<span class="pill" style="background:#fffd;color:#111;font-size:12px">Spread 3 · will be pages 5 &amp; 6</span>',
+  '<div class="paper" style="left:30px;top:170px;width:150px;height:300px;box-shadow:inset -18px 0 22px -14px #0007">'+L(14)+'</div><div class="paper" style="left:180px;top:170px;width:150px;height:300px;box-shadow:inset 18px 0 22px -14px #0007">'+L(14)+'</div>'
+  +'<div class="det" style="left:28px;top:168px;width:304px;height:304px"></div>'
+  +'<div class="vline" style="left:180px;top:160px;height:324px;border-color:#fff"><span class="tag">fold</span></div>',
+  'Both pages found. Hold steady', level_off=False)
+E = cam2('E. Tap the thumbnail: pages sheet opens over the live camera', 'Single', '',
+  paper(58,160,244,200,0),
+  'Page found. Hold steady', level_off=False,
+  sheet=f'<div class="sheetcam"><div class="grab"></div><div style="display:flex;justify-content:space-between;align-items:center"><b>Your pages</b><span class="mut" style="font-size:12px">14 total · 4 new</span><span style="color:var(--soft);font-weight:700">Done</span></div><div class="mg">'
+  + ''.join(f'<div class="c"><div class="mn">{ic("minus",12)}</div>{P(4)}<span class="nb">{n}</span><span class="dg">{ic("drag",12)}</span></div>' for n in range(11,15))
+  + f'</div><div class="chips" style="margin-top:10px"><span>{ic("crop",14)} Crop</span><span>{ic("rot",14)} Rotate</span><span>{ic("del",14)} Delete</span></div></div>')
+F = cam2('F. Dark room: auto stays off the floor', 'Single', '',
+  '<div style="position:absolute;inset:0;background:#000b;z-index:1"></div>',
+  'Too dark. Add light. Auto-capture paused', 'background:#5b4700', level_off=None, auto='Smart')
+page('mock-11-guides-spread-sheet','Spread, sheet, dark', D, E, F)
