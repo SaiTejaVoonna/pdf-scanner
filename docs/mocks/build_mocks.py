@@ -10,13 +10,15 @@ I = {
 'small':'<path d="M4 14h16M12 4v10M8 10l4 4 4-4M5 20h14"/>','sign':'<path d="M4 20c4-8 6 2 9-6s4-2 7-8"/>','doc':'<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>','gear':'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
 'wand':'<path d="M4 20L16 8M14 4l1 2 2 1-2 1-1 2-1-2-2-1 2-1z"/>','id':'<rect x="3" y="6" width="18" height="12" rx="2"/><circle cx="9" cy="12" r="2"/><path d="M14 10h4M14 14h3"/>',
 'board':'<rect x="3" y="4" width="18" height="12" rx="1.5"/><path d="M8 20l2-4M16 20l-2-4"/>','home':'<path d="M4 11l8-7 8 7v9H4z"/>','folder':'<path d="M3 6h7l2 2h9v11H3z"/>','search':'<circle cx="11" cy="11" r="6"/><path d="M20 20l-4-4"/>',
-'more':'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>','lock':'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
+'more':'<circle cx="5" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="19" cy="12" r="1.4"/>','check':'<path d="M5 12l5 5 9-10"/>','lock':'<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>',
 }
 def ic(n, s=22): return f'<svg viewBox="0 0 24 24" style="width:{s}px;height:{s}px">{I[n]}</svg>'
 L = lambda n: ''.join('<i></i>' for _ in range(n))
 P = lambda n=10: f'<div class="p">{L(n)}</div>'
 
 CSS = '''
+.light{--bg:#faf8ff;--surface:#fff;--surface2:#eeedf4;--text:#1a1b21;--muted:#5b5d68;--line:#c5c6d0;--pc:#dce4ff;--soft:#2457d6;background:#e9e8ef!important}.light .lab .on{color:#1a1b21}.light .chips .on,.light .un .on,.light .side .on{color:#1a1b21}.light .ph{border-color:#222}.light .dk{border-color:#bbb}.light .side{background:#f2f1f7}.light .dk .chrome{background:#e3e2ea}.light .mn{border-color:var(--bg)}.light .toast{background:#2e3038;color:#fff}.light .btn.w{border-color:#c5c6d0}
+
 :root{--bg:#121318;--surface:#1e1f25;--surface2:#292a2f;--text:#e3e2e9;--muted:#a9aab5;--line:#45464f;--pri:#2457d6;--pc:#173f9e;--soft:#b4c5ff;--ok:#34c759;--warn:#ffcc00;--danger:#ffb4ab}
 *{box-sizing:border-box;margin:0}body{background:#06070a;font:15px/1.35 system-ui,sans-serif;color:var(--text);padding:28px;display:flex;gap:36px;align-items:flex-start;justify-content:center}
 .col{display:flex;flex-direction:column;gap:10px;align-items:center}h3{font-size:13px;color:#8d93a1;font-weight:600}
@@ -69,8 +71,8 @@ def desk(title, nav, body, active='Home'):
     items = [('home','Home'),('folder','Documents'),('gear','Settings')]
     side = '<h4>PDF Scanner</h4>' + ''.join(f'<div class="{"on" if n==active else ""}">{ic(i,18)}{n}</div>' for i,n in items) + '<div style="margin-top:auto;font-size:11px">Saved on this device · offline</div>'
     return f'<div class="col"><h3>{title}</h3><div class="dk"><div class="chrome"><b></b><b></b><b></b><span>saitejavoonna.github.io/pdf-scanner</span></div><div class="dkb"><div class="side">{side}</div><div class="main">{body}</div></div></div></div>'
-def page(name, label, *cols):
-    open(name+'.html','w').write(f'<!doctype html><meta charset="utf-8"><title>{label}</title><style>{CSS}</style><body>{"".join(cols)}</body>')
+def page(name, label, *cols, cls=''):
+    open(name+'.html','w').write(f'<!doctype html><meta charset="utf-8"><title>{label}</title><style>{CSS}</style><body class="{cls}">{"".join(cols)}</body>')
 
 # 1 HOME ------------------------------------------------------------
 tiles = [('img','Import'),('comb','Combine PDFs'),('small','Make smaller'),('sign','Sign'),('id','ID card'),('board','Whiteboard')]
@@ -160,3 +162,64 @@ page('mock-5-create-pdf','Create PDF', m_pdf, d_pdf)
 
 bg3 = lambda name,bg,pg: f'<div class="col"><h3>{name}</h3><div style="width:250px;height:330px;background:{bg};border-radius:14px;position:relative;overflow:hidden"><div class="bk" style="left:20px;right:20px;top:30px;height:260px"><div class="p l" style="background:{pg}">{L(10)}</div><div class="p r" style="background:{pg}">{L(10)}</div></div><div class="fold" style="left:50%;top:20px;height:280px"></div></div></div>'
 page('mock-2b-fold-line','Fold line', bg3('On a white page, light desk','#d9dbe0','#fbfbf8'), bg3('On a cream page, wood desk','#8a6a4a','#f3f1ea'), bg3('On a dark desk','#1c1d21','#e9e7df'), bg3('Page with dark photo/ink','#3b3f44','#b9b6ad'))
+
+# 6 CAMERA STATES (mobile only) ------------------------------------
+def cam_phone(title, pill, quad_col, extra_top='', counter='', toast_html='', flash=True, dark=False, one=False):
+    fl = f'<div class="ib d">{ic("bolt",20)}</div>' if flash else '<div style="width:42px"></div>'
+    bg = 'linear-gradient(#1b1d20,#121315)' if dark else 'linear-gradient(#4b5056,#3a3e43)'
+    pg = '#8f8d86' if dark else None
+    page_html = (f'<div class="bk" style="left:30px;width:170px;top:150px;height:300px"><div class="p l" style="{"background:"+pg if pg else ""}">{L(12)}</div></div>' if one else
+                 f'<div class="bk" style="left:30px;right:30px;top:150px;height:300px"><div class="p l" style="{"background:"+pg if pg else ""}">{L(12)}</div><div class="p r" style="{"background:"+pg if pg else ""}">{L(12)}</div></div>')
+    if one:
+        tint = f'<div class="tint" style="left:30px;width:170px;top:150px;height:300px;background:#ffcc0030;border-color:{quad_col}"></div>'
+        fold = f'<div class="fold" style="left:50%;top:140px;height:320px;opacity:.55"></div>'
+    else:
+        tint = f'<div class="tint" style="left:30px;width:150px;top:150px;height:300px;border-right:none;border-color:{quad_col}"></div><div class="tint" style="left:180px;width:150px;top:150px;height:300px;border-left:none;border-color:{quad_col}"></div>'
+        fold = '<div class="fold" style="left:50%;top:140px;height:320px"></div>'
+    badges = '' if one else '<span class="pill" style="position:absolute;left:44px;top:160px;padding:3px 10px;font-size:12px">5</span><span class="pill" style="position:absolute;right:44px;top:160px;padding:3px 10px;font-size:12px">6</span>'
+    return f'''<div class="col"><h3>{title}</h3><div class="ph"><div class="sb" style="position:absolute;z-index:3;left:0;right:0;color:#ddd"><span>9:41</span><span></span></div>
+<div style="padding-top:18px;display:flex;flex-direction:column;flex:1;min-height:0"><div class="cam" style="background:{bg}"><div class="hdr"><div class="ib d">{ic("x",20)}</div><div class="seg"><b>{ic("one")}</b><b class="on">{ic("two")}</b></div>{fl}</div>
+<div style="text-align:center;display:flex;flex-direction:column;gap:6px;align-items:center">{pill}{counter}</div>{page_html}{tint}{fold}{badges}{extra_top}{toast_html}</div>
+<div class="ctl"><div style="text-align:center"><div style="width:44px;height:56px;border-radius:8px;border:2px solid #fff;background:#f3f1ea;margin:0 auto 3px"></div><span style="font-size:11px;color:#aaa">4 pages</span></div><div class="shut"></div>
+<div style="text-align:center"><div class="ib" style="background:#2a2d33;border:2px solid var(--ok);margin:0 auto 4px"><b>A</b></div><span style="font-size:11px;color:#aaa">Auto · Normal</span></div></div></div></div></div>'''
+cnt = '<span class="pill" style="background:#fffd;color:#111;font-size:13px">Spread 3 · will be pages 5 &amp; 6</span>'
+a = cam_phone('A. Ready: both pages and fold found', '<span class="pill"><span class="dot"></span>Both pages found. Hold steady</span>', 'var(--ok)', counter=cnt)
+b = cam_phone('B. Only one page found: amber, no auto-capture', '<span class="pill" style="background:#5b4700"><span class="dot" style="background:var(--warn)"></span>Only the left page found. Move back</span>', 'var(--warn)', counter=cnt, one=True)
+c = cam_phone('C. After the shot: two pages added', '<span class="pill"><span class="dot"></span>Captured. Turn the page</span>', 'var(--ok)', counter='<span class="pill" style="background:#fffd;color:#111;font-size:13px">Spread 3 done · next is 7 &amp; 8</span>', toast_html=f'<div class="toast" style="left:16px;right:16px;bottom:14px"><div style="display:flex;gap:8px;align-items:center"><div style="width:26px;height:34px">{P(3)}</div><div style="width:26px;height:34px">{P(3)}</div><span>Pages 5 &amp; 6 added</span></div><b style="color:var(--soft)">Undo</b></div>')
+page('mock-6-camera-states','Camera states', a, b, c)
+d = cam_phone('D. iPhone, dark room: no flash button, low-light hint', '<span class="pill" style="background:#5b4700"><span class="dot" style="background:var(--warn)"></span>Too dark. Add light or use Take photo</span>', 'var(--warn)', counter='', flash=False, dark=True)
+e = cam_phone('E. Android Chrome: flash button shown (torch on)', '<span class="pill"><span class="dot"></span>Both pages found. Hold steady</span>', 'var(--ok)', counter=cnt)
+e = e.replace('<div class="ib d"><svg', '<div class="ib" style="background:var(--warn);color:#000"><svg',1) if False else e
+page('mock-6b-camera-light','Camera light', d, e)
+
+# 7 SAVED SCREEN ----------------------------------------------------
+m_saved = mob('Mobile: after Create PDF', f'''<div style="flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center">
+<div style="width:84px;height:84px;border-radius:50%;background:var(--pc);display:grid;place-items:center;color:var(--soft)">{ic('check',44)}</div>
+<b style="font-size:24px">PDF saved</b><div class="mut">Biology notes.pdf · 3 pages · 498 KB</div>
+<div class="card" style="padding:10px;width:150px;height:200px"><div class="p">{L(12)}</div></div>
+<div style="font-size:12px" class="mut">Saved to this device. Nothing was uploaded.</div></div>
+<div style="padding:0 16px 18px;display:flex;flex-direction:column;gap:10px"><div class="btn pri">Open</div><div style="display:flex;gap:10px"><div class="btn" style="flex:1">{ic('share',18)} Share</div><div class="btn" style="flex:1">Scan another</div></div></div>''')
+d_saved = desk('Desktop: after Create PDF', '', f'''<div style="flex:1;display:flex;align-items:center;justify-content:center;gap:40px">
+<div class="card" style="padding:12px;width:190px;height:250px"><div class="p">{L(16)}</div></div>
+<div style="max-width:300px"><div style="width:64px;height:64px;border-radius:50%;background:var(--pc);display:grid;place-items:center;color:var(--soft);margin-bottom:14px">{ic('check',34)}</div>
+<b style="font-size:26px">PDF saved</b><div class="mut" style="margin:6px 0 18px">Biology notes.pdf · 3 pages · 498 KB. Saved to Downloads. Nothing was uploaded.</div>
+<div class="btn pri" style="margin-bottom:10px">Open</div><div style="display:flex;gap:10px"><div class="btn" style="flex:1">Share</div><div class="btn" style="flex:1">Scan another</div></div></div></div>''', 'Home')
+page('mock-7-saved','Saved', m_saved, d_saved)
+
+# 8 SETTINGS --------------------------------------------------------
+row = lambda t, sub, right='': f'<div class="card" style="padding:12px 14px;display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>{t}</b><div class="mut" style="font-size:12px">{sub}</div></div>{right}</div>'
+tog = lambda on=True: f'<div style="width:46px;height:26px;border-radius:99px;background:{"var(--pri)" if on else "var(--surface2)"};position:relative;flex:none"><div style="position:absolute;top:3px;{"right" if on else "left"}:3px;width:20px;height:20px;border-radius:50%;background:#fff"></div></div>'
+body_set = f'''<div style="display:flex;flex-direction:column;gap:10px">
+{row('Auto-capture','Capture when the page holds still',tog())}
+{row('Auto-capture speed','How long to hold still','<div class="chips"><span>Fast</span><span class="on">Normal</span><span>Careful</span></div>')}
+{row('Default filter','Applied to new scans','<div class="chips"><span class="on">Enhanced</span></div>')}
+{row('Auto-crop imported photos','Camera shots are always auto-cropped',tog(False))}
+{row('Storage used','48 MB on this device','<div class="chips"><span>Manage</span></div>')}
+{row('Install on home screen','Works offline like an app','<div class="chips"><span>Install</span></div>')}
+{row('Privacy','Nothing leaves this device',ic('lock',20))}</div>'''
+m_set = mob('Mobile: Settings', f'<div class="hdr"><div class="ib">{ic("back")}</div><h2>Settings</h2><span style="width:42px"></span></div><div style="padding:6px 16px">{body_set}</div><div style="margin-top:auto;padding:12px;text-align:center;font-size:12px" class="mut">Version 1.0 · Licence: to be decided</div>')
+d_set = desk('Desktop: Settings', '', f'<b style="font-size:22px;margin-bottom:14px">Settings</b><div style="max-width:560px">{body_set}</div>', 'Settings')
+page('mock-8-settings','Settings', m_set, d_set)
+
+# 9 LIGHT THEME -----------------------------------------------------
+page('mock-9-light-theme','Light theme', m_home.replace('double-column home','Light: home'), m_pages.replace('your pages (edit mode)','Light: your pages'), m_pdf.replace('Create PDF sheet','Light: Create PDF'), cls='light')
