@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { detectAnchored, lineEvidence, pageLike, ANCHOR_LEFT, ANCHOR_RIGHT } from '../src/core/anchor';
+import { detectAnchored, lineEvidence, pageLike, plausibleShape, ANCHOR_LEFT, ANCHOR_RIGHT } from '../src/core/anchor';
 import { detectPage } from '../src/core/detect';
 import { createImg, type Img } from '../src/core/image';
 import type { Quad } from '../src/core/geometry';
@@ -77,5 +77,19 @@ describe('page-like check for auto-capture', () => {
     expect(pageLike(dark, quadOf(34, 300))).toEqual({ ok: false, why: 'dark' });
     const blank = make((x, y) => (x >= 34 && x <= 300 && y >= 28 && y <= 276 ? 225 : 85));
     expect(pageLike(blank, quadOf(34, 300))).toEqual({ ok: false, why: 'blank' });
+  });
+});
+
+describe('plausible shape', () => {
+  const q = (pts: number[][]) => pts.map(([x, y]) => ({ x, y })) as Quad;
+  it('accepts a sheet, a sheet seen at an angle and an open book', () => {
+    expect(plausibleShape(q([[0.1, 0.1], [0.7, 0.12], [0.72, 0.9], [0.08, 0.88]]), 400, 300)).toBe(true);
+    expect(plausibleShape(q([[0.2, 0.15], [0.75, 0.1], [0.8, 0.85], [0.15, 0.9]]), 400, 300)).toBe(true);
+    expect(plausibleShape(q([[0.04, 0.09], [0.8, 0.02], [0.81, 0.88], [0.04, 0.92]]), 400, 300, 3)).toBe(true);
+  });
+  it('rejects a ceiling-beam sliver, a very skewed trapezoid and a thin strip', () => {
+    expect(plausibleShape(q([[0.0, 0.62], [1.0, 0.36], [1.0, 0.46], [0.0, 0.74]]), 400, 300)).toBe(false);
+    expect(plausibleShape(q([[0.1, 0.2], [0.9, 0.2], [0.9, 0.8], [0.75, 0.25]]), 400, 300)).toBe(false);
+    expect(plausibleShape(q([[0.1, 0.1], [0.9, 0.1], [0.9, 0.2], [0.1, 0.2]]), 400, 300)).toBe(false);
   });
 });

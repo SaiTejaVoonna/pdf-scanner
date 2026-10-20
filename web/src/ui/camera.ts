@@ -1,7 +1,8 @@
 import { h, openDialog, toast } from '../dom';
 import { icon } from './icons';
 import { canvasToBlob, normalize } from '../imaging';
-import { state, subscribe, updateSettings, type CaptureMode } from '../store';
+import { movePage, removePages, state, subscribe, updateSettings, type CaptureMode, type PageModel } from '../store';
+import { thumbUrl } from './thumbs';
 import { ANCHOR_LEFT, ANCHOR_RIGHT } from '../core/anchor';
 import type { Pt, Quad } from '../core/geometry';
 import { LiveLoop } from '../live/loop';
@@ -15,6 +16,8 @@ const SPEED_ORDER: Speed[] = ['fast', 'normal', 'careful'];
 export interface CameraOptions {
   /** Current Single page / Book spread mode and a way to change it from the camera screen. */
   mode?: { get: () => CaptureMode; set: (m: CaptureMode) => void };
+  /** Opens a page's editor (crop, filter) from the pages sheet. */
+  onEditPage?: (p: PageModel) => void | Promise<void>;
   /** One shot only (a retake): the camera closes after it. */
   single?: boolean;
 }
@@ -35,6 +38,13 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
   let lastUrl = '';
   let busy = false;
   let capturePage: () => Promise<void> = async () => undefined;
+  /** The preview fills the screen (cover), so some of the picture is cropped away: detection, overlays and the saved photo all use only what is visible. */
+  const viewRect = () => {
+    const vw = video.videoWidth, vh = video.videoHeight, bw = video.clientWidth, bh = video.clientHeight;
+    if (!vw || !vh || !bw || !bh) return null;
+    const k = Math.max(bw / vw, bh / vh), sw = bw / k, sh = bh / k;
+    return { sx: (vw - sw) / 2, sy: (vh - sh) / 2, sw, sh };
+  };
   const guide = h('div', { class: 'guide', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
   const hint = h('div', { class: 'cam-hint', role: 'status' });
   const count = h('span', { class: 'shot-count' });
@@ -87,7 +97,31 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
   const modeBar = h('div', { class: 'chips cam-modes', role: 'radiogroup', 'aria-label': 'Capture mode' }, ...segs.map(([, b]) => b));
   const stop = () => stream?.getTracks().forEach((t) => t.stop());
   // Page count and "will be pages N & M" follow the page list, so Undo (or anything else) is reflected here at once.
-  const unsubscribe = subscribe(() => { paintCount(); paint(); });
+  const unsubscribe = subscribe(() => { paintCount(); paint(); paintSheet(); });
+
+  const pagesBtn = h('button', { class: 'shots', type: 'button', 'aria-label': 'Show my pages', onclick: () => toggleSheet(true) }, last, count);
+  const sheet = h('div', { class: 'pages-sheet', hidden: true, role: 'region', 'aria-label': 'Your pages' });
+  let sheetOpen = false;
+  const paintSheet = () => {
+    sheet.hidden = !sheetOpen;
+    if (!sheetOpen) return;
+    const pages = state.pages;
+    sheet.replaceChildren(
+      h('div', { class: 'ps-head' }, h('b', {}, 'Your pages'), h('span', { class: 'ps-count' }, `${pages.length} total`), h('button', { class: 'btn', type: 'button', onclick: () => toggleSheet(false) }, 'Close')),
+      pages.length === 0 ? h('p', { class: 'ps-empty' }, 'No pages yet.') :
+      h('ul', { class: 'ps-grid' }, ...pages.map((p, i) => {
+        const img = h('img', { alt: `Page ${i + 1}`, draggable: 'false' });
+        thumbUrl(p).then((u) => { img.src = u; }).catch(() => undefined);
+        return h('li', { class: 'ps-card' },
+          h('button', { class: 'ps-thumb', type: 'button', 'aria-label': `Edit page ${i + 1}`, onclick: () => void opts.onEditPage?.(p) }, img),
+          h('span', { class: 'ps-n' }, String(i + 1)),
+          h('button', { class: 'ps-del', type: 'button', 'aria-label': `Delete page ${i + 1}`, onclick: () => removePages([p.id]) }, icon('minus', 14)),
+          h('div', { class: 'ps-move' },
+            h('button', { type: 'button', 'aria-label': `Move page ${i + 1} earlier`, disabled: i === 0, onclick: () => movePage(p.id, -1) }, '‹'),
+            h('button', { type: 'button', 'aria-label': `Move page ${i + 1} later`, disabled: i === pages.length - 1, onclick: () => movePage(p.id, 1) }, '›')));
+      })));
+  };
+  const toggleSheet = (open: boolean) => { sheetOpen = open; paintSheet(); };
 
   const dialog = openDialog((close) => {
     done.addEventListener('click', close);
@@ -97,8 +131,9 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       shutter.disabled = true;
       try {
         const c = document.createElement('canvas');
-        c.width = video.videoWidth; c.height = video.videoHeight;
-        c.getContext('2d')!.drawImage(video, 0, 0);
+        const v = viewRect() ?? { sx: 0, sy: 0, sw: video.videoWidth, sh: video.videoHeight };
+        c.width = Math.round(v.sw); c.height = Math.round(v.sh);
+        c.getContext('2d')!.drawImage(video, v.sx, v.sy, v.sw, v.sh, 0, 0, c.width, c.height);
         const raw = await canvasToBlob(c, 'image/jpeg', 0.95);
         const { blob } = await normalize(raw);
         await onShot(blob, { foldOnGuide: opts.mode?.get() === 'spread' && !opts.single, anchored: opts.mode?.get() !== 'spread' && !opts.single && state.settings.anchorLines });
@@ -129,11 +164,13 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     paintAuto();
     paint();
     paintCount();
-    return h('div', { class: 'camera' }, video, overlay, guide, flash,
+    return h('div', { class: 'camera' },
       h('div', { class: 'cam-top' }, h('button', { class: 'cam-close', type: 'button', 'aria-label': 'Close', onclick: close }, icon('close', 20)), modeBar),
       h('div', { class: 'cam-auto' }, autoBtn, speedBtn, linesBtn),
-      hint, spreadNote, msg,
-      h('div', { class: 'controls' }, h('div', { class: 'shots' }, last, count), shutter, done));
+      hint, spreadNote,
+      h('div', { class: 'cam-stage' }, video, overlay, guide, flash),
+      msg, sheet,
+      h('div', { class: 'controls' }, pagesBtn, shutter, done));
   }, 'Camera', () => { unsubscribe(); live?.stop(); stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });
   dialog.classList.add('full');
 
@@ -147,10 +184,8 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     g.setTransform(dpr, 0, 0, dpr, 0, 0);
     g.clearRect(0, 0, cw, ch);
     if (!video.videoWidth) return;
-    const vb = video.getBoundingClientRect(), ob = overlay.getBoundingClientRect();
-    const k = Math.min(vb.width / video.videoWidth, vb.height / video.videoHeight);
-    const ox = vb.left - ob.left + (vb.width - video.videoWidth * k) / 2, oy = vb.top - ob.top + (vb.height - video.videoHeight * k) / 2;
-    const pt = (p: { x: number; y: number }) => [ox + p.x * video.videoWidth * k, oy + p.y * video.videoHeight * k] as const;
+    // The overlay covers the same box as the (cover-fitted) preview, so normalized coordinates map straight onto it.
+    const pt = (p: { x: number; y: number }) => [p.x * cw, p.y * ch] as const;
     // Dark core with white edges, so a line stays visible on bright pages and dark desks alike.
     const stroke = (a: readonly [number, number], b: readonly [number, number], w: number, c: string) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineWidth = w; g.strokeStyle = c; g.lineCap = 'butt'; g.stroke(); };
     const single = (opts.mode?.get() ?? 'single') !== 'spread' && !opts.single;
@@ -179,7 +214,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     live?.stop(); live = null;
     pinned = null; unsure = null;
     if (!auto || !stream) { redraw(); return; }
-    live = new LiveLoop(video, (r) => {
+    live = new LiveLoop(video, viewRect, (r) => {
       const spread = live!.mode === 'spread' && !opts.single;
       const seen = !spread ? 'none' : !r.quad ? 'none' : r.both ? 'both' : 'one';
       // Only a real page may auto-capture: a spread also needs its fold, and any outline needs to look like a page (not a floor).

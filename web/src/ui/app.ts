@@ -113,7 +113,7 @@ export function mountApp(root: HTMLElement): void {
     retaking = retake;
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },
-  retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true } : { mode: cameraMode });
+  retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true, onEditPage: editPage } : { mode: cameraMode, onEditPage: editPage });
   const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, icon('scan', 30), 'Scan pages');
   const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'More ways to add pages and tools' },
     tile('image', 'Import images', () => importInput.click()),

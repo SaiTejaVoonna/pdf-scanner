@@ -1,7 +1,7 @@
 import { detectPage, detectSpread } from '../core/detect';
 import type { Pt, Quad } from '../core/geometry';
 import { GUIDE_X, splitSpread } from '../core/spread';
-import { detectAnchored, pageLike } from '../core/anchor';
+import { detectAnchored, pageLike, plausibleShape } from '../core/anchor';
 import { sharpness } from './frame';
 
 export interface LiveRequest { id: number; mode: 'single' | 'spread'; anchors: boolean; width: number; height: number; data: ArrayBuffer }
@@ -30,6 +30,8 @@ self.onmessage = (e: MessageEvent<LiveRequest>) => {
       quad = sp.outlineGuessed ? null : sp.outer;
       if (quad) { const [left] = splitSpread(sp); fold = [left[1], left[2]]; both = !sp.uncertain; }
     } else if (anchors) { const a = detectAnchored(img); quad = a.quad; anchor = a.anchor; } else quad = detectPage(img);
+    // Not a sheet or a book (a ceiling beam, a wall at a slant): say nothing and draw nothing.
+    if (quad && !plausibleShape(quad, width, height, mode === 'spread' ? 3 : 2.4)) { quad = null; fold = undefined; both = undefined; }
     const like = quad ? pageLike(img, quad) : { ok: false, why: null };
     (self as unknown as Worker).postMessage({ id, quad, fold, both, sure: like.ok, why: like.why, anchor, sharp: sharpness(img), ms: performance.now() - t0 } satisfies LiveReply);
   } catch (err) {

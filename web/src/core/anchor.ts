@@ -145,3 +145,23 @@ export function pageLike(img: Img, quad: Quad): { ok: boolean; why: 'dark' | 'pl
   const ink = inkPoints(img).filter((p) => in10(p.x, p.y)).length;
   return ink >= MIN_INK ? { ok: true, why: null } : { ok: false, why: 'blank' };
 }
+
+/**
+ * Could this quad be a sheet or an open book seen from above at an angle? Interior angles close to right angles, an ordinary
+ * length-to-width ratio and opposite sides of similar length. A ceiling beam or a wall seen at a slant is none of these.
+ */
+export function plausibleShape(q: Quad, w: number, h: number, maxAspect = 2.4): boolean {
+  const p = q.map((pt) => ({ x: pt.x * w, y: pt.y * h }));
+  const len = (a: { x: number; y: number }, b: { x: number; y: number }) => Math.hypot(b.x - a.x, b.y - a.y);
+  for (let i = 0; i < 4; i++) {
+    const a = p[i], b = p[(i + 1) % 4], c = p[(i + 3) % 4];
+    const v1 = { x: b.x - a.x, y: b.y - a.y }, v2 = { x: c.x - a.x, y: c.y - a.y };
+    const cos = (v1.x * v2.x + v1.y * v2.y) / Math.max(1e-6, Math.hypot(v1.x, v1.y) * Math.hypot(v2.x, v2.y));
+    const deg = (Math.acos(Math.max(-1, Math.min(1, cos))) * 180) / Math.PI;
+    if (deg < 55 || deg > 125) return false;
+  }
+  const top = len(p[0], p[1]), bottom = len(p[3], p[2]), left = len(p[0], p[3]), right = len(p[1], p[2]);
+  if (Math.max(top, bottom) / Math.max(1, Math.min(top, bottom)) > 2 || Math.max(left, right) / Math.max(1, Math.min(left, right)) > 2) return false;
+  const wd = (top + bottom) / 2, ht = (left + right) / 2;
+  return Math.max(wd, ht) / Math.max(1, Math.min(wd, ht)) <= maxAspect;
+}
