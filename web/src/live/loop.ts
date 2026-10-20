@@ -1,4 +1,4 @@
-import type { Quad } from '../core/geometry';
+import type { Pt, Quad } from '../core/geometry';
 import type { LiveReply, LiveRequest } from './detect.worker';
 // Inlined into the main bundle so the live detector is cached with the app and works offline from the first visit.
 import DetectWorker from './detect.worker?worker&inline';
@@ -17,7 +17,7 @@ export class LiveLoop {
   private id = 0;
   private stopped = false;
   mode: LiveRequest['mode'] = 'single';
-  constructor(private video: HTMLVideoElement, private onResult: (r: { quad: Quad | null; sharp: number; t: number; ms: number }) => void, private onFail: () => void) {}
+  constructor(private video: HTMLVideoElement, private onResult: (r: { quad: Quad | null; fold?: [Pt, Pt]; both?: boolean; sharp: number; t: number; ms: number }) => void, private onFail: () => void) {}
 
   start(): void {
     try { this.worker = new DetectWorker(); } catch { this.onFail(); return; }
@@ -25,7 +25,7 @@ export class LiveLoop {
     this.worker.onmessage = (e: MessageEvent<LiveReply>) => {
       if (this.stopped) return;
       if (e.data.error) { this.stop(); this.onFail(); return; }
-      this.onResult({ quad: e.data.quad, sharp: e.data.sharp, t: performance.now(), ms: e.data.ms });
+      this.onResult({ quad: e.data.quad, fold: e.data.fold, both: e.data.both, sharp: e.data.sharp, t: performance.now(), ms: e.data.ms });
       this.timer = window.setTimeout(() => this.send(), Math.max(0, MIN_GAP_MS - e.data.ms));
     };
     this.send();

@@ -18,14 +18,15 @@ export function h<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<s
  * Shows a short message. Modal dialogs live in the browser's top layer and would hide a toast placed in the
  * page, so the toast goes inside the topmost open dialog when there is one.
  */
-export function toast(message: string): void {
+export function toast(message: string, action?: { label: string; run: () => void }): void {
   const open = [...document.querySelectorAll('dialog[open]')];
   const container: Element = open.length ? open[open.length - 1] : document.body;
   let host = container.querySelector(':scope > .toasts');
   if (!host) { host = h('div', { class: 'toasts', 'aria-live': 'polite', role: 'status' }); container.append(host); }
   const t = h('div', { class: 'toast' }, message);
+  if (action) t.append(h('button', { class: 'toast-action', type: 'button', onclick: () => { t.remove(); action.run(); } }, action.label));
   host.append(t);
-  setTimeout(() => { t.remove(); if (host && !host.childElementCount) host.remove(); }, 6000);
+  setTimeout(() => { t.remove(); if (host && !host.childElementCount) host.remove(); }, action ? 9000 : 6000);
 }
 
 /** Opens a modal <dialog> built by `build`; removed from the DOM when closed. `close(value)` resolves nothing special. */

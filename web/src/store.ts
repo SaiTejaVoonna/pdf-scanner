@@ -13,6 +13,8 @@ export interface Spread extends SpreadGeometry {
   id: string; sourceId: string; w: number; h: number;
   /** True once the user adjusted the two pages on their own; the pages then keep their corners instead of following the spread. */
   independent: boolean;
+  /** Set when a camera capture was added without the fold or outline being certain; cleared once the user adjusts it. */
+  check?: boolean;
 }
 export type CaptureMode = 'single' | 'spread';
 export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode }
@@ -135,9 +137,9 @@ export function addPage(blob: Blob, w: number, h: number, corners: Quad = fullQu
 }
 
 /** Adds one shared source and its two derived pages (left, then right) to the end of the document. */
-export function addSpread(blob: Blob, w: number, h: number, geometry: SpreadGeometry): Spread {
+export function addSpread(blob: Blob, w: number, h: number, geometry: SpreadGeometry, check = false): Spread {
   const sourceId = newId();
-  const spread: Spread = { id: newId(), sourceId, w, h, ...cloneGeometry(geometry), independent: false };
+  const spread: Spread = { id: newId(), sourceId, w, h, ...cloneGeometry(geometry), independent: false, ...(check ? { check: true } : {}) };
   const [left, right] = splitSpread(spread);
   const filter = state.settings.defaultFilter;
   const pages: PageModel[] = [
@@ -161,7 +163,7 @@ const cloneGeometry = (g: SpreadGeometry): SpreadGeometry => ({ outer: g.outer.m
 export function updateSpread(id: string, patch: Partial<SpreadGeometry & { independent: boolean }>): void {
   const current = state.spreads.find((s) => s.id === id);
   if (!current) return;
-  const next: Spread = { ...current, ...patch, outer: patch.outer ? (patch.outer.map((p) => ({ ...p })) as Quad) : current.outer };
+  const next: Spread = { ...current, ...patch, check: undefined, outer: patch.outer ? (patch.outer.map((p) => ({ ...p })) as Quad) : current.outer };
   state.spreads = state.spreads.map((s) => (s.id === id ? next : s));
   if (!next.independent) {
     const [left, right] = splitSpread(next);

@@ -34,12 +34,28 @@ async function reviewSpread(blob: Blob): Promise<boolean> {
   return applied;
 }
 
+/**
+ * A camera capture of a spread is added at once with the detected split (no review screen in the middle of scanning).
+ * Unsure captures get a "Check" badge in the page list; Undo removes both pages.
+ */
+async function addSpreadQuietly(blob: Blob): Promise<void> {
+  const { blob: normal, w, h: ph } = await normalize(blob);
+  const d = await detectSpreadIn(normal);
+  const before = state.pages.length;
+  const spread = store.addSpread(normal, w, ph, { outer: d.outer, tTop: d.tTop, tBottom: d.tBottom }, d.uncertain || d.outlineGuessed);
+  const ids = state.pages.filter((p) => p.spread?.id === spread.id).map((p) => p.id);
+  const last = state.pages[state.pages.length - 1]; if (last) highlight(last.id);
+  const a = before + 1;
+  toast(spread.check ? `Pages ${a} & ${a + 1} added. Check the split later.` : `Pages ${a} & ${a + 1} added`, { label: 'Undo', run: () => store.removePages(ids) });
+}
+
 /** Adds image files/blobs, honouring Single page / Book spread mode. */
 async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = []): Promise<void> {
   const mode = state.settings.captureMode;
   let failed = 0, added = 0;
   for (let i = 0; i < files.length; i++) {
     try {
+      if (mode === 'spread' && source === 'camera') { await addSpreadQuietly(files[i]); continue; }
       if (mode === 'spread') { if (await reviewSpread(files[i])) added += 2; continue; }
       const auto = source === 'camera' ? state.settings.autoCropCamera : state.settings.autoCropImport;
       const { blob, w, h: ph } = await normalize(files[i]);
@@ -178,7 +194,8 @@ export function mountApp(root: HTMLElement): void {
       onpointerup: () => clearTimeout(timer), onpointerleave: () => clearTimeout(timer), onpointercancel: () => clearTimeout(timer),
       oncontextmenu: (e: Event) => e.preventDefault() }, img, selecting ? h('span', { class: 'check', 'aria-hidden': 'true' }, selected ? icon('check', 16) : null) : null);
     const spreadNo = p.spread ? state.spreads.findIndex((s) => s.id === p.spread!.id) + 1 : 0;
-    const label = h('span', {}, `${index + 1}`, p.spread ? h('small', { class: 'badge' }, `Spread ${spreadNo} · ${p.spread.side}`) : null);
+    const label = h('span', {}, `${index + 1}`, p.spread ? h('small', { class: 'badge' }, `Spread ${spreadNo} · ${p.spread.side}`) : null,
+      p.spread && state.spreads.find((s) => s.id === p.spread!.id)?.check ? h('small', { class: 'badge check-badge' }, 'Check') : null);
     const bar = h('div', { class: 'card-bar' }, label,
       selecting ? null : h('button', { class: 'icon-btn', 'aria-label': `Page ${index + 1} menu`, onclick: () => openMenu(p, index, total) }, icon('more')));
     return h('li', { class: 'card', 'data-id': p.id, 'data-selected': String(selected) }, thumb, bar);

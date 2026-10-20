@@ -1,8 +1,8 @@
 import { h, openDialog, toast } from '../dom';
 import { icon } from './icons';
 import { canvasToBlob, normalize } from '../imaging';
-import { state, type CaptureMode } from '../store';
-import type { Quad } from '../core/geometry';
+import { state, subscribe, type CaptureMode } from '../store';
+import type { Pt, Quad } from '../core/geometry';
 import { LiveLoop } from '../live/loop';
 import { AutoTracker, SPEEDS, type LiveState, type Speed } from '../live/tracker';
 
@@ -43,6 +43,9 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
   const tracker = new AutoTracker(speed);
   let live: LiveLoop | null = null;
   let liveState: LiveState = 'searching';
+  /** Spread mode: 'both' = outline and fold found, 'one' = an outline without a fold (one page, or the fold is hidden). */
+  let spreadSeen: 'none' | 'one' | 'both' = 'none';
+  const spreadNote = h('div', { class: 'spread-note', role: 'status' });
   const autoBtn = h('button', { class: 'chip auto-toggle', type: 'button', role: 'switch', 'aria-label': 'Auto-capture' }, h('span', { class: 'dot' }), 'Auto');
   const speedBtn = h('button', { class: 'chip auto-speed', type: 'button', 'aria-label': 'Auto-capture speed' });
   const paintAuto = () => {
@@ -57,13 +60,25 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
     const m = opts.mode?.get() ?? 'single';
     guide.className = `guide ${m}`;
     const base = opts.single ? 'Retake: fit both pages in the frame' : m === 'spread' ? 'Fit both pages in the frame' : 'Fit the page in the frame';
-    hint.textContent = auto && liveState === 'steady' ? 'Hold steady…' : auto && liveState === 'cooldown' ? 'Captured. Turn the page' : base;
+    const spread = m === 'spread' && !opts.single;
+    guide.classList.toggle('fold-live', auto && spread && spreadSeen === 'both');
+    hint.classList.toggle('cam-warn', auto && spread && spreadSeen === 'one');
+    hint.textContent = !auto ? base
+      : liveState === 'cooldown' ? 'Captured. Turn the page'
+      : spread && spreadSeen === 'one' ? 'Only one page, or no fold seen. Fit both pages, fold on the line'
+      : liveState === 'steady' ? (spread ? 'Both pages found. Hold steady…' : 'Hold steady…')
+      : base;
+    const a = state.pages.length + 1;
+    spreadNote.hidden = !spread;
+    spreadNote.textContent = `Spread ${(state.spreads?.length ?? 0) + 1} · will be pages ${a} & ${a + 1}`;
     segs.forEach(([id, b]) => b.setAttribute('aria-checked', String(id === m)));
     if (live) live.mode = m;
   };
   const segs = opts.mode && !opts.single ? (['single', 'spread'] as const).map((id) => [id, h('button', { class: 'chip', role: 'radio', type: 'button', onclick: () => { opts.mode!.set(id); tracker.reset(); paint(); } }, id === 'single' ? 'Single page' : 'Book spread')] as const) : [];
   const modeBar = h('div', { class: 'chips cam-modes', role: 'radiogroup', 'aria-label': 'Capture mode' }, ...segs.map(([, b]) => b));
   const stop = () => stream?.getTracks().forEach((t) => t.stop());
+  // Page count and "will be pages N & M" follow the page list, so Undo (or anything else) is reflected here at once.
+  const unsubscribe = subscribe(() => { paintCount(); paint(); });
 
   const dialog = openDialog((close) => {
     done.addEventListener('click', close);
@@ -85,7 +100,8 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
         last.src = lastUrl; last.alt = `Last captured page (page ${shots} of this session)`; last.hidden = false;
         paintCount();
         flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
-        toast(opts.mode?.get() === 'spread' ? `Spread ${shots} added. Take the next one, or tap Done.` : `Page ${shots} saved. Take the next one, or tap Done.`);
+        if (opts.mode?.get() !== 'spread' || opts.single) toast(`Page ${shots} saved. Take the next one, or tap Done.`);
+        paint();
         if (opts.single) dialog.close();
       } catch { toast('Could not capture the photo. Please try again.'); }
       finally { busy = false; shutter.disabled = false; }
@@ -106,13 +122,13 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
     return h('div', { class: 'camera' }, video, overlay, guide, flash,
       h('div', { class: 'cam-top' }, h('button', { class: 'cam-close', type: 'button', 'aria-label': 'Close', onclick: close }, icon('close', 20)), modeBar),
       h('div', { class: 'cam-auto' }, autoBtn, speedBtn),
-      hint, msg,
+      hint, spreadNote, msg,
       h('div', { class: 'controls' }, h('div', { class: 'shots' }, last, count), shutter, done));
-  }, 'Camera', () => { live?.stop(); stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });
+  }, 'Camera', () => { unsubscribe(); live?.stop(); stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });
   dialog.classList.add('full');
 
   /** The video is letterboxed (object-fit: contain), so map frame coordinates onto the visible picture. */
-  const drawQuad = (q: Quad | null, st: LiveState, progress: number) => {
+  const drawQuad = (q: Quad | null, st: LiveState, progress: number, fold?: [Pt, Pt], spread?: 'one' | 'both') => {
     const dpr = window.devicePixelRatio || 1;
     const cw = overlay.clientWidth, ch = overlay.clientHeight;
     if (overlay.width !== Math.round(cw * dpr) || overlay.height !== Math.round(ch * dpr)) { overlay.width = Math.round(cw * dpr); overlay.height = Math.round(ch * dpr); }
@@ -127,17 +143,28 @@ export function openCamera(onShot: (blob: Blob) => Promise<void>, fallback: () =
     g.beginPath();
     q.forEach((p, i) => { const [x, y] = pt(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
     g.closePath();
-    const col = st === 'cooldown' ? '52,199,89' : st === 'steady' ? '255,204,0' : '255,255,255';
+    const col = spread === 'one' ? '255,204,0' : spread === 'both' || st === 'cooldown' ? '52,199,89' : st === 'steady' ? '255,204,0' : '255,255,255';
     g.fillStyle = `rgba(${col},${st === 'cooldown' ? 0.28 : 0.14 + 0.16 * progress})`; g.fill();
     g.lineWidth = 3; g.strokeStyle = `rgba(${col},0.95)`; g.lineJoin = 'round'; g.stroke();
+    if (fold) {
+      // Dark core with white edges, so the fold line stays visible on bright pages and dark desks alike.
+      const [a, b] = fold.map(pt);
+      const line = (w: number, c: string) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineWidth = w; g.strokeStyle = c; g.lineCap = 'butt'; g.stroke(); };
+      line(10, '#fff'); line(6, '#0b0c10');
+      for (const [x, y] of [a, b]) { g.beginPath(); g.arc(x, y, 11, 0, 7); g.fillStyle = spread === 'one' ? '#ffcc00' : '#34c759'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); }
+    }
   };
   const startLive = () => {
     live?.stop(); live = null;
     if (!auto || !stream) { drawQuad(null, 'searching', 0); return; }
     live = new LiveLoop(video, (r) => {
-      const res = tracker.push({ t: r.t, quad: r.quad, sharp: r.sharp });
-      if (res.state !== liveState) { liveState = res.state; paint(); }
-      drawQuad(res.quad, res.state, res.progress);
+      const spread = live!.mode === 'spread' && !opts.single;
+      const seen = !spread ? 'none' : !r.quad ? 'none' : r.both ? 'both' : 'one';
+      // A spread only counts (and only auto-captures) once the fold is found; an outline alone is one page.
+      const res = tracker.push({ t: r.t, quad: spread && seen !== 'both' ? null : r.quad, sharp: r.sharp });
+      if (res.state !== liveState || seen !== spreadSeen) { liveState = res.state; spreadSeen = seen; paint(); }
+      drawQuad(spread ? r.quad : res.quad, res.state, res.progress, spread && seen === 'both' ? r.fold : undefined, spread && seen !== 'none' ? seen : undefined);
+      shutter.style.setProperty('--p', String(res.state === 'steady' ? res.progress : 0));
       overlay.dataset.state = res.state;
       if (res.fire) void capturePage();
     }, () => { auto = false; live = null; paintAuto(); toast('Auto-capture is not available on this device. Use the shutter button.'); });

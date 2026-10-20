@@ -47,3 +47,5 @@ First beta.
 - Settings sheet; version label; docs reorganised; CI publishes a plain APK to a rolling `latest-debug` release.
 - Fixes: lost updates on rapid bulk edits, page labels missing before thumbnails load, empty-state layout on
   short screens, silent failure on empty PDFs, temp-file cleanup races, unreadable-image errors.
+- Web camera, **live detection and auto-capture** (on by default, Fast/Normal/Careful, persisted switch): the page outline is tracked a few times a second in a worker and the shot fires once the page is big, sharp and still; the same page is never captured twice and the camera re-arms when the page is turned. Fixed a shutter that silently ignored taps before the first video frame.
+- Web camera, **book spread**: a visible fold line (dark core, white edges), a two-page check (an outline without a found fold is one page: amber warning, no auto-capture), a "Spread N · will be pages A & B" counter, and a shutter progress ring. A camera capture of a spread is now added at once (no review screen mid-scan) with an Undo; unsure captures get a "Check" badge in the page list. Import still opens the review screen. UI mocks are in `docs/mocks/`.

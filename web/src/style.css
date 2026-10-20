@@ -170,7 +170,7 @@ header.top .sub { margin: 6px 0 0; color: var(--muted); font-size: .95rem; }
 .camera .cam-hint { position: absolute; left: 50%; transform: translateX(-50%); top: calc(76px + env(safe-area-inset-top)); color: #fff; background: #0009; padding: 8px 16px; border-radius: 999px; font-size: .95rem; white-space: nowrap; pointer-events: none; z-index: 2; }
 .camera .msg { top: calc(120px + env(safe-area-inset-top)); z-index: 3; }
 .camera .guide { position: absolute; left: 7%; right: 7%; top: 18%; bottom: 200px; pointer-events: none; }
-.camera .guide.spread { top: 50%; bottom: auto; transform: translateY(-58%); height: auto; aspect-ratio: 1.45 / 1; }
+.camera .guide.spread { left: 50%; right: auto; width: min(86%, 70dvh); top: 50%; bottom: auto; transform: translate(-50%, -58%); height: auto; aspect-ratio: 1.45 / 1; }
 .camera .guide i { position: absolute; width: 34px; height: 34px; border: 0 solid #fffd; }
 .camera .guide i:nth-child(1) { left: 0; top: 0; border-left-width: 3px; border-top-width: 3px; border-top-left-radius: 16px; }
 .camera .guide i:nth-child(2) { right: 0; top: 0; border-right-width: 3px; border-top-width: 3px; border-top-right-radius: 16px; }
@@ -230,4 +230,16 @@ header.top .sub { display: flex; align-items: center; gap: 6px; }
 .camera .auto-speed { padding: 0 14px; }
 .camera .cam-auto { position: absolute; top: calc(68px + env(safe-area-inset-top)); left: 0; right: 0; display: flex; justify-content: center; gap: 8px; z-index: 2; }
 .camera .cam-hint { top: calc(122px + env(safe-area-inset-top)); }
-.camera .msg { top: calc(170px + env(safe-area-inset-top)); }
+.camera .msg { top: calc(200px + env(safe-area-inset-top)); }
+/* Fold line: dark core with white edges, visible on any background */
+.camera .guide.spread::after { content: ''; position: absolute; left: calc(50% - 4px); top: 8%; bottom: 8%; width: 8px; background: #0b0c10; border: 0 solid #fff; border-left-width: 2px; border-right-width: 2px; border-radius: 2px; box-shadow: 0 0 0 1px #0008, 0 0 10px #000a; }
+.camera .cam-hint.cam-warn { background: #5b4700; }
+.camera .spread-note { position: absolute; left: 50%; transform: translateX(-50%); top: calc(166px + env(safe-area-inset-top)); background: #fffd; color: #111; padding: 4px 12px; border-radius: 999px; font-size: .85rem; white-space: nowrap; pointer-events: none; z-index: 2; }
+.camera .shutter { position: relative; }
+.camera .shutter::after { content: ''; position: absolute; inset: -9px; border-radius: 50%; pointer-events: none; background: conic-gradient(#ffcc00 calc(var(--p, 0) * 360deg), transparent 0); -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); mask: radial-gradient(farthest-side, transparent calc(100% - 4px), #000 calc(100% - 3px)); }
+.toast-action { margin-left: 12px; border: 0; background: transparent; color: var(--soft, #b4c5ff); font-weight: 700; cursor: pointer; min-height: 32px; padding: 0 6px; }
+.card-bar .check-badge { display: inline-block; margin-left: 6px; background: #ffcc00; color: #000; border-radius: 99px; padding: 0 8px; font-weight: 700; }
+.toast { display: flex; align-items: center; justify-content: space-between; }
+.toast { pointer-events: auto; }
+dialog.full .toasts { bottom: 150px; }
+.camera .guide.fold-live::after { display: none; }
