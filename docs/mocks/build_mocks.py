@@ -188,7 +188,7 @@ b = cam_phone('B. Only one page found: amber, no auto-capture', '<span class="pi
 c = cam_phone('C. After the shot: two pages added', '<span class="pill"><span class="dot"></span>Captured. Turn the page</span>', 'var(--ok)', counter='<span class="pill" style="background:#fffd;color:#111;font-size:13px">Spread 3 done · next is 7 &amp; 8</span>', toast_html=f'<div class="toast" style="left:16px;right:16px;bottom:14px"><div style="display:flex;gap:8px;align-items:center"><div style="width:26px;height:34px">{P(3)}</div><div style="width:26px;height:34px">{P(3)}</div><span>Pages 5 &amp; 6 added</span></div><b style="color:var(--soft)">Undo</b></div>')
 page('mock-6-camera-states','Camera states', a, b, c)
 d = cam_phone('D. iPhone, dark room: no flash button, low-light hint', '<span class="pill" style="background:#5b4700"><span class="dot" style="background:var(--warn)"></span>Too dark. Add light or use Take photo</span>', 'var(--warn)', counter='', flash=False, dark=True)
-e = cam_phone('E. Android Chrome: flash button shown (torch on)', '<span class="pill"><span class="dot"></span>Both pages found. Hold steady</span>', 'var(--ok)', counter=cnt)
+e = cam_phone('E. Android Chrome: flash button shown', '<span class="pill"><span class="dot"></span>Both pages found. Hold steady</span>', 'var(--ok)', counter=cnt)
 e = e.replace('<div class="ib d"><svg', '<div class="ib" style="background:var(--warn);color:#000"><svg',1) if False else e
 page('mock-6b-camera-light','Camera light', d, e)
 
