@@ -41,7 +41,7 @@ svg{stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-l
 .cam{flex:1;background:linear-gradient(#4b5056,#3a3e43);position:relative;overflow:hidden}
 .bk{position:absolute;display:flex}.bk .p{border-radius:0}.bk .l{box-shadow:inset -18px 0 22px -14px #0007}.bk .r{box-shadow:inset 18px 0 22px -14px #0007}
 .tint{position:absolute;background:#34c75930;border:3px solid var(--ok)}
-.fold{position:absolute;border-left:4px solid var(--ok);filter:drop-shadow(0 0 2px #000) drop-shadow(0 0 5px #000a)}.fold:before,.fold:after{content:"";position:absolute;left:-10px;width:16px;height:16px;background:var(--ok);border:3px solid #fff;border-radius:50%}.fold:before{top:-8px}.fold:after{bottom:-8px}
+.fold{position:absolute;width:8px;margin-left:-4px;background:#0b0c10;border-left:2px solid #fff;border-right:2px solid #fff;border-radius:2px;box-shadow:0 0 0 1px #0008,0 0 10px #000a}.fold:before,.fold:after{content:"";position:absolute;left:-10px;width:22px;height:22px;background:var(--ok);border:3px solid #fff;border-radius:50%;box-shadow:0 0 0 2px #000a}.fold:before{top:-11px}.fold:after{bottom:-11px}
 .pill{display:inline-flex;gap:8px;align-items:center;background:#000a;color:#fff;border-radius:99px;padding:8px 14px;font-weight:600;font-size:14px}.dot{width:9px;height:9px;border-radius:50%;background:var(--ok)}
 .seg{display:flex;background:#000a;border-radius:99px;padding:3px;color:#fff}.seg b{width:48px;height:36px;border-radius:99px;display:grid;place-items:center}.seg .on{background:#fff;color:#111}
 .ctl{display:flex;justify-content:space-between;align-items:center;padding:14px 22px 22px;background:#000;color:#fff}
@@ -157,3 +157,6 @@ d_pdf = desk('Desktop: centred dialog, preview beside the settings', '', f'''<di
 <div style="display:flex;gap:8px;margin-top:8px"><div style="width:100px;height:134px">{P(9)}</div><div style="width:100px;height:134px">{P(9)}</div></div><div class="mut" style="font-size:12px;margin-top:8px">3 pages · A4</div><div style="font-size:26px;font-weight:800;margin-top:14px">≈ 498 KB</div><div class="mut" style="font-size:12px">Estimated final size</div></div>
 <div style="flex:1">{sheet_inner}{actions}</div></div>''', 'Home')
 page('mock-5-create-pdf','Create PDF', m_pdf, d_pdf)
+
+bg3 = lambda name,bg,pg: f'<div class="col"><h3>{name}</h3><div style="width:250px;height:330px;background:{bg};border-radius:14px;position:relative;overflow:hidden"><div class="bk" style="left:20px;right:20px;top:30px;height:260px"><div class="p l" style="background:{pg}">{L(10)}</div><div class="p r" style="background:{pg}">{L(10)}</div></div><div class="fold" style="left:50%;top:20px;height:280px"></div></div></div>'
+page('mock-2b-fold-line','Fold line', bg3('On a white page, light desk','#d9dbe0','#fbfbf8'), bg3('On a cream page, wood desk','#8a6a4a','#f3f1ea'), bg3('On a dark desk','#1c1d21','#e9e7df'), bg3('Page with dark photo/ink','#3b3f44','#b9b6ad'))
