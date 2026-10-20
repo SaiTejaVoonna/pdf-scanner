@@ -12,6 +12,8 @@ async function importImages(page: Page, count: number) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Auto-capture is on by default; these tests press the shutter themselves (live.spec.ts covers auto-capture).
+  await page.addInitScript(() => { try { localStorage.setItem('pdf-scanner.auto', 'off'); } catch { /* ignore */ } });
   // E2E_CPU_THROTTLE=6 runs the page 6x slower, to flush out timing assumptions that only fail on slow CI runners.
   const rate = Number(process.env.E2E_CPU_THROTTLE ?? 1);
   if (rate > 1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate });

@@ -36,6 +36,8 @@ async function draftSaved(page: Page) {
 }
 
 test.beforeEach(async ({ page }) => {
+  // Auto-capture is on by default; these tests press the shutter themselves (live.spec.ts covers auto-capture).
+  await page.addInitScript(() => { try { localStorage.setItem('pdf-scanner.auto', 'off'); } catch { /* ignore */ } });
   const rate = Number(process.env.E2E_CPU_THROTTLE ?? 1);
   if (rate > 1) await (await page.context().newCDPSession(page)).send('Emulation.setCPUThrottlingRate', { rate });
   await page.goto('/');

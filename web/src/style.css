@@ -221,3 +221,13 @@ header.top .sub { display: flex; align-items: center; gap: 6px; }
 .check .icon { stroke-width: 2.6; }
 .camera .cam-close { display: grid; place-items: center; }
 .btn .icon + * , .btn * + .icon { margin-left: 2px; }
+
+/* Live detection overlay and the Auto switch on the camera screen */
+.camera .live-overlay { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.camera .auto-toggle, .camera .auto-speed { flex: none; min-height: 44px; padding: 0 12px; border: 0; background: #0009; color: #fff; border-radius: 999px; display: inline-flex; align-items: center; gap: 8px; font-size: .95rem; }
+.camera .auto-toggle .dot { width: 10px; height: 10px; border-radius: 50%; background: #888; }
+.camera .auto-toggle[aria-checked='true'] .dot { background: #34c759; box-shadow: 0 0 0 3px #34c75955; }
+.camera .auto-speed { padding: 0 14px; }
+.camera .cam-auto { position: absolute; top: calc(68px + env(safe-area-inset-top)); left: 0; right: 0; display: flex; justify-content: center; gap: 8px; z-index: 2; }
+.camera .cam-hint { top: calc(122px + env(safe-area-inset-top)); }
+.camera .msg { top: calc(170px + env(safe-area-inset-top)); }
