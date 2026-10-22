@@ -12,7 +12,7 @@ export function openSettings(): void {
       h('h2', {}, 'Settings'),
       sw('Auto-crop camera photos', s.autoCropCamera, (v) => updateSettings({ autoCropCamera: v })),
       sw('Auto-crop imported images', s.autoCropImport, (v) => updateSettings({ autoCropImport: v })),
-      sw('Guide lines on the single-page camera', s.anchorLines, (v) => updateSettings({ anchorLines: v })),
+      sw('Guide lines on the single-page camera', s.guideLines, (v) => updateSettings({ guideLines: v })),
       h('p', { class: 'hint' }, 'Put one edge of the page (or the fold of a book) on a line and the app finds the other sides.'),
       h('p', { class: 'hint' }, 'When off, pages keep the full image. You can still crop any page, or several at once, later.'),
       h('div', {}, h('div', { class: 'hint' }, 'Filter for new pages'),

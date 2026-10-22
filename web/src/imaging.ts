@@ -2,6 +2,7 @@ import { applyFilter } from './core/filters';
 import { isFullFrame, isValidCrop, type Quad } from './core/geometry';
 import { downscale, type Img } from './core/image';
 import { detectAnchored } from './core/anchor';
+import { sharpness } from './live/frame';
 import { detectPage, detectSpread, type SpreadDetection } from './core/detect';
 import { outputSize, rotate90, scaleQuad, warp } from './core/warp';
 import { blobOf, type PageModel } from './store';
@@ -39,6 +40,25 @@ export async function normalize(file: Blob): Promise<{ blob: Blob; w: number; h:
     g.drawImage(bmp, 0, 0, w, h);
     return { blob: await canvasToBlob(c, 'image/jpeg', 0.92), w, h };
   } finally { bmp.close(); }
+}
+
+/**
+ * Takes the visible part of a live video frame as the page's stored source in one step (resized to at most 3000 px and
+ * encoded once, so there is no second JPEG generation), and measures how sharp it is on a small copy.
+ */
+export async function frameToSource(video: HTMLVideoElement, view: { sx: number; sy: number; sw: number; sh: number }): Promise<{ blob: Blob; w: number; h: number; sharp: number }> {
+  const s = Math.min(1, MAX_SOURCE_SIDE / Math.max(view.sw, view.sh));
+  const w = Math.max(1, Math.round(view.sw * s)), h = Math.max(1, Math.round(view.sh * s));
+  const c = canvas(w, h);
+  ctx2d(c).drawImage(video, view.sx, view.sy, view.sw, view.sh, 0, 0, w, h);
+  const k = Math.min(1, DETECT_SIDE / Math.max(w, h));
+  const sw = Math.max(32, Math.round(w * k)), sh = Math.max(32, Math.round(h * k));
+  const small = canvas(sw, sh);
+  const g = ctx2d(small);
+  g.drawImage(c, 0, 0, sw, sh);
+  const d = g.getImageData(0, 0, sw, sh);
+  const blob = await canvasToBlob(c, 'image/jpeg', 0.92);
+  return { blob, w, h, sharp: sharpness({ data: d.data, width: sw, height: sh }) };
 }
 
 /** Decodes `blob` into a small RGBA copy (about 400 px) for detection and warnings. */

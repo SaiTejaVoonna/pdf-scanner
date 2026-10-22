@@ -4,7 +4,7 @@ import type { Quad } from '../src/core/geometry';
 
 const box = (x: number, y: number, w = 0.6, h = 0.7): Quad => [{ x, y }, { x: x + w, y }, { x: x + w, y: y + h }, { x, y: y + h }];
 const run = (tr: AutoTracker, obs: Observation[]) => obs.map((o) => tr.push(o));
-const frames = (n: number, q: Quad | null, t0 = 0, dt = 100, sharp = 100): Observation[] => Array.from({ length: n }, (_, i) => ({ t: t0 + i * dt, quad: q, sharp }));
+const frames = (n: number, q: Quad | null, t0 = 0, dt = 100, sharp = 1000): Observation[] => Array.from({ length: n }, (_, i) => ({ t: t0 + i * dt, quad: q, sharp }));
 
 describe('AutoTracker', () => {
   it('fires once after the page holds still, and not before', () => {
@@ -16,7 +16,7 @@ describe('AutoTracker', () => {
   });
   it('does not fire while the page is moving', () => {
     const tr = new AutoTracker('normal');
-    const r = run(tr, Array.from({ length: 30 }, (_, i) => ({ t: i * 100, quad: box(0.1 + (i % 2) * 0.1, 0.1), sharp: 100 })));
+    const r = run(tr, Array.from({ length: 30 }, (_, i) => ({ t: i * 100, quad: box(0.1 + (i % 2) * 0.1, 0.1), sharp: 1000 })));
     expect(r.some((x) => x.fire)).toBe(false);
   });
   it('does not fire on a tiny outline or on nothing', () => {
@@ -26,8 +26,15 @@ describe('AutoTracker', () => {
   });
   it('does not fire on blurry frames', () => {
     const tr = new AutoTracker('fast');
-    const obs = [...frames(1, box(0.2, 0.1), 0, 100, 100), ...frames(15, box(0.2, 0.1), 100, 100, 20)];
+    const obs = [...frames(1, box(0.2, 0.1), 0, 100, 1000), ...frames(15, box(0.2, 0.1), 100, 100, 200)];
     expect(run(tr, obs).some((x) => x.fire)).toBe(false);
+  });
+  it('never fires on a run that is blurry throughout, even when nothing sharper was seen', () => {
+    expect(run(new AutoTracker('fast'), frames(30, box(0.2, 0.1), 0, 100, 60)).some((x) => x.fire)).toBe(false);
+  });
+  it('a sharp frame after a blurry stretch does fire', () => {
+    const tr = new AutoTracker('fast');
+    expect(run(tr, [...frames(6, box(0.2, 0.1), 0, 100, 60), ...frames(10, box(0.2, 0.1), 600, 100, 900)]).some((x) => x.fire)).toBe(true);
   });
   it('faster speed fires sooner than careful', () => {
     const at = (s: 'fast' | 'careful') => run(new AutoTracker(s), frames(30, box(0.2, 0.1))).findIndex((x) => x.fire);

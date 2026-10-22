@@ -17,6 +17,8 @@ export interface LiveResult { state: LiveState; /** 0..1 toward firing */ progre
 const MAX_MOVE = 0.03;      // a corner may move this much (as a fraction of the frame's diagonal-ish size) between frames
 const MIN_AREA = 0.15;      // smaller than this is not "the page"
 const MIN_SHARP_RATIO = 0.6; // blurry (moving) frames are skipped
+export const MIN_SHARP_ABS = 120;   // and so is anything blurrier than this, whatever the recent frames looked like
+const SHARP_DECAY = 0.985;   // the reference sharpness fades slowly, so one lucky frame does not block captures for ever
 const COOLDOWN_MS = 1200;
 const GONE_FRAMES = 3;
 
@@ -33,13 +35,16 @@ export class AutoTracker {
   private runStart = 0;
   private last: Quad | null = null;
   private bestSharp = 0;
+  /** Sharpest recent frame, kept across motion (unlike `bestSharp`, which restarts with every still run). */
+  private recentBest = 0;
   private fired: { quad: Quad; t: number } | null = null;
   private gone = 0;
   constructor(public speed: Speed = 'normal') {}
 
-  reset(): void { this.run = 0; this.last = null; this.bestSharp = 0; this.fired = null; this.gone = 0; }
+  reset(): void { this.run = 0; this.last = null; this.bestSharp = 0; this.recentBest = 0; this.fired = null; this.gone = 0; }
 
   push(o: Observation): LiveResult {
+    this.recentBest = Math.max(o.sharp, this.recentBest * SHARP_DECAY);
     const q = o.quad && area(o.quad) >= MIN_AREA ? o.quad : null;
     if (this.fired) return this.cooldown(o.t, q);
     if (!q) { this.run = 0; this.last = null; this.bestSharp = 0; return { state: 'searching', progress: 0, fire: false, quad: null }; }
@@ -47,7 +52,7 @@ export class AutoTracker {
     if (!still) { this.run = 0; this.bestSharp = 0; this.runStart = o.t; }
     this.last = q;
     this.bestSharp = Math.max(this.bestSharp, o.sharp);
-    const sharp = o.sharp >= MIN_SHARP_RATIO * this.bestSharp;
+    const sharp = o.sharp >= MIN_SHARP_ABS && o.sharp >= MIN_SHARP_RATIO * Math.max(this.bestSharp, this.recentBest);
     if (still && sharp) this.run++; else if (still) this.run = Math.max(0, this.run - 1);
     const s = SPEEDS[this.speed];
     const progress = Math.min(1, this.run / s.frames, (o.t - this.runStart) / s.holdMs);

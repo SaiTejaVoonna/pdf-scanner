@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { cloneQuad, fullQuad, type Quad } from '../src/core/geometry';
 import { createImg, type Img } from '../src/core/image';
-import { boundaryInk, findGutter, foldFromGuide, gutterPoints, isValidSpread, midGutter, splitSpread, turnOuter } from '../src/core/spread';
+import { boundaryInk, findGutter, foldFromGuide, inkBothSides, gutterPoints, isValidSpread, midGutter, splitSpread, turnOuter } from '../src/core/spread';
 import { rng } from './scenes';
 
 const W = 400, H = 300;
@@ -128,5 +128,22 @@ describe('fold placed on the camera guide', () => {
   it('flags an outline that is not centred on the guide', () => {
     const shifted = outerQ.map((p) => ({ x: p.x - 0.3, y: p.y })) as Quad;
     expect(foldFromGuide(spreadImg(), shifted).central).toBe(false);
+  });
+});
+
+describe('spread confirmed by writing on both sides of an empty fold strip', () => {
+  it('confirms two pages of writing with a gap at the fold, even with no shadow', () => {
+    const img = spreadImg({ fold: 0, seed: 4 });
+    const f = foldFromGuide(img, outerQ);
+    expect(inkBothSides(img, { outer: outerQ, tTop: f.tTop, tBottom: f.tBottom })).toBe(true);
+  });
+  it('does not confirm a single page whose writing runs straight across the middle', () => {
+    const img = spreadImg({ fold: 0, writingToFold: true, seed: 5 });
+    expect(inkBothSides(img, { outer: outerQ, tTop: 0.5, tBottom: 0.5 })).toBe(false);
+  });
+  it('does not confirm blank pages', () => {
+    const img = spreadImg({ fold: 0.3, seed: 6 }); // no writing option: use a copy with ink removed
+    for (let i = 0; i < img.data.length; i += 4) if (img.data[i] < 120) { img.data[i] = img.data[i + 1] = img.data[i + 2] = 225; }
+    expect(inkBothSides(img, { outer: outerQ, tTop: 0.5, tBottom: 0.5 })).toBe(false);
   });
 });

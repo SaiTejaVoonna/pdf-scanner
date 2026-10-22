@@ -1,5 +1,6 @@
 import { isValidCrop, type Pt, type Quad } from './geometry';
 import { luma, type Img } from './image';
+import { inkPoints } from './detect/content';
 
 /**
  * Book-spread geometry. `outer` lists the spread's corners as they appear in an UPRIGHT spread: top-left, top-right,
@@ -222,4 +223,43 @@ export function boundaryInk(img: Img, quad: Quad): [number, number, number, numb
     out.push(total ? touched / total : 0);
   }
   return out as [number, number, number, number];
+}
+
+const MIN_HALF_INK = 40, MIN_INK_BALANCE = 0.25, FOLD_BAND = 0.03, FOLD_GAP_RATIO = 0.5;
+
+/**
+ * Writing on both sides of the fold line: a left page and a right page that both carry text. Together with an outline that is
+ * centred on the guide, this confirms a book spread even when the fold itself is only a soft shadow.
+ */
+export function inkBothSides(img: Img, g: SpreadGeometry): boolean {
+  const { width: w, height: h } = img;
+  const [left, right] = splitSpread(g);
+  const [top, bottom] = gutterPoints(g);
+  const inside = (q: Quad, x: number, y: number) => {
+    let sign = 0;
+    for (let i = 0; i < 4; i++) {
+      const a = q[i], b = q[(i + 1) % 4];
+      const cr = (b.x - a.x) * (y / h - a.y) - (b.y - a.y) * (x / w - a.x);
+      if (cr !== 0) { const s = cr > 0 ? 1 : -1; if (sign === 0) sign = s; else if (s !== sign) return false; }
+    }
+    return true;
+  };
+  const width = Math.max(1e-6, Math.hypot(g.outer[1].x - g.outer[0].x, g.outer[1].y - g.outer[0].y));
+  const band = FOLD_BAND * width;
+  let l = 0, r = 0, inBand = 0;
+  for (const p of inkPoints(img)) {
+    const nx = p.x / w, ny = p.y / h;
+    const insideL = inside(left, p.x, p.y), insideR = !insideL && inside(right, p.x, p.y);
+    if (!insideL && !insideR) continue;
+    // distance from the fold line, across (the fold is close to vertical)
+    const t = (ny - top.y) / Math.max(1e-6, bottom.y - top.y);
+    const foldX = top.x + (bottom.x - top.x) * Math.min(1, Math.max(0, t));
+    if (Math.abs(nx - foldX) <= band) inBand++;
+    if (insideL) l++; else r++;
+  }
+  if (Math.min(l, r) < MIN_HALF_INK || Math.min(l, r) / Math.max(l, r) < MIN_INK_BALANCE) return false;
+  // A real spread has an empty strip (the fold and the margins) where the two pages meet; text running straight across the
+  // middle is one page, not two.
+  const bandDensity = inBand / (2 * band), restDensity = (l + r - inBand) / Math.max(1e-6, width - 2 * band);
+  return bandDensity <= FOLD_GAP_RATIO * restDensity;
 }

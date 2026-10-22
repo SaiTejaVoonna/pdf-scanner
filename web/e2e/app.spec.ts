@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { readFileSync } from 'node:fs';
 import { PDFDocument } from 'pdf-lib';
 import { pagePng } from './helpers';
-import { pagesPersisted } from './persist';
+import { firstPageCropped, pagesPersisted } from './persist';
 
 const png = (name: string, w?: number, h?: number) => ({ name, mimeType: 'image/png', buffer: pagePng(w, h) });
 
@@ -133,6 +133,7 @@ test('settings are stored and auto-crop on import crops the page', async ({ page
   await s.getByRole('radio', { name: 'Enhanced' }).click();
   await s.getByRole('button', { name: 'Done' }).click();
   await importImages(page, 1);
+  await firstPageCropped(page); // the crop is found in the background after the photo is added
   await page.getByRole('button', { name: 'Edit page 1' }).click();
   await expect(page.getByRole('dialog', { name: 'Edit page' })).toBeVisible();
   // With auto-crop the top-left handle sits well inside the photo instead of at its corner. Measure the handle and

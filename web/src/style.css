@@ -242,7 +242,7 @@ header.top .sub { display: flex; align-items: center; gap: 6px; }
 .toast { display: flex; align-items: center; justify-content: space-between; }
 .toast { pointer-events: auto; }
 dialog.full .toasts { bottom: 150px; }
-.camera .guide.fold-live::after { display: none; }
+
 
 .camera .cam-hint { white-space: normal; text-align: center; max-width: calc(100% - 24px); }
 .camera .spread-note { top: calc(190px + env(safe-area-inset-top)); }
@@ -276,3 +276,7 @@ dialog.full .toasts { bottom: 150px; }
 .camera .ps-move { display: flex; justify-content: space-between; margin-top: 6px; }
 .camera .ps-move button { flex: 1; min-height: 36px; margin: 0 2px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--text); font-size: 1.3rem; cursor: pointer; }
 .camera .ps-move button:disabled { opacity: .35; }
+
+/* The fold bar stays where it is; only its colour says whether the fold is confirmed */
+.camera .guide.spread.fold-ok::after { border-color: #34c759; box-shadow: 0 0 0 1px #0008, 0 0 12px #34c759aa; }
+.camera .guide.spread.fold-warn::after { border-color: #ffcc00; box-shadow: 0 0 0 1px #0008, 0 0 12px #ffcc00aa; }

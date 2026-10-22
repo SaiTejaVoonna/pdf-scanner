@@ -1,12 +1,12 @@
 import { h, openDialog, toast } from '../dom';
 import { icon } from './icons';
-import { canvasToBlob, normalize } from '../imaging';
+import { frameToSource } from '../imaging';
 import { movePage, removePages, state, subscribe, updateSettings, type CaptureMode, type PageModel } from '../store';
 import { thumbUrl } from './thumbs';
 import { ANCHOR_LEFT, ANCHOR_RIGHT } from '../core/anchor';
-import type { Pt, Quad } from '../core/geometry';
+import type { Quad } from '../core/geometry';
 import { LiveLoop } from '../live/loop';
-import { AutoTracker, SPEEDS, type LiveState, type Speed } from '../live/tracker';
+import { AutoTracker, MIN_SHARP_ABS, SPEEDS, type LiveState, type Speed } from '../live/tracker';
 
 const AUTO_KEY = 'pdf-scanner.auto', SPEED_KEY = 'pdf-scanner.autospeed';
 const readPref = (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -26,7 +26,7 @@ export interface CameraOptions {
  * Live in-page camera. `onShot` receives each captured JPEG. If the browser blocks the camera the dialog says why
  * and the user can still use "Take photo" (the phone's own camera app) or import images.
  */
-export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; anchored: boolean }) => Promise<void>, fallback: () => void, opts: CameraOptions = {}): void {
+export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; anchored: boolean; w: number; h: number }) => Promise<void>, fallback: () => void, opts: CameraOptions = {}): void {
   let stream: MediaStream | null = null;
   let shots = 0;
   const video = h('video', { autoplay: true, playsinline: true, muted: true, 'aria-label': 'Camera preview' });
@@ -68,7 +68,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     speedBtn.hidden = !auto;
     const single = (opts.mode?.get() ?? 'single') !== 'spread' && !opts.single;
     linesBtn.hidden = !single;
-    linesBtn.setAttribute('aria-checked', String(state.settings.anchorLines));
+    linesBtn.setAttribute('aria-checked', String(state.settings.guideLines));
     speedBtn.textContent = SPEEDS[speed].label;
     if (!auto) paint();
   };
@@ -78,15 +78,19 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     guide.className = `guide ${m}`;
     const base = opts.single ? 'Retake: fit both pages in the frame' : m === 'spread' ? 'Fit both pages in the frame' : 'Fit the page in the frame';
     const spread = m === 'spread' && !opts.single;
-    guide.classList.toggle('fold-live', auto && spread && spreadSeen === 'both');
-    hint.classList.toggle('cam-warn', auto && ((spread && spreadSeen === 'one') || unsure !== null));
-    const why = unsure === 'dark' ? 'Too dark. Add light' : unsure === 'plain' ? 'Not sure this is a page. Tap the shutter if it is' : unsure === 'blank' ? 'Blank page? Tap the shutter' : null;
-    hint.textContent = !auto ? base
-      : liveState === 'cooldown' ? 'Captured. Turn the page'
-      : spread && spreadSeen === 'one' ? 'Fold not confirmed. Put the fold on the line, or capture anyway'
-      : why ? why
-      : liveState === 'steady' ? (spread ? 'Both pages found. Hold steady…' : 'Hold steady…')
-      : base;
+    // The fold bar never moves: it only changes colour (green = both pages and fold confirmed, amber = not confirmed).
+    guide.classList.toggle('fold-ok', auto && spread && spreadSeen === 'both');
+    guide.classList.toggle('fold-warn', auto && spread && spreadSeen === 'one');
+    const why = unsure === 'dark' ? 'Too dark. Add light' : unsure === 'blank' ? 'Blank page? Tap the shutter' : null;
+    let text = base, warn = false;
+    if (auto) {
+      if (liveState === 'cooldown') text = 'Captured. Turn the page';
+      else if (spread && spreadSeen === 'one') { text = 'Fold not confirmed. Put the fold on the line, or capture anyway'; warn = true; }
+      else if (why) { text = why; warn = true; }
+      else if (liveState === 'steady') text = spread ? 'Both pages found. Hold steady…' : 'Hold steady…';
+    }
+    hint.textContent = text;
+    hint.classList.toggle('cam-warn', warn);
     const a = state.pages.length + 1;
     spreadNote.hidden = !spread;
     spreadNote.textContent = `Spread ${(state.spreads?.length ?? 0) + 1} · will be pages ${a} & ${a + 1}`;
@@ -130,13 +134,10 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       busy = true;
       shutter.disabled = true;
       try {
-        const c = document.createElement('canvas');
         const v = viewRect() ?? { sx: 0, sy: 0, sw: video.videoWidth, sh: video.videoHeight };
-        c.width = Math.round(v.sw); c.height = Math.round(v.sh);
-        c.getContext('2d')!.drawImage(video, v.sx, v.sy, v.sw, v.sh, 0, 0, c.width, c.height);
-        const raw = await canvasToBlob(c, 'image/jpeg', 0.95);
-        const { blob } = await normalize(raw);
-        await onShot(blob, { foldOnGuide: opts.mode?.get() === 'spread' && !opts.single, anchored: opts.mode?.get() !== 'spread' && !opts.single && state.settings.anchorLines });
+        const { blob, w, h: ph, sharp } = await frameToSource(video, v);
+        const before = state.pages.length;
+        await onShot(blob, { foldOnGuide: opts.mode?.get() === 'spread' && !opts.single, anchored: opts.mode?.get() !== 'spread' && !opts.single && state.settings.guideLines, w, h: ph });
         shots++;
         done.textContent = `Done (${shots})`;
         if (lastUrl) URL.revokeObjectURL(lastUrl);
@@ -144,7 +145,9 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
         last.src = lastUrl; last.alt = `Last captured page (page ${shots} of this session)`; last.hidden = false;
         paintCount();
         flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
-        if (opts.mode?.get() !== 'spread' || opts.single) toast(`Page ${shots} saved. Take the next one, or tap Done.`);
+        const added = state.pages.slice(before).map((p) => p.id);
+        if (sharp < MIN_SHARP_ABS && added.length) toast('That photo looks blurry.', { label: 'Remove', run: () => removePages(added) });
+        else if (opts.mode?.get() !== 'spread' || opts.single) toast(`Page ${shots} saved. Take the next one, or tap Done.`);
         paint();
         if (opts.single) dialog.close();
       } catch { toast('Could not capture the photo. Please try again.'); }
@@ -160,7 +163,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       speed = SPEED_ORDER[(SPEED_ORDER.indexOf(speed) + 1) % SPEED_ORDER.length];
       tracker.speed = speed; writePref(SPEED_KEY, speed); paintAuto();
     });
-    linesBtn.addEventListener('click', () => { updateSettings({ anchorLines: !state.settings.anchorLines }); if (live) live.anchors = state.settings.anchorLines; pinned = null; paintAuto(); redraw(); });
+    linesBtn.addEventListener('click', () => { updateSettings({ guideLines: !state.settings.guideLines }); if (live) live.anchors = state.settings.guideLines; pinned = null; paintAuto(); redraw(); });
     paintAuto();
     paint();
     paintCount();
@@ -176,7 +179,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
 
   /** The video is letterboxed (object-fit: contain), so map frame coordinates onto the visible picture. */
   type Tone = 'sure' | 'unsure';
-  const drawQuad = (q: Quad | null, st: LiveState, progress: number, fold?: [Pt, Pt], tone?: Tone) => {
+  const drawQuad = (q: Quad | null, st: LiveState, progress: number, tone?: Tone) => {
     const dpr = window.devicePixelRatio || 1;
     const cw = overlay.clientWidth, ch = overlay.clientHeight;
     if (overlay.width !== Math.round(cw * dpr) || overlay.height !== Math.round(ch * dpr)) { overlay.width = Math.round(cw * dpr); overlay.height = Math.round(ch * dpr); }
@@ -189,7 +192,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     // Dark core with white edges, so a line stays visible on bright pages and dark desks alike.
     const stroke = (a: readonly [number, number], b: readonly [number, number], w: number, c: string) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineWidth = w; g.strokeStyle = c; g.lineCap = 'butt'; g.stroke(); };
     const single = (opts.mode?.get() ?? 'single') !== 'spread' && !opts.single;
-    if (single && state.settings.anchorLines) {
+    if (single && state.settings.guideLines) {
       for (const [x, side] of [[ANCHOR_LEFT, 'left'], [ANCHOR_RIGHT, 'right']] as const) {
         const on = pinned === side || pinned === 'both';
         const a = pt({ x, y: 0.14 }), b = pt({ x, y: 0.86 });
@@ -203,11 +206,6 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     const col = tone === 'unsure' ? '255,204,0' : tone === 'sure' || st === 'cooldown' ? '52,199,89' : '255,255,255';
     g.fillStyle = `rgba(${col},${st === 'cooldown' ? 0.28 : 0.14 + 0.16 * progress})`; g.fill();
     g.lineWidth = 3; g.strokeStyle = `rgba(${col},0.95)`; g.lineJoin = 'round'; g.stroke();
-    if (fold) {
-      const [a, b] = fold.map(pt);
-      stroke(a, b, 10, '#fff'); stroke(a, b, 6, '#0b0c10');
-      for (const [x, y] of [a, b]) { g.beginPath(); g.arc(x, y, 11, 0, 7); g.fillStyle = tone === 'unsure' ? '#ffcc00' : '#34c759'; g.fill(); g.lineWidth = 3; g.strokeStyle = '#fff'; g.stroke(); }
-    }
   };
   const redraw = () => drawQuad(null, 'searching', 0);
   const startLive = () => {
@@ -217,26 +215,29 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     live = new LiveLoop(video, viewRect, (r) => {
       const spread = live!.mode === 'spread' && !opts.single;
       const seen = !spread ? 'none' : !r.quad ? 'none' : r.both ? 'both' : 'one';
-      // Only a real page may auto-capture: a spread also needs its fold, and any outline needs to look like a page (not a floor).
+      // Only a real page may auto-capture: a spread also needs its fold confirmed, and any outline must look like a page (not a floor).
       const sure = !!r.quad && r.sure && (!spread || seen === 'both');
-      const res = tracker.push({ t: r.t, quad: sure ? r.quad : null, sharp: r.sharp });
-      const nextUnsure = r.quad && !r.sure && !(spread && seen === 'one') ? r.why ?? 'plain' : null;
+      // While the pages sheet or another screen is open on top of the camera, nothing may be captured behind it.
+      const covered = sheetOpen || [...document.querySelectorAll('dialog[open]')].pop() !== dialog;
+      const res = tracker.push({ t: r.t, quad: sure && !covered ? r.quad : null, sharp: r.sharp });
+      const nextUnsure = r.quad && !r.sure && !(spread && seen === 'one') ? r.why : !r.quad && r.why === 'dark' ? 'dark' : null;
       if (res.state !== liveState || seen !== spreadSeen || nextUnsure !== unsure || r.anchor !== pinned) { liveState = res.state; spreadSeen = seen; unsure = nextUnsure; pinned = r.anchor; paint(); }
-      drawQuad(r.quad, res.state, res.progress, spread && seen === 'both' ? r.fold : undefined, !r.quad ? undefined : sure ? 'sure' : 'unsure');
+      drawQuad(r.quad, res.state, res.progress, !r.quad ? undefined : sure ? 'sure' : 'unsure');
       shutter.style.setProperty('--p', String(res.state === 'steady' ? res.progress : 0));
       overlay.dataset.state = res.state;
       if (res.fire) void capturePage();
     }, () => { auto = false; live = null; paintAuto(); toast('Auto-capture is not available on this device. Use the shutter button.'); });
     live.mode = opts.mode?.get() ?? 'single';
-    live.anchors = state.settings.anchorLines;
+    live.anchors = state.settings.guideLines;
     live.start();
   };
   const fail = (text: string) => { msg.hidden = false; msg.textContent = text; shutter.disabled = true;
     msg.append(' ', h('button', { class: 'btn', onclick: () => { dialog.close(); fallback(); } }, 'Use phone camera instead')); };
 
   if (!navigator.mediaDevices?.getUserMedia) { fail('This browser cannot open the camera here (it needs a secure https page).'); return; }
-  navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false })
+  const startStream = () => navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false })
     .then((s) => {
+      stream?.getTracks().forEach((t) => t.stop());
       stream = s; video.srcObject = s;
       if (!dialog.open) { stop(); return; }
       // The shutter only works once the first frame has arrived (a tap before that would silently do nothing).
@@ -244,4 +245,14 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       startLive();
     })
     .catch((e: DOMException) => fail(e.name === 'NotAllowedError' ? 'Camera access was denied. Allow it in the browser settings, or use the phone camera.' : 'The camera could not be started.'));
+  // Switching to another app can stop the camera; when the person comes back, the preview is started again instead of staying frozen.
+  const onVisible = () => {
+    if (document.visibilityState !== 'visible' || !dialog.open || !stream) return;
+    const t = stream.getVideoTracks()[0];
+    if (!t || t.readyState !== 'live') { shutter.disabled = true; void startStream(); }
+    else if (video.paused) void video.play().catch(() => undefined);
+  };
+  document.addEventListener('visibilitychange', onVisible);
+  dialog.addEventListener('close', () => document.removeEventListener('visibilitychange', onVisible));
+  void startStream();
 }

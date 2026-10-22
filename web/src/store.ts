@@ -17,11 +17,11 @@ export interface Spread extends SpreadGeometry {
   check?: boolean;
 }
 export type CaptureMode = 'single' | 'spread';
-export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode; /** Two guide lines on the single-page camera; the edge on a line is the page's anchor. */ anchorLines: boolean }
+export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode; /** Two guide lines on the single-page camera; the edge on a line is the page's anchor. */ guideLines: boolean }
 /** Unsaved editor state, kept so a reload or crash does not lose it. */
 export interface Draft { kind: 'page' | 'spread' | 'newSpread'; id: string; data: unknown; savedAt: number }
 
-const DEFAULT_SETTINGS: Settings = { autoCropCamera: true, autoCropImport: false, defaultFilter: 'original', captureMode: 'single', anchorLines: true };
+const DEFAULT_SETTINGS: Settings = { autoCropCamera: true, autoCropImport: false, defaultFilter: 'original', captureMode: 'single', guideLines: false };
 const SETTINGS_KEY = 'pdf-scanner.settings';
 
 type Listener = () => void;
@@ -160,15 +160,24 @@ const cloneGeometry = (g: SpreadGeometry): SpreadGeometry => ({ outer: g.outer.m
  * Changes a spread's outer corners / gutter. Unless the pages are independent, the surviving pages follow the new
  * geometry; a deleted side stays deleted.
  */
-export function updateSpread(id: string, patch: Partial<SpreadGeometry & { independent: boolean }>): void {
+export function updateSpread(id: string, patch: Partial<SpreadGeometry & { independent: boolean; check: boolean }>): void {
   const current = state.spreads.find((s) => s.id === id);
   if (!current) return;
-  const next: Spread = { ...current, ...patch, check: undefined, outer: patch.outer ? (patch.outer.map((p) => ({ ...p })) as Quad) : current.outer };
+  const next: Spread = { ...current, ...patch, check: patch.check ? true : undefined, outer: patch.outer ? (patch.outer.map((p) => ({ ...p })) as Quad) : current.outer };
   state.spreads = state.spreads.map((s) => (s.id === id ? next : s));
   if (!next.independent) {
     const [left, right] = splitSpread(next);
     state.pages = state.pages.map((p) => (p.spread?.id === id ? { ...p, corners: p.spread.side === 'L' ? left : right } : p));
   }
+  persist();
+  notify();
+}
+
+/** Marks or clears the "Check" flag of a spread without touching its geometry. */
+export function setSpreadCheck(id: string, check: boolean): void {
+  const s = state.spreads.find((x) => x.id === id);
+  if (!s || !!s.check === check) return;
+  state.spreads = state.spreads.map((x) => (x.id === id ? { ...x, check: check || undefined } : x));
   persist();
   notify();
 }

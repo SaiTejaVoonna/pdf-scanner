@@ -18,15 +18,15 @@ test('auto-capture never photographs a floor or other non-page scene', async ({ 
   await expect(cam.getByRole('button', { name: /Done \(/ })).toHaveCount(0);
 });
 
-test('the guide-lines switch is on by default, can be turned off and is remembered', async ({ page }) => {
+test('the guide-lines switch is off by default, can be turned on and is remembered', async ({ page }) => {
   await page.goto('/');
   await page.getByRole('button', { name: 'Scan pages', exact: true }).click();
   const cam = page.getByRole('dialog', { name: 'Camera' });
   const lines = cam.getByRole('switch', { name: 'Guide lines' });
-  await expect(lines).toHaveAttribute('aria-checked', 'true');
-  await lines.click();
   await expect(lines).toHaveAttribute('aria-checked', 'false');
-  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pdf-scanner.settings')!).anchorLines)).toBe(false);
+  await lines.click();
+  await expect(lines).toHaveAttribute('aria-checked', 'true');
+  expect(await page.evaluate(() => JSON.parse(localStorage.getItem('pdf-scanner.settings')!).guideLines)).toBe(true);
   await cam.getByRole('radio', { name: 'Book spread' }).click();
   await expect(lines).toBeHidden(); // spread mode has its own centre line
 });

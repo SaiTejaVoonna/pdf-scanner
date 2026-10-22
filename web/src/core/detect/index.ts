@@ -1,5 +1,5 @@
 import { area, isValidCrop, orderPoints, type Pt, type Quad } from '../geometry';
-import { findGutter, foldFromGuide, midGutter, splitSpread, turnOuter, type SpreadGeometry } from '../spread';
+import { findGutter, foldFromGuide, inkBothSides, midGutter, splitSpread, turnOuter, type SpreadGeometry } from '../spread';
 import { boxBlur, luma, type Img } from '../image';
 import { cannyEdges } from './canny';
 import { borderLines, houghLines, type Line } from './hough';
@@ -286,7 +286,9 @@ export function detectSpread(img: Img, guideX?: number): SpreadDetection {
   if (guideX !== undefined) {
     // In-app camera: the fold was placed on the guide line, so use it (and just check it) instead of searching.
     const f = foldFromGuide(img, outer, guideX);
-    return { outer, tTop: f.tTop, tBottom: f.tBottom, uncertain: !(f.central && f.dip >= GUIDE_MIN_DIP), outlineGuessed: !found };
+    // Confirmed by a valley on the guide, or (a soft fold is common) by writing on both sides of it.
+    const confirmed = !!found && f.central && (f.dip >= GUIDE_MIN_DIP || inkBothSides(img, { outer, tTop: f.tTop, tBottom: f.tBottom }));
+    return { outer, tTop: f.tTop, tBottom: f.tBottom, uncertain: !confirmed, outlineGuessed: !found };
   }
   let best: { outer: Quad; g: ReturnType<typeof findGutter> } | null = null;
   for (const turns of [0, 1]) {

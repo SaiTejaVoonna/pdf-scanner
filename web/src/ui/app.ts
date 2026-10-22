@@ -1,10 +1,12 @@
 import { FILTERS, type FilterName } from '../core/filters';
-import { fullQuad } from '../core/geometry';
+import { fullQuad, isFullFrame, isValidCrop } from '../core/geometry';
 import { h, openDialog, toast } from '../dom';
-import { decode, detectAnchoredIn, detectCorners, detectSpreadIn, normalize } from '../imaging';
+import { analysisImage, decode, detectCorners, detectSpreadIn, normalize } from '../imaging';
+import { detectPage, detectSpread } from '../core/detect';
+import { detectInBackground } from '../live/detectOnce';
 import * as store from '../store';
 import { state, subscribe, type PageModel } from '../store';
-import { GUIDE_X } from '../core/spread';
+import { GUIDE_X, isValidSpread, type SpreadGeometry } from '../core/spread';
 import { openCamera } from './camera';
 import { openCombine } from './combineDialog';
 import { openEditor, type PageDraftData } from './editor';
@@ -35,36 +37,65 @@ async function reviewSpread(blob: Blob): Promise<boolean> {
   return applied;
 }
 
+interface CaptureMeta { foldOnGuide?: boolean; anchored?: boolean; /** The photo is already upright and size-capped (it came from the in-app camera). */ w?: number; h?: number }
+
 /**
- * A camera capture of a spread is added at once with the detected split (no review screen in the middle of scanning).
- * Unsure captures get a "Check" badge in the page list; Undo removes both pages.
+ * Finding the crop of a new photo takes a moment, so a photo is added at once with a default crop and the detection runs one
+ * after another in the background; the page is only updated if the person has not touched it in the meantime.
  */
-async function addSpreadQuietly(blob: Blob, foldOnGuide: boolean): Promise<void> {
-  const { blob: normal, w, h: ph } = await normalize(blob);
-  // From the in-app camera the fold was placed on the centre guide, so it is used as the fold; otherwise it is searched for.
-  const d = await detectSpreadIn(normal, foldOnGuide ? GUIDE_X : undefined);
+let refining: Promise<void> = Promise.resolve();
+const refineLater = (task: () => Promise<void>): void => { refining = refining.then(task).catch(() => undefined); };
+
+const INSET = 0.03;
+const defaultSpread = (): SpreadGeometry => ({ outer: [{ x: INSET, y: INSET }, { x: 1 - INSET, y: INSET }, { x: 1 - INSET, y: 1 - INSET }, { x: INSET, y: 1 - INSET }], tTop: 0.5, tBottom: 0.5 });
+const sameSpread = (s: store.Spread): boolean => { const d = defaultSpread(); return s.tTop === d.tTop && s.tBottom === d.tBottom && s.outer.every((p, i) => p.x === d.outer[i].x && p.y === d.outer[i].y); };
+
+/**
+ * A spread photo is added at once as two pages (fold in the middle, flagged "Check") and the real fold and outline are
+ * filled in a moment later. Undo removes both pages.
+ */
+function addSpreadFast(blob: Blob, w: number, ph: number, foldOnGuide: boolean): void {
   const before = state.pages.length;
-  const spread = store.addSpread(normal, w, ph, { outer: d.outer, tTop: d.tTop, tBottom: d.tBottom }, d.uncertain || d.outlineGuessed);
+  const spread = store.addSpread(blob, w, ph, defaultSpread(), true);
   const ids = state.pages.filter((p) => p.spread?.id === spread.id).map((p) => p.id);
   const last = state.pages[state.pages.length - 1]; if (last) highlight(last.id);
   const a = before + 1;
-  toast(spread.check ? `Pages ${a} & ${a + 1} added. Check the split later.` : `Pages ${a} & ${a + 1} added`, { label: 'Undo', run: () => store.removePages(ids) });
+  toast(`Pages ${a} & ${a + 1} added`, { label: 'Undo', run: () => store.removePages(ids) });
+  refineLater(async () => {
+    const img = await analysisImage(blob);
+    const found = (await detectInBackground(img, { mode: 'spread', anchored: false, foldOnGuide }))?.spread ?? (() => { const d = detectSpread(img, foldOnGuide ? GUIDE_X : undefined); return d; })();
+    const cur = state.spreads.find((x) => x.id === spread.id);
+    if (!cur || cur.independent || !sameSpread(cur)) return; // removed or already adjusted by the person
+    const geo = { outer: found.outer, tTop: found.tTop, tBottom: found.tBottom };
+    if (isValidSpread(geo)) store.updateSpread(spread.id, { ...geo, check: found.uncertain || found.outlineGuessed });
+  });
+}
+
+/** A page is added at once as the full photo; the crop is found a moment later (and checked before it is used). */
+function addPageFast(blob: Blob, w: number, ph: number, autoCrop: boolean, anchored: boolean): PageModel {
+  const page = store.addPage(blob, w, ph, fullQuad());
+  if (autoCrop) refineLater(async () => {
+    const img = await analysisImage(blob);
+    const r = await detectInBackground(img, { mode: 'single', anchored, foldOnGuide: false });
+    const quad = r ? r.quad : detectPage(img);
+    const cur = state.pages.find((p) => p.id === page.id);
+    if (!cur || !isFullFrame(cur.corners) || !quad || !isValidCrop(quad)) return; // removed, edited meanwhile, or nothing convincing
+    store.editPages([page.id], (p) => ({ ...p, corners: quad }));
+  });
+  return page;
 }
 
 /** Adds image files/blobs, honouring Single page / Book spread mode. */
-async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = [], meta: { foldOnGuide?: boolean; anchored?: boolean } = {}): Promise<void> {
-  const foldOnGuide = !!meta.foldOnGuide;
+async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = [], meta: CaptureMeta = {}): Promise<void> {
   const mode = state.settings.captureMode;
   let failed = 0, added = 0;
   for (let i = 0; i < files.length; i++) {
     try {
-      if (mode === 'spread' && source === 'camera') { await addSpreadQuietly(files[i], foldOnGuide); continue; }
-      if (mode === 'spread') { if (await reviewSpread(files[i])) added += 2; continue; }
+      if (mode === 'spread' && source === 'import') { if (await reviewSpread(files[i])) added += 2; continue; }
+      const src = meta.w && meta.h ? { blob: files[i], w: meta.w, h: meta.h } : await normalize(files[i]);
+      if (mode === 'spread') { addSpreadFast(src.blob, src.w, src.h, !!meta.foldOnGuide); continue; }
       const auto = source === 'camera' ? state.settings.autoCropCamera : state.settings.autoCropImport;
-      const { blob, w, h: ph } = await normalize(files[i]);
-      // From the in-app camera with guide lines, the page edge placed on a line is used; otherwise (or if no line was used) the normal search.
-      const corners = auto ? (meta.anchored ? await detectAnchoredIn(blob) : null) ?? (await detectCorners(blob)) ?? fullQuad() : fullQuad();
-      const page = store.addPage(blob, w, ph, corners);
+      const page = addPageFast(src.blob, src.w, src.h, auto, !!meta.anchored);
       highlight(page.id); added++;
     } catch { failed++; if (names[i]) toast(`${names[i]} could not be read as an image.`); }
   }
@@ -103,7 +134,7 @@ export function mountApp(root: HTMLElement): void {
       onclick: () => store.updateSettings({ captureMode: id }),
     }, id === 'single' ? 'Single page' : 'Book spread')));
     modeHint.hidden = m !== 'spread';
-    modeHint.textContent = 'One photo of an open book becomes two pages, left then right. You check the split before it is added.';
+    modeHint.textContent = 'One photo of an open book becomes two pages, left then right. Camera photos are added at once (a yellow Check badge marks an unsure split); imported photos open a review first.';
   };
 
   const cameraMode = { get: () => state.settings.captureMode, set: (m: 'single' | 'spread') => store.updateSettings({ captureMode: m }) };
