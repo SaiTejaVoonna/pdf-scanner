@@ -1,7 +1,7 @@
 import { buildPdf, defaultName, pdfOverheadBytes, PAGE_SIZES, pickQualityForTarget, QUALITIES, safeFileName, type PageSizeName, type QualityName } from '../core/pdf';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, renderPage } from '../imaging';
-import { state } from '../store';
+import { currentDoc, recordExport, state } from '../store';
 import { icon } from './icons';
 import { thumbUrl } from './thumbs';
 
@@ -20,11 +20,12 @@ function scaled(src: HTMLCanvasElement, maxSide: number): HTMLCanvasElement {
 
 /** Renders every page, builds the PDF in the browser, then offers Download and (where supported) Share. */
 export function openExport(): void {
-  let name = defaultName();
+  let name = currentDoc()?.name ?? defaultName();
   let size: PageSizeName = 'a4';
   let quality: QualityName = 'high';
   let busy = false;
   let closed = false;
+  let estimating = true; // stops as soon as the real export starts, so two full renders never run at once
   const estimates: Partial<Record<QualityName, number>> = {};
 
   openDialog((close) => {
@@ -68,24 +69,27 @@ export function openExport(): void {
       strip.append(h('li', {}, img, h('span', {}, String(i + 1))));
     });
 
-    // Work out the size of every quality in the background, one page at a time.
+    // Work out the size of every quality in the background from a few sample pages (rendering every page twice is too heavy for a phone).
     void (async () => {
       const total: Record<string, number> = {};
       const top = QUALITIES[0].maxSide;
+      const count = state.pages.length;
+      const sample = count <= 3 ? state.pages.slice() : [state.pages[0], state.pages[Math.floor(count / 2)], state.pages[count - 1]];
       try {
-        for (let i = 0; i < state.pages.length && !closed; i++) {
-          const full = await renderPage(state.pages[i], top);
+        for (let i = 0; i < sample.length && !closed && estimating; i++) {
+          const full = await renderPage(sample[i], top);
           for (const q of QUALITIES) {
-            if (closed) break;
+            if (closed || !estimating) break;
             const c = scaled(full, q.maxSide);
             total[q.id] = (total[q.id] ?? 0) + (await canvasToBlob(c, 'image/jpeg', q.jpeg)).size;
             if (c !== full) c.width = c.height = 0;
           }
           full.width = full.height = 0;
-          sizeHint.textContent = `Calculating file sizes… ${i + 1}/${state.pages.length}`;
+          sizeHint.textContent = `Calculating file sizes… ${i + 1}/${sample.length}`;
         }
-        if (closed) return;
-        for (const q of QUALITIES) estimates[q.id] = (total[q.id] ?? 0) + pdfOverheadBytes(state.pages.length);
+        if (closed || !estimating) return;
+        const scale = count / Math.max(1, sample.length);
+        for (const q of QUALITIES) estimates[q.id] = (total[q.id] ?? 0) * scale + pdfOverheadBytes(count);
         drawSizes();
         sizeHint.textContent = 'Estimates are approximate; the final size is shown after export.';
         applyTarget();
@@ -108,10 +112,11 @@ export function openExport(): void {
     }
     async function run(action: 'download' | 'share') {
       if (busy || state.pages.length === 0) return;
-      busy = true; progress.hidden = false; [dl, share, input, target].forEach((e) => ((e as HTMLButtonElement).disabled = true));
+      busy = true; estimating = false; progress.hidden = false; [dl, share, input, target].forEach((e) => ((e as HTMLButtonElement).disabled = true));
       try {
         const { bytes, file } = await build();
         status.textContent = `${file} · ${formatBytes(bytes.length)}`;
+        recordExport(file.replace(/\.pdf$/i, ''), bytes, state.pages.length); // kept with the document, so it can be downloaded again
         if (action === 'share') {
           const f = new File([bytes as BlobPart], file, { type: 'application/pdf' });
           if (navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: file });

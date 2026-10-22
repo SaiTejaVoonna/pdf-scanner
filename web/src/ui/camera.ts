@@ -18,6 +18,8 @@ export interface CameraOptions {
   mode?: { get: () => CaptureMode; set: (m: CaptureMode) => void };
   /** Opens a page's editor (crop, filter) from the pages sheet. */
   onEditPage?: (p: PageModel) => void | Promise<void>;
+  /** Called after the camera screen has closed. */
+  onClosed?: () => void;
   /** One shot only (a retake): the camera closes after it. */
   single?: boolean;
 }
@@ -174,7 +176,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       h('div', { class: 'cam-stage' }, video, overlay, guide, flash),
       msg, sheet,
       h('div', { class: 'controls' }, pagesBtn, shutter, done));
-  }, 'Camera', () => { unsubscribe(); live?.stop(); stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); });
+  }, 'Camera', () => { unsubscribe(); live?.stop(); stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); opts.onClosed?.(); });
   dialog.classList.add('full');
 
   /** The video is letterboxed (object-fit: contain), so map frame coordinates onto the visible picture. */

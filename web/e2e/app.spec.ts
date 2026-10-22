@@ -22,7 +22,7 @@ test.beforeEach(async ({ page }) => {
 
 test('starts empty, with the privacy-friendly basics in place', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
-  await expect(page.getByText('No pages yet')).toBeVisible();
+  await expect(page.getByText('No documents yet')).toBeVisible();
   await expect(page.getByRole('button', { name: /Make PDF/ })).toBeHidden();
   // The app never talks to another origin.
   const external: string[] = [];
@@ -37,7 +37,8 @@ test('imports images, edits a page, reorders, and exports a valid multipage PDF'
   await page.getByRole('button', { name: 'Edit page 1' }).click();
   const editor = page.getByRole('dialog', { name: 'Edit page' });
   await expect(editor.getByRole('button', { name: /Top left corner/ })).toBeVisible();
-  const before = await editor.getByRole('button', { name: /Top left corner/ }).boundingBox();
+  let before: { x: number } | null = null;
+  await expect.poll(async () => { before = await editor.getByRole('button', { name: /Top left corner/ }).boundingBox(); return before !== null; }).toBe(true);
   await editor.getByRole('button', { name: 'Auto-detect' }).click();
   await expect.poll(async () => (await editor.getByRole('button', { name: /Top left corner/ }).boundingBox())?.x).not.toBe(before!.x);
   // keyboard nudge works
@@ -113,7 +114,7 @@ test('selection mode applies bulk actions to the selected pages only', async ({ 
 test('unreadable files are reported and do not break the app', async ({ page }) => {
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('not an image') }]);
   await expect(page.getByText('notes.png could not be read as an image.')).toBeVisible();
-  await expect(page.getByText('No pages yet')).toBeVisible();
+  await expect(page.getByText('No documents yet')).toBeVisible(); // no empty document is left behind
 });
 
 test('scans are kept across a reload', async ({ page }) => {
@@ -121,9 +122,11 @@ test('scans are kept across a reload', async ({ page }) => {
   await pagesPersisted(page, 2); // the IndexedDB write is asynchronous
   await page.reload();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
-  page.once('dialog', (d) => d.accept());
-  await page.getByRole('button', { name: 'Start over' }).click();
-  await expect(page.getByText('No pages yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Document menu' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete document' }).click();
+  await expect(page.getByText('No documents yet')).toBeVisible();
+  await page.getByRole('button', { name: 'Undo' }).click(); // a delete can always be undone
+  await expect(page.getByRole('list', { name: 'Documents' }).locator('li')).toHaveCount(1);
 });
 
 test('settings are stored and auto-crop on import crops the page', async ({ page }) => {

@@ -4,7 +4,16 @@ import { expect, type Page } from '@playwright/test';
 export async function pagesPersisted(page: Page, count: number) {
   await expect.poll(() => page.evaluate(() => new Promise<number>((res) => {
     const r = indexedDB.open('pdf-scanner', 1);
-    r.onsuccess = () => { const g = r.result.transaction('meta').objectStore('meta').get('pages'); g.onsuccess = () => { r.result.close(); res(Array.isArray(g.result) ? g.result.length : 0); }; g.onerror = () => res(-1); };
+    r.onsuccess = () => {
+      const st = r.result.transaction('meta').objectStore('meta');
+      const docs = st.get('docs'), cur = st.get('current');
+      st.transaction.oncomplete = () => {
+        r.result.close();
+        const d = (docs.result as { id: string; pages: unknown[]; deletedAt?: number }[] | undefined)?.find((x) => x.id === cur.result && !x.deletedAt);
+        res(d ? d.pages.length : 0);
+      };
+      st.transaction.onerror = () => res(-1);
+    };
     r.onerror = () => res(-1);
   })), { timeout: 15_000 }).toBe(count);
 }
@@ -23,9 +32,15 @@ export async function firstPageCropped(page: Page) {
   await expect.poll(() => page.evaluate(() => new Promise<boolean>((res) => {
     const r = indexedDB.open('pdf-scanner', 1);
     r.onsuccess = () => {
-      const g = r.result.transaction('meta').objectStore('meta').get('pages');
-      g.onsuccess = () => { r.result.close(); const p = (g.result as { corners: { x: number; y: number }[] }[] | undefined)?.[0]; res(!!p && p.corners.some((c) => c.x > 0.01 && c.x < 0.99)); };
-      g.onerror = () => res(false);
+      const st = r.result.transaction('meta').objectStore('meta');
+      const docs = st.get('docs'), cur = st.get('current');
+      st.transaction.oncomplete = () => {
+        r.result.close();
+        const d = (docs.result as { id: string; pages: { corners: { x: number; y: number }[] }[] }[] | undefined)?.find((x) => x.id === cur.result);
+        const p = d?.pages[0];
+        res(!!p && p.corners.some((c) => c.x > 0.01 && c.x < 0.99));
+      };
+      st.transaction.onerror = () => res(false);
     };
     r.onerror = () => res(false);
   })), { timeout: 20_000 }).toBe(true);

@@ -64,3 +64,28 @@ export function download(bytes: Uint8Array | Blob, filename: string, type = 'app
 }
 
 export const formatBytes = (n: number): string => (n < 1024 ? `${n} B` : n < 1048576 ? `${Math.round(n / 1024)} KB` : `${(n / 1048576).toFixed(1)} MB`);
+
+/** An in-app question with two buttons (the browser's own pop-ups can be blocked or hidden on phones). Resolves true on the main button. */
+export function askConfirm(title: string, text: string, ok = 'Delete', danger = true): Promise<boolean> {
+  return new Promise((resolve) => {
+    let answer = false;
+    openDialog((close) => h('div', { class: 'dlg' }, h('h2', {}, title), h('p', {}, text),
+      h('div', { class: 'row end' }, h('button', { class: 'btn', type: 'button', onclick: close }, 'Cancel'),
+        h('button', { class: `btn ${danger ? 'danger' : 'primary'}`, type: 'button', onclick: () => { answer = true; close(); } }, ok))), title, () => resolve(answer));
+  });
+}
+
+/** An in-app text prompt. Resolves with the text, or null when cancelled. */
+export function askText(title: string, value: string, ok = 'Save'): Promise<string | null> {
+  return new Promise((resolve) => {
+    let answer: string | null = null;
+    openDialog((close) => {
+      const input = h('input', { type: 'text', value, maxlength: '100', 'aria-label': title });
+      const save = () => { answer = input.value; close(); };
+      input.addEventListener('keydown', (e) => { if (e.key === 'Enter') save(); });
+      setTimeout(() => { input.focus(); input.select(); }, 0);
+      return h('div', { class: 'dlg' }, h('h2', {}, title), h('label', { class: 'field' }, input),
+        h('div', { class: 'row end' }, h('button', { class: 'btn', type: 'button', onclick: close }, 'Cancel'), h('button', { class: 'btn primary', type: 'button', onclick: save }, ok)));
+    }, title, () => resolve(answer));
+  });
+}

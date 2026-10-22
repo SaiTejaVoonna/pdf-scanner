@@ -81,6 +81,8 @@ describe('retake, delete, reorder', () => {
     store.removePages([right.id]);
     expect(store.state.pages.length).toBe(0);
     expect(store.state.spreads.length).toBe(0);
+    expect(store.sourceBlob(a.sourceId)).toBeDefined(); // still held, so that Undo can bring it back
+    store.flushRemovals();
     expect(store.sourceBlob(a.sourceId)).toBeUndefined();
   });
   it('side deletion then retake regenerates only the surviving side', () => {
@@ -120,5 +122,93 @@ describe('drafts', () => {
     store.clearDraft();
     expect(store.state.draft).toBeNull();
     expect(store.draftSource('cap1')).toBeUndefined();
+  });
+});
+
+
+describe('documents', () => {
+  it('adding a photo with no document open starts one', () => {
+    expect(store.state.currentId).toBeNull();
+    store.addPage(blob('a'), 10, 10);
+    expect(store.state.currentId).not.toBeNull();
+    expect(store.liveDocs()).toHaveLength(1);
+    expect(store.liveDocs()[0].status).toBe('draft');
+  });
+  it('each document keeps its own pages; switching does not mix them', () => {
+    const d1 = store.newDoc('One');
+    store.addPage(blob('a'), 10, 10); store.addPage(blob('b'), 10, 10);
+    const d2 = store.newDoc('Two');
+    expect(store.state.pages).toHaveLength(0);
+    store.addPage(blob('c'), 10, 10);
+    store.openDoc(d1.id);
+    expect(store.state.pages).toHaveLength(2);
+    store.openDoc(d2.id);
+    expect(store.state.pages).toHaveLength(1);
+  });
+  it('closing an empty document removes it; a document with pages stays', () => {
+    const d = store.newDoc('Empty');
+    store.closeDoc();
+    expect(store.state.docs.find((x) => x.id === d.id)).toBeUndefined();
+    store.newDoc('Full');
+    store.addPage(blob('a'), 10, 10);
+    store.closeDoc();
+    expect(store.liveDocs()).toHaveLength(1);
+    expect(store.state.currentId).toBeNull();
+    expect(store.state.pages).toHaveLength(0);
+  });
+  it('deleting a document goes to recently deleted and can be restored or purged', () => {
+    const d = store.newDoc('Gone');
+    const page = store.addPage(blob('a'), 10, 10);
+    const undo = store.deleteDoc(d.id);
+    expect(store.liveDocs()).toHaveLength(0);
+    expect(store.trashedDocs()).toHaveLength(1);
+    expect(store.sourceBlob(page.sourceId)).toBeDefined();
+    undo();
+    expect(store.liveDocs()).toHaveLength(1);
+    store.deleteDoc(d.id);
+    store.purgeDoc(d.id);
+    expect(store.state.docs).toHaveLength(0);
+    expect(store.sourceBlob(page.sourceId)).toBeUndefined();
+  });
+  it('a recorded export marks the document done and keeps the PDF until removed', () => {
+    const d = store.newDoc('Report');
+    store.addPage(blob('a'), 10, 10);
+    store.recordExport('Report', new Uint8Array([1, 2, 3]), 1);
+    const doc = store.currentDoc()!;
+    expect(doc.status).toBe('done');
+    expect(doc.exports).toHaveLength(1);
+    expect(store.pdfBlob(doc.exports[0].id)?.size).toBe(3);
+    store.removeExport(d.id, doc.exports[0].id);
+    expect(store.pdfBlob(doc.exports[0]?.id ?? 'x')).toBeUndefined();
+  });
+  it('rename trims and ignores empty names', () => {
+    const d = store.newDoc('Old');
+    store.renameDoc(d.id, '  New   name ');
+    expect(store.state.docs[0].name).toBe('New name');
+    store.renameDoc(d.id, '   ');
+    expect(store.state.docs[0].name).toBe('New name');
+  });
+});
+
+describe('undoing a page delete', () => {
+  it('puts the pages back where they were, with their spread and photo', () => {
+    store.addPage(blob('p'), 10, 10);
+    const a = store.addSpread(blob('s'), 100, 100, geo());
+    store.addPage(blob('q'), 10, 10);
+    const before = store.state.pages.map((p) => p.id);
+    const r = store.removePages([store.pagesOfSpread(a.id)[0].id, store.pagesOfSpread(a.id)[1].id]);
+    expect(store.state.pages).toHaveLength(2);
+    expect(store.state.spreads).toHaveLength(0);
+    r.undo();
+    expect(store.state.pages.map((p) => p.id)).toEqual(before);
+    expect(store.state.spreads).toHaveLength(1);
+    store.flushRemovals();
+    expect(store.sourceBlob(a.sourceId)).toBeDefined();
+  });
+  it('right-to-left books put the right page first', () => {
+    store.updateSettings({ bookRtl: true });
+    const a = store.addSpread(blob('s'), 100, 100, geo());
+    expect(store.pagesOfSpread(a.id).map((p) => p.spread!.side).join('')).toBe('RL');
+    store.updateSettings({ bookRtl: false });
   });
 });

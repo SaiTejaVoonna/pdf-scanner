@@ -1,6 +1,6 @@
 import { FILTERS, type FilterName } from '../core/filters';
 import { fullQuad, isFullFrame, isValidCrop } from '../core/geometry';
-import { h, openDialog, toast } from '../dom';
+import { askText, download, formatBytes, h, openDialog, toast } from '../dom';
 import { analysisImage, decode, detectCorners, detectSpreadIn, normalize } from '../imaging';
 import { detectPage, detectSpread } from '../core/detect';
 import { detectInBackground } from '../live/detectOnce';
@@ -13,6 +13,7 @@ import { openEditor, type PageDraftData } from './editor';
 import { openExport } from './exportDialog';
 import { openResize } from './resizeDialog';
 import { openSettings } from './settingsDialog';
+import { openTrash } from './trashDialog';
 import { openSpreadEditor, type SpreadDraftData } from './spreadEditor';
 import { thumbUrl } from './thumbs';
 import { icon, type IconName } from './icons';
@@ -89,6 +90,8 @@ function addPageFast(blob: Blob, w: number, ph: number, autoCrop: boolean, ancho
 async function ingest(files: Blob[], source: 'camera' | 'import', names: string[] = [], meta: CaptureMeta = {}): Promise<void> {
   const mode = state.settings.captureMode;
   let failed = 0, added = 0;
+  const startedHere = files.length > 0 && state.currentId === null;
+  if (files.length) store.ensureDoc(); // photos added from the list start a new document
   for (let i = 0; i < files.length; i++) {
     try {
       if (mode === 'spread' && source === 'import') { if (await reviewSpread(files[i])) added += 2; continue; }
@@ -99,6 +102,7 @@ async function ingest(files: Blob[], source: 'camera' | 'import', names: string[
       highlight(page.id); added++;
     } catch { failed++; if (names[i]) toast(`${names[i]} could not be read as an image.`); }
   }
+  if (startedHere && state.pages.length === 0) store.closeDoc(); // nothing could be added: do not leave an empty document behind
   if (added && source !== 'camera' && mode === 'single') toast(`${added} page${added === 1 ? '' : 's'} added.`);
   if (failed && !names.length) toast(`${failed} image(s) could not be added.`);
 }
@@ -139,12 +143,12 @@ export function mountApp(root: HTMLElement): void {
 
   const cameraMode = { get: () => state.settings.captureMode, set: (m: 'single' | 'spread') => store.updateSettings({ captureMode: m }) };
   /** Opens the camera; with `retake` (a spread id) it takes one photo and sends it to that spread's retake review. */
-  const scan = (retake?: string) => openCamera(async (blob, meta) => {
+  const scan = (retake?: string) => { if (!retake) store.ensureDoc(); openCamera(async (blob, meta) => {
     if (!retake) { await ingest([blob], 'camera', [], meta); return; }
     retaking = retake;
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },
-  retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true, onEditPage: editPage } : { mode: cameraMode, onEditPage: editPage });
+  retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true, onEditPage: editPage } : { mode: cameraMode, onEditPage: editPage, onClosed: () => { if (state.pages.length === 0 && !retake) store.closeDoc(); } }); };
   const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, icon('scan', 30), 'Scan pages');
   const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'More ways to add pages and tools' },
     tile('image', 'Import images', () => importInput.click()),
@@ -157,26 +161,115 @@ export function mountApp(root: HTMLElement): void {
   const docHead = h('div', { class: 'doc-head' });
   const bar = h('div', { class: 'bar' });
   const notice = h('p', { class: 'notice', hidden: true });
+  // Documents list (home) and the bar of the open document.
+  const docsHead = h('div', { class: 'doc-head' });
+  const docList = h('ul', { class: 'doc-grid', 'aria-label': 'Documents' });
+  const docsEmpty = h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, icon('document', 56)), h('h2', {}, 'No documents yet'),
+    h('p', {}, 'Tap Scan pages or import photos. Each scan becomes a document you can reopen, add to and turn into a PDF. Nothing leaves this device.'));
+  const tipKey = 'pdf-scanner.tip-keep';
+  const tip = h('div', { class: 'notice tip', hidden: true });
+  const trashLink = h('button', { class: 'btn trash-link', type: 'button', onclick: openTrash });
+  const docBar = h('div', { class: 'doc-bar' });
+  const exportsBox = h('div', { class: 'exports', hidden: true });
 
+  const main = h('main', {});
   root.append(
     h('header', { class: 'top' },
       h('div', { class: 'brand' }, h('h1', {}, 'PDF Scanner', h('span', { class: 'beta' }, `beta ${__APP_VERSION__}`)),
         h('p', { class: 'sub' }, icon('lock', 16), ' Private, saved on this device')),
       h('button', { class: 'icon-btn', 'aria-label': 'Settings', onclick: openSettings }, icon('gear'))),
-    h('main', {}, notice, scanBtn, modeSwitch, modeHint, tiles, docHead, list, empty), bar, importInput, captureInput);
+    main, bar, importInput, captureInput);
 
   function render() {
     const pages = state.pages;
+    const inDoc = state.currentId !== null;
     paintMode();
     notice.hidden = state.persistent && state.storage === 'ok';
     notice.textContent = state.storage === 'full'
       ? 'Your browser has no space left, so recent changes are not saved. Export your PDF now, or delete pages to free space. Your pages are still here until you close this tab.'
       : 'Your browser is not keeping scans between visits (private mode?). Export before closing this tab.';
-    empty.hidden = pages.length > 0;
-    list.hidden = pages.length === 0;
-    list.replaceChildren(...pages.map((p, i) => card(p, i, pages.length)));
-    renderDocHead();
+    main.replaceChildren(...(inDoc
+      ? [notice, docBar, scanBtn, modeSwitch, modeHint, tiles, docHead, list, empty, exportsBox]
+      : [notice, tip, scanBtn, modeSwitch, modeHint, tiles, docsHead, docList, docsEmpty, trashLink]));
+    if (inDoc) {
+      empty.hidden = pages.length > 0;
+      list.hidden = pages.length === 0;
+      list.replaceChildren(...pages.map((p, i) => card(p, i, pages.length)));
+      renderDocBar();
+      renderDocHead();
+      renderExports();
+    } else renderHome();
+    renderTip();
     renderBar();
+  }
+
+  function renderTip() {
+    let dismissed = false;
+    try { dismissed = localStorage.getItem(tipKey) === '1'; } catch { /* ignore */ }
+    tip.hidden = state.protectedStorage !== false || dismissed || store.liveDocs().length === 0;
+    tip.replaceChildren(h('span', {}, 'Tip: your browser may delete saved scans if you do not open the app for a few days. Install it (Share → Add to Home Screen), or back up from Settings.'),
+      h('button', { class: 'btn', type: 'button', onclick: () => { try { localStorage.setItem(tipKey, '1'); } catch { /* ignore */ } renderTip(); } }, 'Got it'));
+  }
+
+  const when = (t: number) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
+
+  function renderHome() {
+    const docs = store.liveDocs();
+    docsEmpty.hidden = docs.length > 0;
+    docList.hidden = docs.length === 0;
+    docsHead.hidden = docs.length === 0;
+    docsHead.replaceChildren(h('div', { class: 'titles' }, h('h2', {}, 'Your documents'), h('span', { class: 'hint' }, `${docs.length} document${docs.length === 1 ? '' : 's'}`)));
+    docList.replaceChildren(...docs.map((d) => {
+      const n = store.docPageCount(d);
+      const first = d.pages[0];
+      const img = h('img', { alt: '', draggable: 'false' });
+      if (first) thumbUrl(first).then((u) => { img.src = u; }).catch(() => undefined);
+      return h('li', { class: 'doc-card', 'data-doc': d.id },
+        h('button', { class: 'doc-open', type: 'button', 'aria-label': `Open ${d.name}`, onclick: () => store.openDoc(d.id) },
+          h('span', { class: 'doc-thumb' }, first ? img : icon('document', 32)),
+          h('span', { class: 'doc-name' }, d.name),
+          h('span', { class: 'doc-meta' }, `${n} page${n === 1 ? '' : 's'} · ${when(d.updatedAt)}`),
+          h('span', { class: `doc-status ${d.status}` }, d.status === 'done' ? 'PDF made' : 'Draft')),
+        h('button', { class: 'icon-btn doc-menu', type: 'button', 'aria-label': `${d.name} menu`, onclick: () => openDocMenu(d) }, icon('more')));
+    }));
+    const trash = store.trashedDocs().length;
+    trashLink.hidden = trash === 0;
+    trashLink.textContent = `Recently deleted (${trash})`;
+  }
+
+  function renderDocBar() {
+    const d = store.currentDoc();
+    docBar.replaceChildren(
+      h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Back to documents', onclick: () => store.closeDoc() }, icon('arrow-left')),
+      h('div', { class: 'doc-title' },
+        h('button', { class: 'doc-rename', type: 'button', 'aria-label': 'Rename document', onclick: () => d && void renameFlow(d.id, d.name) }, h('strong', {}, d?.name ?? 'Document')),
+        h('span', { class: 'hint' }, d ? `${d.status === 'done' ? 'PDF made' : 'Draft, saved automatically'}` : '')),
+      h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Document menu', onclick: () => d && openDocMenu(d) }, icon('more')));
+  }
+
+  async function renameFlow(id: string, name: string) {
+    const v = await askText('Rename document', name);
+    if (v) store.renameDoc(id, v);
+  }
+
+  function openDocMenu(d: store.Doc) {
+    openDialog((close) => {
+      const item = (label: string, fn: () => void, danger = false) => h('button', { class: `btn${danger ? ' danger' : ''}`, type: 'button', onclick: () => { close(); fn(); } }, label);
+      return h('div', { class: 'dlg menu' }, h('h2', {}, d.name),
+        item('Rename', () => void renameFlow(d.id, d.name)),
+        item('Delete document', () => { const undo = store.deleteDoc(d.id); toast(`Deleted "${d.name}". It stays in Recently deleted for 30 days.`, { label: 'Undo', run: undo }); }, true),
+        h('button', { class: 'btn', type: 'button', onclick: close }, 'Close'));
+    }, `${d.name} menu`);
+  }
+
+  function renderExports() {
+    const d = store.currentDoc();
+    const list2 = d?.exports ?? [];
+    exportsBox.hidden = list2.length === 0;
+    exportsBox.replaceChildren(h('h3', {}, 'Saved PDFs'), ...list2.slice().reverse().map((e) => h('div', { class: 'export-row' },
+      h('div', {}, h('strong', {}, `${e.name}.pdf`), h('div', { class: 'hint' }, `${e.pages} page${e.pages === 1 ? '' : 's'} · ${formatBytes(e.bytes)} · ${when(e.at)}`)),
+      h('button', { class: 'btn', type: 'button', 'aria-label': `Download ${e.name}`, onclick: () => { const b = store.pdfBlob(e.id); if (b) download(b, `${e.name}.pdf`); else toast('That PDF is no longer stored.'); } }, 'Download'),
+      h('button', { class: 'icon-btn', type: 'button', 'aria-label': `Remove saved ${e.name}`, onclick: () => store.removeExport(d!.id, e.id) }, icon('trash')))));
   }
 
   function renderDocHead() {
@@ -193,8 +286,7 @@ export function mountApp(root: HTMLElement): void {
     const spreads = state.spreads.length;
     docHead.append(h('div', { class: 'titles' }, h('h2', {}, 'Your pages'),
         h('span', { class: 'hint' }, `${state.pages.length} page${state.pages.length === 1 ? '' : 's'}${spreads ? ` · ${spreads} spread${spreads === 1 ? '' : 's'}` : ''}`)),
-      h('button', { class: 'btn', onclick: () => { selectMode = true; render(); } }, 'Select'),
-      h('button', { class: 'icon-btn', 'aria-label': 'Start over', onclick: () => { if (confirm('Remove all pages and start over?')) store.clearAll(); } }, icon('trash')));
+      h('button', { class: 'btn', onclick: () => { selectMode = true; render(); } }, 'Select'));
   }
 
   /** Small action sheet for one page. */
@@ -209,7 +301,7 @@ export function mountApp(root: HTMLElement): void {
         item('Move earlier', () => store.movePage(p.id, -1), index === 0),
         item('Move later', () => store.movePage(p.id, 1), index === total - 1),
         item('Select', () => { selectMode = true; store.toggleSelect(p.id); }),
-        item('Delete page', () => { if (confirm(`Delete page ${index + 1}?`)) store.removePages([p.id]); }, false, true),
+        item('Delete page', () => { const r = store.removePages([p.id]); toast(`Page ${index + 1} deleted.`, { label: 'Undo', run: r.undo }); }, false, true),
         h('button', { class: 'btn', onclick: close }, 'Close'));
     }, `Page ${index + 1} menu`);
   }
@@ -239,7 +331,7 @@ export function mountApp(root: HTMLElement): void {
   function renderBar() {
     bar.replaceChildren();
     const n = state.selection.size;
-    if (state.pages.length === 0) { bar.hidden = true; return; }
+    if (state.currentId === null || state.pages.length === 0) { bar.hidden = true; return; }
     bar.hidden = false;
     if (n === 0 && !selectMode) {
       bar.append(h('button', { class: 'btn primary', onclick: openExport }, `Make PDF (${state.pages.length})`),
@@ -266,7 +358,7 @@ export function mountApp(root: HTMLElement): void {
       h('button', { class: 'btn', onclick: () => { store.editPages(single, (p) => ({ ...p, corners: fullQuad() })); if (skipped) toast(`Remove crop skipped ${skipped} spread page(s).`); } }, 'Remove crop'),
       h('button', { class: 'btn', onclick: () => store.editPages(ids, (p) => ({ ...p, rotation: (p.rotation + 90) % 360 })) }, 'Rotate'),
       filterSel,
-      h('button', { class: 'btn danger', onclick: () => { if (confirm(`Delete ${n} page(s)?`)) { selectMode = false; store.removePages(ids); } } }, 'Delete'));
+      h('button', { class: 'btn danger', onclick: () => { selectMode = false; const r = store.removePages(ids); toast(`${n} page${n === 1 ? '' : 's'} deleted.`, { label: 'Undo', run: r.undo }); } }, 'Delete'));
   }
 
   highlight = (id) => {

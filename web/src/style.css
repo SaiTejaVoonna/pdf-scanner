@@ -280,3 +280,27 @@ dialog.full .toasts { bottom: 150px; }
 /* The fold bar stays where it is; only its colour says whether the fold is confirmed */
 .camera .guide.spread.fold-ok::after { border-color: #34c759; box-shadow: 0 0 0 1px #0008, 0 0 12px #34c759aa; }
 .camera .guide.spread.fold-warn::after { border-color: #ffcc00; box-shadow: 0 0 0 1px #0008, 0 0 12px #ffcc00aa; }
+
+/* Documents */
+.doc-grid { list-style: none; margin: 0 0 16px; padding: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+@media (min-width: 720px) { .doc-grid { grid-template-columns: repeat(4, 1fr); } }
+.doc-card { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+.doc-open { display: flex; flex-direction: column; gap: 4px; width: 100%; text-align: left; background: none; border: 0; padding: 10px; cursor: pointer; color: inherit; }
+.doc-thumb { display: grid; place-items: center; height: 120px; background: var(--surface-2); border-radius: 10px; overflow: hidden; }
+.doc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.doc-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding-right: 30px; }
+.doc-meta { color: var(--muted); font-size: .8rem; }
+.doc-status { align-self: flex-start; font-size: .72rem; padding: 1px 8px; border-radius: 99px; background: var(--surface-2); }
+.doc-status.done { background: var(--primary-container); }
+.doc-menu { position: absolute; right: 2px; bottom: 30px; min-width: 40px; min-height: 40px; }
+.trash-link { margin: 4px 0 16px; }
+.doc-bar { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.doc-title { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.doc-rename { background: none; border: 0; padding: 0; text-align: left; cursor: pointer; color: inherit; font-size: 1.15rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.exports { margin: 20px 0; }
+.export-row { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.export-row > div { flex: 1; min-width: 0; }
+.trash-list { list-style: none; padding: 0; margin: 0 0 12px; }
+.trash-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.trash-list li > div { flex: 1; min-width: 0; }
+.tip { display: flex; gap: 10px; align-items: center; } .storage-box { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }

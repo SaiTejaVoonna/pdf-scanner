@@ -1,6 +1,6 @@
 import { FILTERS, type FilterName } from '../core/filters';
 import { cloneQuad, fullQuad, isValidCrop, clamp01, type Pt, type Quad } from '../core/geometry';
-import { chips, h, openDialog, toast } from '../dom';
+import { askConfirm, chips, h, openDialog, toast } from '../dom';
 import { decode, detectCorners, renderPage } from '../imaging';
 import { icon } from './icons';
 import { blobOf, clearDraft, editPages, saveDraft, type PageModel } from '../store';
@@ -47,12 +47,13 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
       h('div', { class: 'head' }, back, h('h2', {}, 'Edit page'), save),
       h('div', { class: 'tabs', role: 'tablist' }, cropTab, enhTab), stage, tools);
   };
-  const requestClose = (close: () => void) => { if (!dirty || confirm('Discard your changes to this page?')) close(); };
+  const discard = () => askConfirm('Discard your changes?', 'Your edits to this page have not been saved.', 'Discard');
+  const requestClose = async (close: () => void) => { if (!dirty || await discard()) close(); };
 
   window.addEventListener('app-flush-drafts', flush);
   dlg = openDialog(body, 'Edit page', () => { bitmap?.close(); window.removeEventListener('app-flush-drafts', flush); window.clearTimeout(draftTimer); if (!saved) clearDraft(); });
   dlg.classList.add('full');
-  dlg.addEventListener('cancel', (e) => { if (dirty && !confirm('Discard your changes to this page?')) e.preventDefault(); });
+  dlg.addEventListener('cancel', (e) => { if (dirty) { e.preventDefault(); void discard().then((yes) => { if (yes) dlg.close(); }); } });
 
   function setTab(t: 'crop' | 'enhance') {
     if (t === 'enhance' && !isValidCrop(corners)) { toast('Fix the crop corners first.'); return; }
