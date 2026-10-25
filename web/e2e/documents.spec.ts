@@ -28,7 +28,7 @@ test('one draft at a time: scans go into it until the PDF is made, then the PDF 
   await expect(banner).toHaveCount(1);
   await expect(banner).toContainText('2 pages');
   await expect(page.getByRole('list', { name: 'PDFs' }).locator('li')).toHaveCount(0);
-  await importN(page, 3); // from home: continues the same draft
+  await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [1, 2, 3].map((i) => png(`more-${i}.png`))); // from home: continues the same draft
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(5);
   await makePdf(page);
   await page.getByRole('button', { name: 'Back to documents' }).click();

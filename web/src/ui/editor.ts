@@ -1,7 +1,8 @@
 import { FILTERS, type FilterName } from '../core/filters';
 import { cloneQuad, fullQuad, isValidCrop, clamp01, type Pt, type Quad } from '../core/geometry';
 import { askConfirm, chips, h, openDialog, toast } from '../dom';
-import { decode, detectCorners, renderPage } from '../imaging';
+import { findCorners } from '../engine';
+import { decode, renderPage } from '../imaging';
 import { icon } from './icons';
 import { blobOf, clearDraft, editPages, saveDraft, type PageModel } from '../store';
 
@@ -37,7 +38,7 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
     const back = h('button', { class: 'icon-btn', 'aria-label': 'Back', onclick: () => requestClose(close) }, icon('arrow-left'));
     save = h('button', { class: 'btn primary', onclick: () => {
       if (!isValidCrop(corners)) { toast('The corners must form a convex shape that covers part of the page.'); return; }
-      editPages([page.id], (p) => ({ ...p, corners: cloneQuad(corners), rotation, filter }));
+      editPages([page.id], (p) => ({ ...p, corners: cloneQuad(corners), rotation, filter, check: undefined }));
       saved = true; clearDraft();
       close();
     } }, 'Save');
@@ -127,8 +128,8 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
     const auto = h('button', { class: 'btn', onclick: async () => {
       auto.disabled = true; auto.textContent = 'Detecting…';
       try {
-        const q = await detectCorners(blob!);
-        if (q) { corners = q; touch(); draw(); } else toast('No page edges found. Adjust the corners manually.');
+        const f = await findCorners(blob!);
+        if (f.quad) { corners = f.quad; touch(); draw(); if (f.confidence !== 'high') toast('Check the corners: this outline does not clearly look like a written page.'); } else toast('No page edges found. Adjust the corners manually.');
       } finally { auto.disabled = false; auto.textContent = 'Auto-detect'; }
     } }, 'Auto-detect');
     const reset = h('button', { class: 'btn', onclick: () => { corners = fullQuad(); touch(); draw(); } }, 'Full image');

@@ -13,3 +13,8 @@ python3 -I bench/real-eval/score.py /some/folder                  # overlap, fou
 
 Numbers to watch: **IoU >= 0.9 / 0.8** (how close the crop is) and **false green** (the engine said "sure" but the crop was wrong).
 Baseline of the rule-based engine on 300 photos (October 2026): found 83%, IoU>=0.8 26%, green 43%, false green 25% of all images.
+
+## Result with the learned model (October 2026, 300 photos, same set)
+Rules alone: found 83%, IoU>=0.8 26%, IoU>=0.9 17%, green 43%, **false green 25%**.
+Rules + early model (epoch 2 of a 14-epoch run, trained on generated data only) combined by `combine`: found 94%, IoU>=0.8 **54%**, IoU>=0.9 **36%**, green 24%, **false green 6%**.
+Run it with `EVAL_DIR=... MODEL_BIN=... npx vitest run --config bench/real-eval/vitest.config.ts pipeline`, then `score.py` on `result-pipeline.json` (copy it to `result.json`).

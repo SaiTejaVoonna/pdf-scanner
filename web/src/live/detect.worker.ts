@@ -2,6 +2,9 @@ import { detectPage, detectSpread } from '../core/detect';
 import type { Pt, Quad } from '../core/geometry';
 import { GUIDE_X, splitSpread } from '../core/spread';
 import { detectAnchored, pageLike, plausibleShape } from '../core/anchor';
+import { combine, findPage, type Combined, type Confidence, type FindSource } from '../core/find';
+import { CornerNet } from '../modelNet';
+import { runModel } from '../modelRun';
 import { luma } from '../core/image';
 import { sharpness } from './frame';
 
@@ -22,10 +25,13 @@ export interface LiveReply {
 /** The detection that finds the crop of a photo that was just taken, run here so the screen never stalls. */
 export interface FinalRequest { kind: 'final'; id: number; mode: 'single' | 'spread'; anchored: boolean; foldOnGuide: boolean; width: number; height: number; data: ArrayBuffer }
 export interface FinalReply {
-  kind: 'final'; id: number; quad: Quad | null;
+  kind: 'final'; id: number; quad: Quad | null; confidence?: Confidence; source?: FindSource;
   spread?: { outer: Quad; tTop: number; tBottom: number; uncertain: boolean; outlineGuessed: boolean };
   error?: string;
 }
+
+/** The learned model, handed over by the page once it has been fetched (the worker cannot resolve the app's base path itself). */
+let net: CornerNet | null = null;
 
 const post = (m: LiveReply | FinalReply) => (self as unknown as Worker).postMessage(m);
 
@@ -65,10 +71,16 @@ function final(e: FinalRequest): void {
       const sp = detectSpread(img, foldOnGuide ? GUIDE_X : undefined);
       post({ kind: 'final', id, quad: null, spread: { outer: sp.outer, tTop: sp.tTop, tBottom: sp.tBottom, uncertain: sp.uncertain, outlineGuessed: sp.outlineGuessed } });
     } else {
-      const quad = anchored ? detectAnchored(img).quad ?? detectPage(img) : detectPage(img);
-      post({ kind: 'final', id, quad });
+      const rules = findPage(img, { anchored });
+      let f: Combined = { ...rules, source: 'rules' };
+      try { if (net) f = combine(img, rules, runModel(net, img)); } catch { /* the rules stand alone */ }
+      post({ kind: 'final', id, quad: f.quad, confidence: f.confidence, source: f.source });
     }
   } catch (err) { post({ kind: 'final', id, quad: null, error: String(err) }); }
 }
 
-self.onmessage = (e: MessageEvent<LiveRequest | FinalRequest>) => { if (e.data.kind === 'final') final(e.data); else live(e.data); };
+self.onmessage = (e: MessageEvent<LiveRequest | FinalRequest | { kind: 'model'; buf: ArrayBuffer }>) => {
+  const m = e.data;
+  if (m.kind === 'model') { try { net = new CornerNet(m.buf); } catch { net = null; } return; }
+  if (m.kind === 'final') final(m); else live(m);
+};

@@ -1,17 +1,17 @@
 import { FILTERS, type FilterName } from '../core/filters';
 import { fullQuad, isFullFrame, isValidCrop } from '../core/geometry';
 import { askText, download, formatBytes, h, openDialog, toast } from '../dom';
-import { analysisImage, decode, detectCorners, detectSpreadIn, normalize } from '../imaging';
-import { detectPage, detectSpread } from '../core/detect';
+import { analysisImage, decode, detectSpreadIn, normalize } from '../imaging';
+import { detectSpread } from '../core/detect';
+import { findCorners } from '../engine';
 import { detectInBackground } from '../live/detectOnce';
 import * as store from '../store';
 import { state, subscribe, type PageModel } from '../store';
 import { GUIDE_X, isValidSpread, type SpreadGeometry } from '../core/spread';
 import { openCamera } from './camera';
-import { openCombine } from './combineDialog';
 import { openEditor, type PageDraftData } from './editor';
 import { openExport } from './exportDialog';
-import { openResize } from './resizeDialog';
+import { openTools } from './toolsHub';
 import { openSettings } from './settingsDialog';
 import { openTrash } from './trashDialog';
 import { openSpreadEditor, type SpreadDraftData } from './spreadEditor';
@@ -76,12 +76,11 @@ function addSpreadFast(blob: Blob, w: number, ph: number, foldOnGuide: boolean):
 function addPageFast(blob: Blob, w: number, ph: number, autoCrop: boolean, anchored: boolean): PageModel {
   const page = store.addPage(blob, w, ph, fullQuad());
   if (autoCrop) refineLater(async () => {
-    const img = await analysisImage(blob);
-    const r = await detectInBackground(img, { mode: 'single', anchored, foldOnGuide: false });
-    const quad = r ? r.quad : detectPage(img);
+    const f = await findCorners(blob, { anchored });
     const cur = state.pages.find((p) => p.id === page.id);
-    if (!cur || !isFullFrame(cur.corners) || !quad || !isValidCrop(quad)) return; // removed, edited meanwhile, or nothing convincing
-    store.editPages([page.id], (p) => ({ ...p, corners: quad }));
+    if (!cur || !isFullFrame(cur.corners)) return; // removed or edited meanwhile
+    if (!f.quad || !isValidCrop(f.quad)) { store.editPages([page.id], (p) => ({ ...p, check: true })); return; } // nothing convincing: keep the photo, say so
+    store.editPages([page.id], (p) => ({ ...p, corners: f.quad!, check: f.confidence === 'high' ? undefined : true }));
   });
   return page;
 }
@@ -152,7 +151,7 @@ export function mountApp(root: HTMLElement): void {
   const homeScan = h('button', { class: 'btn primary entry-scan', type: 'button', 'aria-label': 'Scan pages', onclick: () => scan() }, icon('scan', 26), 'Scan');
   const entry = h('div', { class: 'entry', role: 'group', 'aria-label': 'Start' }, homeScan,
     h('button', { class: 'btn entry-btn', type: 'button', 'aria-label': 'Import images', onclick: () => openImport() }, icon('image', 24), 'Import'),
-    h('button', { class: 'btn entry-btn', type: 'button', 'aria-label': 'Tools', onclick: () => openTools() }, icon('combine', 24), 'Tools'));
+    h('button', { class: 'btn entry-btn', type: 'button', 'aria-label': 'Tools', onclick: () => openTools() }, icon('tools', 24), 'Tools'));
   const drafts = h('div', { class: 'drafts' });
   const pdfSearch = h('input', { type: 'search', class: 'pdf-search', placeholder: 'Search PDFs', 'aria-label': 'Search PDFs' });
   pdfSearch.addEventListener('input', () => renderPdfList());
@@ -266,17 +265,6 @@ export function mountApp(root: HTMLElement): void {
       h('button', { class: 'btn', type: 'button', onclick: close }, 'Close')), 'Import images');
   }
 
-  /** Tools sheet (the Tools hub replaces it later). */
-  function openTools() {
-    openDialog((close) => {
-      const item = (label: string, ic: IconName, fn: () => void) => h('button', { class: 'btn tool-item', type: 'button', onclick: () => { close(); fn(); } }, icon(ic, 22), label);
-      return h('div', { class: 'dlg menu' }, h('h2', {}, 'Tools'),
-        item('Combine PDFs', 'combine', () => openCombine()),
-        item('Resize images', 'resize', () => openResize()),
-        h('button', { class: 'btn', type: 'button', onclick: close }, 'Close'));
-    }, 'Tools');
-  }
-
   function renderDocBar() {
     const d = store.currentDoc();
     docBar.replaceChildren(
@@ -364,7 +352,7 @@ export function mountApp(root: HTMLElement): void {
       oncontextmenu: (e: Event) => e.preventDefault() }, img, selecting ? h('span', { class: 'check', 'aria-hidden': 'true' }, selected ? icon('check', 16) : null) : null);
     const spreadNo = p.spread ? state.spreads.findIndex((s) => s.id === p.spread!.id) + 1 : 0;
     const label = h('span', {}, `${index + 1}`, p.spread ? h('small', { class: 'badge' }, `Spread ${spreadNo} · ${p.spread.side}`) : null,
-      p.spread && state.spreads.find((s) => s.id === p.spread!.id)?.check ? h('small', { class: 'badge check-badge' }, 'Check') : null);
+      (p.spread ? state.spreads.find((s) => s.id === p.spread!.id)?.check : p.check) ? h('small', { class: 'badge check-badge' }, 'Check') : null);
     const bar = h('div', { class: 'card-bar' }, label,
       selecting ? null : h('button', { class: 'icon-btn', 'aria-label': `Page ${index + 1} menu`, onclick: () => openMenu(p, index, total) }, icon('more')));
     const pair = p.spread ? (state.pages[index + 1]?.spread?.id === p.spread.id && state.pages[index - 1]?.spread?.id !== p.spread.id ? 'first' : state.pages[index - 1]?.spread?.id === p.spread.id ? 'second' : undefined) : undefined;
@@ -407,8 +395,8 @@ export function mountApp(root: HTMLElement): void {
       h('button', { class: 'btn', onclick: async () => {
         let found = 0;
         for (const id of single) {
-          const blob = store.blobOf(id); const q = blob ? await detectCorners(blob) : null;
-          if (q) { found++; store.editPages([id], (p) => ({ ...p, corners: q })); }
+          const blob = store.blobOf(id); const f = blob ? await findCorners(blob) : null;
+          if (f?.quad) { found++; const q = f.quad; store.editPages([id], (p) => ({ ...p, corners: q, check: f.confidence === 'high' ? undefined : true })); }
         }
         toast(`Auto-crop adjusted ${found} of ${single.length} pages. Pages with no clear edges were left unchanged.${note}`);
       } }, 'Auto-crop'),

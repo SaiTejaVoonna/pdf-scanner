@@ -1,9 +1,8 @@
 import { applyFilter } from './core/filters';
-import { isFullFrame, isValidCrop, type Quad } from './core/geometry';
+import { isFullFrame, isValidCrop } from './core/geometry';
 import { downscale, type Img } from './core/image';
-import { detectAnchored } from './core/anchor';
 import { sharpness } from './live/frame';
-import { detectPage, detectSpread, type SpreadDetection } from './core/detect';
+import { detectSpread, type SpreadDetection } from './core/detect';
 import { outputSize, rotate90, scaleQuad, warp } from './core/warp';
 import { blobOf, type PageModel } from './store';
 
@@ -81,23 +80,19 @@ export async function detectSpreadIn(blob: Blob, guideX?: number): Promise<Sprea
   return detectSpread(await analysisImage(blob), guideX);
 }
 
-/** Page corners using the camera's anchor lines (see core/anchor), or null when nothing convincing is found. */
-export async function detectAnchoredIn(blob: Blob): Promise<Quad | null> {
-  return detectAnchored(await analysisImage(blob)).quad;
-}
-
-/** Finds the page corners in a source image, or null when nothing convincing is found. */
-export async function detectCorners(blob: Blob): Promise<Quad | null> {
-  const bmp = await decode(blob);
+/** Re-encodes an embedded JPEG smaller (used by Compress PDF). EXIF rotation is not applied: a PDF draws the pixels as stored. */
+export async function reencodeJpeg(jpeg: Uint8Array, scale: number, quality: number): Promise<{ bytes: Uint8Array; width: number; height: number } | null> {
+  let bmp: ImageBitmap;
+  try { bmp = await createImageBitmap(new Blob([jpeg as BlobPart], { type: 'image/jpeg' }), { imageOrientation: 'none' }); } catch { return null; }
   try {
-    const s = Math.min(1, DETECT_SIDE / Math.max(bmp.width, bmp.height));
-    const w = Math.max(32, Math.round(bmp.width * s)), h = Math.max(32, Math.round(bmp.height * s));
+    const w = Math.max(1, Math.round(bmp.width * scale)), h = Math.max(1, Math.round(bmp.height * scale));
     const c = canvas(w, h);
     const g = ctx2d(c);
+    g.fillStyle = '#fff'; g.fillRect(0, 0, w, h);
+    g.imageSmoothingQuality = 'high';
     g.drawImage(bmp, 0, 0, w, h);
-    const d = g.getImageData(0, 0, w, h);
-    await new Promise((r) => setTimeout(r)); // let the UI paint before the CPU-heavy part
-    return detectPage({ data: d.data, width: w, height: h });
+    const blob = await canvasToBlob(c, 'image/jpeg', quality);
+    return { bytes: new Uint8Array(await blob.arrayBuffer()), width: w, height: h };
   } finally { bmp.close(); }
 }
 

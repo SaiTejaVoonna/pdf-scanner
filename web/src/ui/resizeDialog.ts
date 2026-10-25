@@ -1,5 +1,5 @@
 import { safeFileName } from '../core/pdf';
-import { fitWithin, outputName, searchQuality } from '../core/sizing';
+import { fitBox, fitWithin, outputName, padJpeg, searchQuality, toPixels, type Unit } from '../core/sizing';
 import { zipStore } from '../core/zip';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, decode } from '../imaging';
@@ -17,21 +17,40 @@ const SIZES = [
 ] as const;
 type SizeId = (typeof SIZES)[number]['id'];
 
-/** Shrinks photos for upload forms (portals that cap file size or pixels). Everything happens in the browser. */
+/** Common sizes that forms ask for. They are starting points: always check the rules of the form you are filling in. */
+const PRESETS = [
+  { id: 'passport', label: 'Passport 35×45 mm', w: 35, h: 45, unit: 'mm' as Unit, dpi: 300, min: '', max: '' },
+  { id: 'square', label: 'Square 100×100 px', w: 100, h: 100, unit: 'px' as Unit, dpi: 300, min: '', max: '' },
+  { id: 'signature', label: 'Signature 140×60 px', w: 140, h: 60, unit: 'px' as Unit, dpi: 300, min: '', max: '50' },
+  { id: 'id600', label: 'ID 600×600 px', w: 600, h: 600, unit: 'px' as Unit, dpi: 300, min: '', max: '' },
+  { id: 'u50', label: 'Under 50 KB', w: 0, h: 0, unit: 'px' as Unit, dpi: 300, min: '', max: '50' },
+  { id: 'u100', label: 'Under 100 KB', w: 0, h: 0, unit: 'px' as Unit, dpi: 300, min: '', max: '100' },
+  { id: 'u200', label: 'Under 200 KB', w: 0, h: 0, unit: 'px' as Unit, dpi: 300, min: '', max: '200' },
+];
+
+/** Resizes photos for upload forms: a longest side, or an exact size (pixels or millimetres at a DPI), with a file-size range. */
 export function openResize(): void {
   const items: Item[] = [];
   let results: Result[] = [];
+  let mode: 'side' | 'exact' = 'side';
   let sizeId: SizeId = '1280';
   let format: 'jpeg' | 'png' = 'jpeg';
+  let fit: 'crop' | 'fit' = 'crop';
+  let unit: Unit = 'px';
 
   openDialog((close) => {
     const list = h('ul', { class: 'list' });
-    const status = h('div', { class: 'hint', role: 'status' }, 'Add photos, pick a size, and optionally a maximum file size.');
+    const status = h('div', { class: 'hint', role: 'status' }, 'Add photos, pick a size, and optionally a file-size limit.');
     const resultList = h('ul', { class: 'result-list', 'aria-label': 'Resized images' });
     const picker = h('input', { type: 'file', accept: 'image/*', multiple: true, class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true' });
     const custom = h('input', { type: 'number', min: '64', max: '10000', step: '1', value: '1000', id: 'rs-custom', 'aria-label': 'Longest side in pixels' });
     const customField = h('label', { class: 'field', hidden: true }, 'Longest side (pixels)', custom);
-    const maxMb = h('input', { type: 'number', min: '0.01', step: '0.1', placeholder: 'No limit', id: 'rs-max', 'aria-describedby': 'rs-hint' });
+    const wIn = h('input', { type: 'number', min: '1', step: 'any', value: '413', 'aria-label': 'Width' });
+    const hIn = h('input', { type: 'number', min: '1', step: 'any', value: '531', 'aria-label': 'Height' });
+    const dpiIn = h('input', { type: 'number', min: '50', max: '1200', step: '1', value: '300' });
+    const dpiField = h('label', { class: 'field', hidden: true }, 'DPI (dots per inch)', dpiIn);
+    const maxKb = h('input', { type: 'number', min: '1', step: '1', placeholder: 'No limit', id: 'rs-max', 'aria-describedby': 'rs-hint' });
+    const minKb = h('input', { type: 'number', min: '1', step: '1', placeholder: 'No minimum', id: 'rs-min' });
     const go = h('button', { class: 'btn primary', disabled: true }, 'Resize');
     const zipBtn = h('button', { class: 'btn', hidden: true }, 'Download all (ZIP)');
 
@@ -53,60 +72,75 @@ export function openResize(): void {
       if (sizeId === 'custom') { const v = Math.round(Number(custom.value)); return Number.isFinite(v) && v >= 16 ? v : null; }
       return SIZES.find((s) => s.id === sizeId)!.side;
     };
-    const targetBytes = (): number | null => { const v = Number(maxMb.value); return maxMb.value && v > 0 ? Math.floor(v * 1048576) : null; };
+    const kb = (el: HTMLInputElement): number | null => { const v = Number(el.value); return el.value && v > 0 ? Math.floor(v * 1024) : null; };
+    const exactSize = (): [number, number] | null => {
+      const w = Number(wIn.value), hh = Number(hIn.value), dpi = Number(dpiIn.value);
+      if (!(w > 0) || !(hh > 0) || (unit === 'mm' && !(dpi >= 50))) return null;
+      const pw = toPixels(w, unit, dpi), ph = toPixels(hh, unit, dpi);
+      return pw >= 16 && ph >= 16 && pw <= 10000 && ph <= 10000 ? [pw, ph] : null;
+    };
 
-    async function resizeOne(it: Item, side: number | null, target: number | null, taken: Set<string>): Promise<Result> {
+    async function resizeOne(it: Item, side: number | null, exact: [number, number] | null, max: number | null, min: number | null, taken: Set<string>): Promise<Result> {
       const bmp = await decode(it.file);
       try {
         const type = format === 'png' ? 'image/png' : 'image/jpeg';
-        let [w, hh] = fitWithin(bmp.width, bmp.height, side);
+        let [w, hh] = exact ?? fitWithin(bmp.width, bmp.height, side);
         const render = (cw: number, ch: number) => {
           const c = document.createElement('canvas'); c.width = cw; c.height = ch;
           const g = c.getContext('2d')!;
-          if (format === 'jpeg') { g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); }
+          g.fillStyle = '#fff'; g.fillRect(0, 0, cw, ch); // a white background (also under transparent PNGs)
           g.imageSmoothingQuality = 'high';
-          g.drawImage(bmp, 0, 0, cw, ch);
+          if (exact) { const b = fitBox(bmp.width, bmp.height, cw, ch, fit); g.drawImage(bmp, b.sx, b.sy, b.sWidth, b.sHeight, b.dx, b.dy, b.dWidth, b.dHeight); }
+          else g.drawImage(bmp, 0, 0, cw, ch);
           return c;
         };
         let canvas = render(w, hh);
         let blob: Blob, note: string | undefined;
-        if (target === null) blob = await canvasToBlob(canvas, type, 0.85);
+        const startW = w;
+        if (max === null) blob = await canvasToBlob(canvas, type, 0.85);
         else {
-          // Lower JPEG quality first; if even that is too big (or the format is PNG), shrink the pixels and try again.
+          // Lower the JPEG quality first. In "longest side" mode, if that is not enough the pixels shrink too; an exact size never changes.
           let found: Blob | null = null;
           for (let attempt = 0; attempt < 12 && !found; attempt++) {
             if (format === 'jpeg') {
-              const hit = await searchQuality(async (q) => (await canvasToBlob(canvas, type, q)).size, target);
+              const hit = await searchQuality(async (q) => (await canvasToBlob(canvas, type, q)).size, max, exact ? 0.15 : 0.4);
               if (hit) found = await canvasToBlob(canvas, type, hit.quality);
             } else {
               const b = await canvasToBlob(canvas, type);
-              if (b.size <= target) found = b;
+              if (b.size <= max) found = b;
             }
             if (!found) {
-              if (w <= 32 || hh <= 32) break;
+              if (exact || w <= 32 || hh <= 32) break;
               w = Math.max(16, Math.round(w * 0.8)); hh = Math.max(16, Math.round(hh * 0.8));
               canvas = render(w, hh);
             }
           }
-          if (found) { blob = found; if (w !== fitWithin(bmp.width, bmp.height, side)[0]) note = 'also made smaller to fit the limit'; }
-          else { blob = await canvasToBlob(canvas, type, 0.4); note = 'could not reach the limit'; }
+          if (found) { blob = found; if (w !== startW) note = 'also made smaller to fit the limit'; }
+          else { blob = await canvasToBlob(canvas, type, exact ? 0.15 : 0.4); note = 'could not reach the limit'; }
+        }
+        if (min !== null && blob.size < min) {
+          if (format === 'jpeg') { blob = new Blob([padJpeg(new Uint8Array(await blob.arrayBuffer()), min) as BlobPart], { type }); note = [note, 'padded with harmless metadata to reach the minimum'].filter(Boolean).join('; '); }
+          else note = [note, 'PNG cannot be padded to the minimum'].filter(Boolean).join('; ');
         }
         return { name: outputName(it.file.name, format === 'png' ? 'png' : 'jpg', taken), blob, w, h: hh, before: it.file.size, note };
       } finally { bmp.close(); }
     }
 
     go.addEventListener('click', async () => {
-      const side = sideLimit();
-      if (sizeId === 'custom' && side === null) { toast('Enter a size of at least 16 pixels.'); return; }
-      const target = targetBytes();
+      const side = mode === 'side' ? sideLimit() : null;
+      const exact = mode === 'exact' ? exactSize() : null;
+      if (mode === 'side' && sizeId === 'custom' && side === null) { toast('Enter a size of at least 16 pixels.'); return; }
+      if (mode === 'exact' && exact === null) { toast('Enter a width and height (at least 16 pixels), and a DPI when using millimetres.'); return; }
+      const max = kb(maxKb), min = kb(minKb);
+      if (max !== null && min !== null && min > max) { toast('The smallest size cannot be bigger than the largest.'); return; }
       go.disabled = true; zipBtn.hidden = true; results = []; resultList.replaceChildren();
       const taken = new Set<string>();
       for (let i = 0; i < items.length; i++) {
         status.textContent = `Resizing ${i + 1} of ${items.length}…`;
-        try { results.push(await resizeOne(items[i], side, target, taken)); }
+        try { results.push(await resizeOne(items[i], side, exact, max, min, taken)); }
         catch { toast(`${items[i].file.name} could not be resized.`); }
       }
-      const missed = results.filter((r) => r.note === 'could not reach the limit').length;
+      const missed = results.filter((r) => r.note?.includes('could not reach the limit')).length;
       status.textContent = results.length ? `Done: ${results.length} image${results.length > 1 ? 's' : ''} resized.${missed ? ` ${missed} could not reach the size limit.` : ''}` : 'Nothing was resized.';
       resultList.replaceChildren(...results.map((r) => h('li', {},
         h('span', { class: 'name' }, r.name),
@@ -120,16 +154,26 @@ export function openResize(): void {
       download(zipStore(files), `${safeFileName('Resized images')}.zip`, 'application/zip');
     });
 
-    const sizeChips = chips(SIZES.map((s) => ({ id: s.id, label: s.label })), sizeId, (id) => { sizeId = id; customField.hidden = id !== 'custom'; });
+    const sideBox = h('div', { class: 'field-group' }, h('div', { class: 'field' }, h('span', {}, 'Size (longest side)'), chips(SIZES.map((s) => ({ id: s.id, label: s.label })), sizeId, (id) => { sizeId = id; customField.hidden = id !== 'custom'; })), customField);
+    const unitChips = chips([{ id: 'px' as const, label: 'px' }, { id: 'mm' as const, label: 'mm' }], unit, (id) => { unit = id; dpiField.hidden = id !== 'mm'; });
+    const fitChips = chips([{ id: 'crop' as const, label: 'Crop to fill' }, { id: 'fit' as const, label: 'Fit on white' }], fit, (id) => { fit = id; });
+    const exactBox = h('div', { class: 'field-group', hidden: true },
+      h('div', { class: 'field' }, h('span', {}, 'Common sizes (check your form)'), chips(PRESETS.map((p) => ({ id: p.id, label: p.label })), '' as string, (id) => {
+        const p = PRESETS.find((x) => x.id === id)!;
+        if (p.w) { wIn.value = String(p.w); hIn.value = String(p.h); dpiIn.value = String(p.dpi); unit = p.unit; unitChips.querySelectorAll('button').forEach((b, i) => b.setAttribute('aria-checked', String((['px', 'mm'] as const)[i] === unit))); dpiField.hidden = unit !== 'mm'; }
+        maxKb.value = p.max; minKb.value = p.min;
+      })),
+      h('div', { class: 'row size-row' }, h('label', { class: 'field' }, 'Width', wIn), h('label', { class: 'field' }, 'Height', hIn), h('div', { class: 'field' }, h('span', {}, 'Unit'), unitChips)),
+      dpiField, h('div', { class: 'field' }, h('span', {}, 'If the shape differs'), fitChips));
+    const modeChips = chips([{ id: 'side' as const, label: 'Longest side' }, { id: 'exact' as const, label: 'Exact size' }], mode, (id) => { mode = id; sideBox.hidden = id !== 'side'; exactBox.hidden = id !== 'exact'; });
     const formatChips = chips([{ id: 'jpeg' as const, label: 'JPEG (smaller)' }, { id: 'png' as const, label: 'PNG' }], format, (id) => { format = id; });
-    return h('div', { class: 'dlg' }, h('h2', {}, 'Resize images'), picker,
+    return h('div', { class: 'dlg' }, h('h2', {}, 'Resize photo'), picker,
       h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Add images…')),
-      list,
-      h('div', { class: 'field' }, h('span', {}, 'Size (longest side)'), sizeChips), customField,
+      list, modeChips, sideBox, exactBox,
       h('div', { class: 'field' }, h('span', {}, 'Format'), formatChips),
-      h('label', { class: 'field' }, 'Keep each image under (MB, optional)', maxMb),
-      h('div', { class: 'hint', id: 'rs-hint' }, 'Useful for upload portals with a size limit. Quality is lowered just enough; if that is not enough the image is also made smaller.'),
+      h('div', { class: 'row size-row' }, h('label', { class: 'field' }, 'Largest file (KB)', maxKb), h('label', { class: 'field' }, 'Smallest file (KB)', minKb)),
+      h('div', { class: 'hint', id: 'rs-hint' }, 'For upload forms with limits. Quality is lowered just enough; in "Longest side" mode the picture is also made smaller if needed. An exact size is never changed. A smallest size is reached by adding harmless metadata to a JPEG.'),
       status, resultList,
       h('div', { class: 'row end' }, h('button', { class: 'btn', onclick: close }, 'Close'), zipBtn, go));
-  }, 'Resize images');
+  }, 'Resize photo');
 }

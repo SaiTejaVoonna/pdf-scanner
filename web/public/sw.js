@@ -9,7 +9,7 @@ self.addEventListener('install', (event) => {
     const cache = await caches.open(VERSION);
     const index = await fetch('./', { cache: 'reload' });
     const html = await index.clone().text();
-    const urls = new Set(['./', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png']);
+    const urls = new Set(['./', './manifest.webmanifest', './icon.svg', './icon-192.png', './icon-512.png', './model/corners.bin']);
     for (const m of html.matchAll(/(?:src|href)="(\.\/assets\/[^"]+)"/g)) urls.add(m[1]);
     await cache.put('./', index);
     await Promise.all([...urls].filter((u) => u !== './').map((u) => cache.add(u).catch(() => undefined)));

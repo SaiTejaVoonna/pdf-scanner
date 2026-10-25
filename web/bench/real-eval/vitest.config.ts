@@ -1,2 +1,2 @@
 import { defineConfig } from 'vitest/config';
-export default defineConfig({ test: { include: ['bench/real-eval/engine.eval.ts'], testTimeout: 600_000 } });
+export default defineConfig({ test: { include: ['bench/real-eval/*.eval.ts'], testTimeout: 600_000 } });

@@ -24,6 +24,7 @@ export function openSettings(): void {
         h('div', { class: 'hint' }, state.protectedStorage ? 'Your browser promises to keep your scans on this device.' : 'Your browser may delete saved scans if you do not open the app for a few days (iPhone does this unless the app is installed: Share → Add to Home Screen).'),
         h('button', { class: 'btn', type: 'button', onclick: () => void backupEverything() }, 'Back up everything (ZIP)')),
       h('p', { class: 'hint' }, `PDF Scanner ${__APP_VERSION__} (beta). Open source. Works offline; your documents never leave this device.`),
+      h('p', { class: 'hint' }, 'Credits: icons are Material Symbols by Google (Apache License 2.0); PDF files are made with pdf-lib (MIT).'),
       h('div', { class: 'row end' }, h('button', { class: 'btn primary', onclick: close }, 'Done')));
   }, 'Settings');
 }

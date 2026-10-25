@@ -7,6 +7,8 @@ export interface PageModel {
   id: string; sourceId: string; w: number; h: number; corners: Quad; rotation: number; filter: FilterName;
   /** Set for the two pages cut from a book spread: which spread, and which side. */
   spread?: { id: string; side: 'L' | 'R' };
+  /** Set when the automatic crop was unsure or found nothing; cleared once the person edits the page. */
+  check?: boolean;
 }
 /** A book-spread source: one shared image that produces a left and a right page. */
 export interface Spread extends SpreadGeometry {

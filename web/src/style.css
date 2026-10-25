@@ -1,11 +1,13 @@
 :root {
   --bg: #faf8ff; --surface: #fff; --surface-2: #eeedf4; --text: #1a1b21; --muted: #5b5d68; --line: #c5c6d0;
-  --primary: #2457d6; --on-primary: #fff; --primary-container: #dce4ff; --danger: #ba1a1a; --radius: 14px;
+  --primary: #2457d6; --on-primary: #fff; --primary-container: #dce4ff; --danger: #ba1a1a; --radius: 20px;
+  --on-surface-variant: #44464f; --outline: #757780; --tonal: #e0e2f0; --elev-1: 0 1px 2px rgba(0,0,0,.18), 0 1px 3px 1px rgba(0,0,0,.1);
   color-scheme: light dark;
 }
 @media (prefers-color-scheme: dark) {
   :root { --bg: #121318; --surface: #1e1f25; --surface-2: #292a2f; --text: #e3e2e9; --muted: #a9aab5; --line: #45464f;
-    --primary: #b4c5ff; --on-primary: #002a78; --primary-container: #173f9e; --danger: #ffb4ab; }
+    --primary: #b4c5ff; --on-primary: #002a78; --primary-container: #173f9e; --danger: #ffb4ab;
+    --on-surface-variant: #c5c6d0; --outline: #8f909a; --tonal: #34364a; }
 }
 * { box-sizing: border-box; }
 html, body { margin: 0; background: var(--bg); color: var(--text); font: 16px/1.4 system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; }
@@ -218,7 +220,7 @@ details.more summary { cursor: pointer; min-height: 44px; display: flex; align-i
 .tile .chev { display: flex; }
 .empty-icon { color: var(--primary); opacity: .75; display: flex; justify-content: center; margin-bottom: 4px; }
 header.top .sub { display: flex; align-items: center; gap: 6px; }
-.check .icon { stroke-width: 2.6; }
+
 .camera .cam-close { display: grid; place-items: center; }
 .btn .icon + * , .btn * + .icon { margin-left: 2px; }
 
@@ -343,3 +345,28 @@ dialog.full .toasts { bottom: 150px; }
 .editor .tools .hint { margin: 0; font-size: .85rem; }
 .editor .stage .warn { position: absolute; left: 10px; right: 10px; top: 10px; z-index: 3; box-shadow: 0 4px 14px rgba(0,0,0,.35); pointer-events: none; }
 .editor .stage { position: relative; }
+
+/* ---------- Tools hub ---------- */
+.tool-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0 16px; }
+.tool-tile { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; padding: 16px; border: 0; border-radius: 22px; background: var(--tile); color: inherit; text-align: left; cursor: pointer; font: inherit; min-height: 132px; }
+.tool-tile .tool-ic { width: 48px; height: 48px; border-radius: 16px; background: var(--primary-container); color: var(--primary); display: grid; place-items: center; margin-bottom: 4px; }
+.tool-tile strong { font-size: 1rem; }
+.tool-tile .hint { font-size: .8rem; }
+.dlg .field-group { display: flex; flex-direction: column; gap: 10px; }
+.dlg .size-row { align-items: flex-end; }
+.dlg .size-row .field { flex: 1; min-width: 90px; }
+
+/* ---------- Material 3 shapes and tones: large radii, tonal secondary buttons, flat top bar ---------- */
+dialog { border-radius: 28px; }
+dialog.full { border-radius: 0; }
+.btn { border-color: transparent; background: var(--tonal); color: var(--text); font-weight: 600; letter-spacing: .01em; }
+.btn.primary { background: var(--primary); color: var(--on-primary); box-shadow: var(--elev-1); }
+.btn.danger { background: transparent; border: 1px solid var(--outline); }
+.entry .entry-btn, .tool-tile { background: var(--tonal); }
+.card, .doc-card, .pdf-row { border-radius: var(--radius); }
+.chip { border-radius: 12px; border-color: var(--outline); background: transparent; color: var(--on-surface-variant); }
+.chip[aria-checked='true'] { background: var(--primary-container); color: var(--text); border-color: transparent; }
+.mode-switch .chip { border-color: transparent; }
+header.top { border-bottom: 0; }
+.bar { border-top: 0; box-shadow: 0 -2px 12px rgba(0,0,0,.2); border-radius: 24px 24px 0 0; }
+.hint { color: var(--on-surface-variant); }

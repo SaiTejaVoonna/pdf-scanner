@@ -247,12 +247,12 @@ test('editor can compare the result with the original photo', async ({ page }) =
 });
 
 test('resizes images to a size and a file-size limit, and downloads a valid ZIP', async ({ page }) => {
-  await openTool(page, 'Resize images');
-  const dlg = page.getByRole('dialog', { name: 'Resize images' });
+  await openTool(page, 'Resize photo');
+  const dlg = page.getByRole('dialog', { name: 'Resize photo' });
   await dlg.locator('input[type=file]').setInputFiles([png('photo.png', 1600, 2000), png('photo.png', 800, 1000)]);
   await expect(dlg.locator('.list li')).toHaveCount(2);
   await dlg.getByRole('radio', { name: 'Small 800' }).click();
-  await dlg.getByLabel('Keep each image under').fill('0.03');
+  await dlg.getByLabel('Largest file (KB)').fill('30');
   await dlg.getByRole('button', { name: 'Resize', exact: true }).click();
   const rows = dlg.getByRole('list', { name: 'Resized images' }).locator('li');
   await expect(rows).toHaveCount(2);
@@ -263,7 +263,7 @@ test('resizes images to a size and a file-size limit, and downloads a valid ZIP'
   const file = await (await dl).createReadStream();
   const chunks: Buffer[] = []; for await (const c of file) chunks.push(c as Buffer);
   const jpg = Buffer.concat(chunks);
-  expect(jpg.length).toBeLessThanOrEqual(0.03 * 1048576);
+  expect(jpg.length).toBeLessThanOrEqual(30 * 1024);
   expect([jpg[0], jpg[1]]).toEqual([0xff, 0xd8]);
   const zipDl = page.waitForEvent('download');
   await dlg.getByRole('button', { name: 'Download all (ZIP)' }).click();

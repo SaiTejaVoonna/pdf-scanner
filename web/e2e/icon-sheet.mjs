@@ -3,8 +3,7 @@
 import { chromium } from '@playwright/test';
 import { ICON_NAMES, ICON_PATHS } from '../src/ui/icons.ts';
 
-const svg = (name, size) => `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${
-  ICON_PATHS[name].map((d) => `<path d="${d}"/>`).join('')}${name === 'more' ? [6, 12, 18].map((cy) => `<circle cx="12" cy="${cy}" r="1.6" fill="currentColor" stroke="none"/>`).join('') : ''}</svg>`;
+const svg = (name, size) => `<svg viewBox="0 -960 960 960" width="${size}" height="${size}" fill="currentColor">${ICON_PATHS[name].map((d) => `<path d="${d}"/>`).join('')}</svg>`;
 const cell = (n) => `<div class="c"><div class="i">${svg(n, 28)}</div><span>${n}</span></div>`;
 const panel = (cls, title) => `<section class="${cls}"><h2>${title}</h2><div class="grid">${ICON_NAMES.map(cell).join('')}</div>
 <div class="tiles"><div class="tile">${svg('image', 26)}<b>Import images</b></div><div class="tile">${svg('camera', 26)}<b>Take photo</b></div><div class="tile">${svg('combine', 26)}<b>Combine PDFs</b></div><div class="tile">${svg('resize', 26)}<b>Resize images</b></div></div>
