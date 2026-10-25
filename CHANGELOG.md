@@ -2,6 +2,8 @@
 
 ## 1.0.0-beta.1
 First beta.
+- Web, **new home and one draft** (batch A, steps 1–3): the home screen is three ways in (Scan, Import, Tools), a "Continue scanning" banner for the unfinished draft (open or discard, with Undo) and one flat list of finished PDFs with search. New photos go into the one unfinished draft; making the PDF turns it into a list entry and the next scan starts a new draft. Reopening a PDF to add or delete pages flags it "Edited, save to update", and making it again replaces the file instead of keeping copies. An open document has its own bar, two pages across, a book spread as one joined tile on its own row, "N to check" in the header and a bottom bar (Add, Preview, Make PDF); Add opens a sheet with Scan pages, Import images, Take photo and the Single page / Book spread switch. 3 new store tests and 4 new browser tests.
+- Web, **spread editor** (batch A, step 4): the warnings become one short bar over the photo (it no longer pushes the photo around), the long hint is one line, and the tool buttons and filter chips take less room, so the photo gets more of the screen. The mode switch moved to the Import and Add sheets and the camera screen.
 - **New web app** (`web/`): offline PWA with camera/import, auto-detect crop, filters, reorder, bulk actions, PDF export
   (size and quality), combine PDFs, settings; 34 unit tests and 10 real-browser tests including offline.
 - Web, **book spreads**: Single page / Book spread mode; review screen with 4 outer corners + a tiltable fold (2 handles)

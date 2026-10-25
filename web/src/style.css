@@ -117,10 +117,10 @@ progress { width: 100%; height: 10px; }
 @keyframes fresh { 0%, 40% { box-shadow: 0 0 0 4px var(--primary); } 100% { box-shadow: 0 1px 3px rgba(0,0,0,.15); } }
 @media (prefers-reduced-motion: reduce) { .camera .flash.go, .card.fresh { animation: none; } }
 
-.warn { visibility: hidden; background: #fff3d6; color: #5c3b00; border: 1px solid #f0c36b; border-radius: 12px; padding: 8px 12px; font-size: .9rem; min-height: 3.4em; display: block; }
-.warn.on { visibility: visible; }
+.warn { display: none; background: #fff3d6; color: #5c3b00; border: 1px solid #f0c36b; border-radius: 12px; padding: 6px 12px; font-size: .88rem; }
+.warn.on { display: block; }
 @media (prefers-color-scheme: dark) { .warn { background: #3a2b0a; color: #ffe2a3; border-color: #7a5a13; } }
-.editor .tools .warn { margin: 0; }
+
 .handle.gutter::after { background: #f59e0b; border-radius: 8px; inset: 8px 12px; }
 
 .update-banner { position: fixed; z-index: 200; left: 12px; right: 12px; top: calc(8px + env(safe-area-inset-top)); display: flex; align-items: center; gap: 8px; background: var(--surface); color: var(--text); border: 1px solid var(--primary); border-radius: 14px; padding: 8px 8px 8px 14px; box-shadow: 0 6px 24px rgba(0,0,0,.35); }
@@ -304,3 +304,42 @@ dialog.full .toasts { bottom: 150px; }
 .trash-list li { display: flex; align-items: center; gap: 8px; padding: 8px 0; border-bottom: 1px solid var(--line); }
 .trash-list li > div { flex: 1; min-width: 0; }
 .tip { display: flex; gap: 10px; align-items: center; } .storage-box { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+
+/* ---------- home: three ways in, a draft banner, one flat list of PDFs ---------- */
+.entry { display: grid; grid-template-columns: 1.4fr 1fr 1fr; gap: 10px; margin: 6px 0 4px; }
+.entry .btn { flex-direction: column; min-height: 92px; border-radius: 22px; font-weight: 700; gap: 6px; }
+.entry .entry-scan { box-shadow: var(--shadow); }
+.entry .entry-btn { background: var(--tile); border-color: transparent; }
+.drafts { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 4px; }
+.draft-banner { display: flex; align-items: center; gap: 10px; background: var(--primary-container); border-radius: 22px; padding: 10px 10px 10px 12px; }
+.draft-thumb, .pdf-thumb { width: 46px; height: 60px; flex: none; display: grid; place-items: center; background: var(--surface-2); border-radius: 8px; overflow: hidden; }
+.draft-thumb img, .pdf-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.draft-text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+.draft-open { min-height: 40px; background: var(--surface); }
+.pdf-search { width: 100%; min-height: 46px; margin: 0 0 10px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); color: var(--text); font: inherit; box-sizing: border-box; }
+.pdf-list { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.pdf-row { position: relative; display: flex; align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 22px; }
+.pdf-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 10px 52px 10px 10px; background: none; border: 0; color: inherit; text-align: left; cursor: pointer; font: inherit; }
+.pdf-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.pdf-row .doc-menu { position: absolute; right: 6px; top: 50%; bottom: auto; transform: translateY(-50%); }
+.doc-status.edited { background: #ffe9a8; color: #4a3b00; }
+.tool-item { justify-content: flex-start; }
+
+/* ---------- open document: two pages across, a book spread is one joined tile on its own row ---------- */
+.grid { grid-template-columns: repeat(2, 1fr); }
+@media (min-width: 720px) { .grid { grid-template-columns: repeat(4, 1fr); } }
+.grid .card[data-pair='first'] { grid-column: 1; margin-right: -12px; border-radius: 14px 0 0 14px; border-right: 1px dashed var(--line); }
+.grid .card[data-pair='second'] { grid-column: 2; border-radius: 0 14px 14px 0; }
+@media (min-width: 720px) { .grid .card[data-pair='first'] { grid-column: auto; } .grid .card[data-pair='second'] { grid-column: auto; } }
+.add-btn { min-width: 52px; padding: 0 14px; }
+.bar .make-pdf { flex: 1; }
+.drafts + .doc-head { margin-top: 18px; }
+
+/* ---------- spread editor: the photo gets the room, tools sit in one row ---------- */
+.editor .tools .ed-tools { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+.editor .tools .chips { gap: 6px; }
+.editor .tools .chips .chip { min-height: 40px; padding: 0 10px; font-size: .88rem; }
+.editor .tools .ed-tools .btn { flex: none; min-height: 42px; padding: 0 14px; white-space: nowrap; }
+.editor .tools .hint { margin: 0; font-size: .85rem; }
+.editor .stage .warn { position: absolute; left: 10px; right: 10px; top: 10px; z-index: 3; box-shadow: 0 4px 14px rgba(0,0,0,.35); pointer-events: none; }
+.editor .stage { position: relative; }

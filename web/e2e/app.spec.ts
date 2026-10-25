@@ -20,9 +20,14 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
+async function openTool(page: import('@playwright/test').Page, name: string) {
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByRole('dialog', { name: 'Tools' }).getByRole('button', { name }).click();
+}
+
 test('starts empty, with the privacy-friendly basics in place', async ({ page }) => {
   await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
-  await expect(page.getByText('No documents yet')).toBeVisible();
+  await expect(page.getByText('No PDFs yet')).toBeVisible();
   await expect(page.getByRole('button', { name: /Make PDF/ })).toBeHidden();
   // The app never talks to another origin.
   const external: string[] = [];
@@ -114,7 +119,7 @@ test('selection mode applies bulk actions to the selected pages only', async ({ 
 test('unreadable files are reported and do not break the app', async ({ page }) => {
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('not an image') }]);
   await expect(page.getByText('notes.png could not be read as an image.')).toBeVisible();
-  await expect(page.getByText('No documents yet')).toBeVisible(); // no empty document is left behind
+  await expect(page.getByText('No PDFs yet')).toBeVisible(); // no empty document is left behind
 });
 
 test('scans are kept across a reload', async ({ page }) => {
@@ -123,10 +128,10 @@ test('scans are kept across a reload', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
   await page.getByRole('button', { name: 'Document menu' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete document' }).click();
-  await expect(page.getByText('No documents yet')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByText('No PDFs yet')).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click(); // a delete can always be undone
-  await expect(page.getByRole('list', { name: 'Documents' }).locator('li')).toHaveCount(1);
+  await expect(page.locator('.draft-banner')).toHaveCount(1);
 });
 
 test('settings are stored and auto-crop on import crops the page', async ({ page }) => {
@@ -178,7 +183,7 @@ test('camera denied shows guidance and a fallback', async ({ browser }) => {
 
 test('combines PDFs in order without re-rendering them', async ({ page }) => {
   const make = async (pages: number, w: number) => { const d = await PDFDocument.create(); for (let i = 0; i < pages; i++) d.addPage([w, 400]); return Buffer.from(await d.save()); };
-  await page.getByRole('button', { name: 'Combine PDFs' }).click();
+  await openTool(page, 'Combine PDFs');
   const dlg = page.getByRole('dialog', { name: 'Combine PDFs' });
   await dlg.locator('input[type=file]').setInputFiles([
     { name: 'a.pdf', mimeType: 'application/pdf', buffer: await make(1, 300) },
@@ -242,7 +247,7 @@ test('editor can compare the result with the original photo', async ({ page }) =
 });
 
 test('resizes images to a size and a file-size limit, and downloads a valid ZIP', async ({ page }) => {
-  await page.getByRole('button', { name: 'Resize images' }).click();
+  await openTool(page, 'Resize images');
   const dlg = page.getByRole('dialog', { name: 'Resize images' });
   await dlg.locator('input[type=file]').setInputFiles([png('photo.png', 1600, 2000), png('photo.png', 800, 1000)]);
   await expect(dlg.locator('.list li')).toHaveCount(2);
@@ -289,7 +294,7 @@ test('taking pages gives feedback: a message, and the new page is highlighted', 
 });
 
 test('combine lets you name the output file', async ({ page }) => {
-  await page.getByRole('button', { name: 'Combine PDFs' }).click();
+  await openTool(page, 'Combine PDFs');
   const dlg = page.getByRole('dialog', { name: 'Combine PDFs' });
   const doc = async (n: number) => { const d = await PDFDocument.create(); for (let i = 0; i < n; i++) d.addPage([200, 200]); return Buffer.from(await d.save()); };
   await dlg.locator('input[type=file]').setInputFiles([{ name: 'a.pdf', mimeType: 'application/pdf', buffer: await doc(1) }, { name: 'b.pdf', mimeType: 'application/pdf', buffer: await doc(2) }]);
@@ -299,11 +304,11 @@ test('combine lets you name the output file', async ({ page }) => {
   expect((await dl).suggestedFilename()).toBe('Lab report.pdf');
 });
 
-test('home has one obvious action and quiet tools; Compress PDF is not offered because the feature does not exist', async ({ page }) => {
+test('home has three ways in (Scan, Import, Tools); Compress PDF is not offered because the feature does not exist', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await expect(page.getByRole('button', { name: 'Scan pages', exact: true })).toBeInViewport();
-  const tools = page.getByRole('group', { name: /More ways/ });
-  for (const t of ['Import images', 'Take photo', 'Combine PDFs', 'Resize images']) await expect(tools.getByRole('button', { name: t })).toBeInViewport();
+  const entry = page.getByRole('group', { name: 'Start' });
+  for (const t of ['Scan pages', 'Import images', 'Tools']) await expect(entry.getByRole('button', { name: t })).toBeInViewport();
   await expect(page.getByRole('button', { name: /Compress PDF/ })).toHaveCount(0);
   await expect(page.getByText('Private, saved on this device')).toBeVisible();
 });
@@ -327,7 +332,8 @@ test('make-PDF sheet shows page count, thumbnails and quality cards; Keep scanni
 
 test('camera screen is honest: a framing guide and mode switch, no claim of live detection, and a running page count', async ({ page }) => {
   await importImages(page, 1);
-  await page.getByRole('button', { name: 'Scan pages', exact: true }).click();
+  await page.getByRole('button', { name: 'Add pages' }).click();
+  await page.getByRole('dialog', { name: 'Add pages' }).getByRole('button', { name: 'Scan pages' }).click();
   const cam = page.getByRole('dialog', { name: 'Camera' });
   await expect(cam.getByText('Fit the page in the frame')).toBeVisible();
   await cam.getByRole('radio', { name: 'Book spread' }).click();

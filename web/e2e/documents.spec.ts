@@ -13,19 +13,61 @@ test.beforeEach(async ({ page }) => {
   await page.goto('/');
 });
 
-test('each scan session is its own document: they do not mix, and the list shows them', async ({ page }) => {
+async function makePdf(page: Page) {
+  await page.getByRole('button', { name: /Make PDF/ }).click();
+  const dlg = page.getByRole('dialog', { name: 'Export PDF' });
+  await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Create PDF' }).click()]);
+  await dlg.getByRole('button', { name: 'Keep scanning' }).click();
+}
+
+test('one draft at a time: scans go into it until the PDF is made, then the PDF is listed and the next scan starts a new draft', async ({ page }) => {
   await importN(page, 2);
   await expect(page.getByRole('button', { name: 'Rename document' })).toContainText('Scan ');
   await page.getByRole('button', { name: 'Back to documents' }).click();
-  await expect(page.getByRole('list', { name: 'Documents' }).locator('li')).toHaveCount(1);
-  await importN(page, 3); // from the list: a new document, not added to the old one
+  const banner = page.locator('.draft-banner');
+  await expect(banner).toHaveCount(1);
+  await expect(banner).toContainText('2 pages');
+  await expect(page.getByRole('list', { name: 'PDFs' }).locator('li')).toHaveCount(0);
+  await importN(page, 3); // from home: continues the same draft
+  await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(5);
+  await makePdf(page);
   await page.getByRole('button', { name: 'Back to documents' }).click();
-  const docs = page.getByRole('list', { name: 'Documents' }).locator('li');
-  await expect(docs).toHaveCount(2);
-  await expect(docs.filter({ hasText: '2 pages' })).toHaveCount(1);
-  await expect(docs.filter({ hasText: '3 pages' })).toHaveCount(1);
-  await docs.filter({ hasText: '2 pages' }).getByRole('button', { name: /^Open / }).click();
-  await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
+  await expect(page.locator('.draft-banner')).toHaveCount(0);
+  const pdfs = page.getByRole('list', { name: 'PDFs' }).locator('li');
+  await expect(pdfs).toHaveCount(1);
+  await expect(pdfs.first()).toContainText('5 pages');
+  await importN(page, 1); // a finished PDF is closed: this starts a new draft
+  await page.getByRole('button', { name: 'Back to documents' }).click();
+  await expect(page.locator('.draft-banner')).toContainText('1 page');
+  await expect(pdfs).toHaveCount(1);
+  await pdfs.first().getByRole('button', { name: /^Open / }).click();
+  await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(5);
+});
+
+test('editing a finished PDF is flagged until it is made again, and making it again replaces the file', async ({ page }) => {
+  await importN(page, 2);
+  await makePdf(page);
+  await page.getByRole('button', { name: 'Back to documents' }).click();
+  await expect(page.getByText('Edited, save to update')).toHaveCount(0);
+  await page.getByRole('list', { name: 'PDFs' }).getByRole('button', { name: /^Open / }).click();
+  await page.getByRole('button', { name: 'Page 1 menu' }).click();
+  await page.getByRole('dialog', { name: 'Page 1 menu' }).getByRole('button', { name: 'Delete page' }).click();
+  await page.getByRole('button', { name: 'Back to documents' }).click();
+  await expect(page.getByText('Edited, save to update')).toBeVisible();
+  await page.getByRole('list', { name: 'PDFs' }).getByRole('button', { name: /^Open / }).click();
+  await makePdf(page);
+  await expect(page.getByText('Saved PDFs').locator('..').locator('.export-row')).toHaveCount(1);
+  await page.getByRole('button', { name: 'Back to documents' }).click();
+  await expect(page.getByText('Edited, save to update')).toHaveCount(0);
+});
+
+test('a draft can be discarded and brought back with Undo', async ({ page }) => {
+  await importN(page, 2);
+  await page.getByRole('button', { name: 'Back to documents' }).click();
+  await page.getByRole('button', { name: 'Discard draft' }).click();
+  await expect(page.locator('.draft-banner')).toHaveCount(0);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('.draft-banner')).toHaveCount(1);
 });
 
 test('rename, delete with undo, recently deleted: restore and delete for good', async ({ page }) => {
@@ -35,19 +77,20 @@ test('rename, delete with undo, recently deleted: restore and delete for good', 
   await dlg.getByRole('textbox').fill('Biology notes');
   await dlg.getByRole('button', { name: 'Save' }).click();
   await expect(page.getByRole('button', { name: 'Rename document' })).toContainText('Biology notes');
+  await makePdf(page);
   await page.getByRole('button', { name: 'Back to documents' }).click();
   await page.getByRole('button', { name: 'Biology notes menu' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete document' }).click();
-  await expect(page.getByText('No documents yet')).toBeVisible();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await expect(page.getByText('No PDFs yet')).toBeVisible();
   await page.getByRole('button', { name: /Recently deleted \(1\)/ }).click();
   const trash = page.getByRole('dialog', { name: 'Recently deleted' });
   await expect(trash.getByText('Biology notes')).toBeVisible();
   await trash.getByRole('button', { name: 'Restore' }).click();
   await trash.getByRole('button', { name: 'Done' }).click();
-  await expect(page.getByRole('list', { name: 'Documents' }).locator('li')).toHaveCount(1);
+  await expect(page.getByRole('list', { name: 'PDFs' }).locator('li')).toHaveCount(1);
   // delete again and remove it for good (asks first)
   await page.getByRole('button', { name: 'Biology notes menu' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete document' }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await page.getByRole('button', { name: /Recently deleted \(1\)/ }).click();
   await page.getByRole('dialog', { name: 'Recently deleted' }).getByRole('button', { name: /Delete Biology notes for good/ }).click();
   await page.getByRole('dialog', { name: 'Delete for good?' }).getByRole('button', { name: 'Delete for good' }).click();

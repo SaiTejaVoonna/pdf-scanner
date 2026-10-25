@@ -181,6 +181,39 @@ describe('documents', () => {
     store.removeExport(d.id, doc.exports[0].id);
     expect(store.pdfBlob(doc.exports[0]?.id ?? 'x')).toBeUndefined();
   });
+  it('one draft at a time: scanning with no document open continues the unfinished draft', () => {
+    store.addPage(blob('a'), 10, 10);
+    store.closeDoc();
+    expect(store.draftDocs()).toHaveLength(1);
+    store.addPage(blob('b'), 10, 10);
+    expect(store.liveDocs()).toHaveLength(1);
+    expect(store.state.pages).toHaveLength(2);
+  });
+  it('after the PDF is made the next scan starts a new draft, and the PDF is listed', () => {
+    store.addPage(blob('a'), 10, 10);
+    store.recordExport('One', new Uint8Array([1]), 1);
+    store.closeDoc();
+    expect(store.draftDocs()).toHaveLength(0);
+    expect(store.pdfDocs()).toHaveLength(1);
+    store.addPage(blob('b'), 10, 10);
+    expect(store.liveDocs()).toHaveLength(2);
+    expect(store.draftDocs()).toHaveLength(1);
+  });
+  it('making a PDF again replaces the earlier file, and edits are flagged until then', () => {
+    store.addPage(blob('a'), 10, 10);
+    store.recordExport('Doc', new Uint8Array([1, 2]), 1);
+    const d = store.currentDoc()!;
+    const firstId = d.exports[0].id;
+    expect(store.isEdited(d)).toBe(false);
+    store.addPage(blob('b'), 10, 10);
+    expect(store.isEdited(store.currentDoc()!)).toBe(true);
+    store.recordExport('Doc', new Uint8Array([1, 2, 3]), 2);
+    const after = store.currentDoc()!;
+    expect(after.exports).toHaveLength(1);
+    expect(store.pdfBlob(firstId)).toBeUndefined();
+    expect(store.pdfBlob(after.exports[0].id)?.size).toBe(3);
+    expect(store.isEdited(after)).toBe(false);
+  });
   it('rename trims and ignores empty names', () => {
     const d = store.newDoc('Old');
     store.renameDoc(d.id, '  New   name ');

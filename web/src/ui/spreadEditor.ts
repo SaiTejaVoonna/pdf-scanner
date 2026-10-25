@@ -54,8 +54,8 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     let fitted = { w: 0, h: 0 };
 
     const stageInner = h('div', { class: 'stage-inner' });
-    const stage = h('div', { class: 'stage' }, stageInner);
     const banner = h('div', { class: 'warn', role: 'status' });
+    const stage = h('div', { class: 'stage' }, stageInner, banner);
     const apply = h('button', { class: 'btn primary', disabled: true }, o.mode === 'retake' ? 'Replace' : 'Apply');
     const confirmBtn = h('button', { class: 'btn' }, 'Confirm split');
     const modeBtn = h('button', { class: 'btn', 'aria-pressed': 'false' });
@@ -80,23 +80,24 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       else if (!confirmed) out.push('Confirm the split to continue.');
       if (!valid()) out.push('The corners must form two convex pages; move a handle.');
       if (analysis && valid()) {
+        // One short line however many edges are touched; the edges themselves are listed in the tooltip.
+        const touched: string[] = [];
         const names = ['left', 'right'];
-        halves().forEach((q, k) => boundaryInk(analysis!, q).forEach((v, side) => {
-          if (v > WARN_INK) out.push(`Writing touches the ${SIDE_NAMES[side]} edge of the ${names[k]} page: move that handle outward.`);
-        }));
+        halves().forEach((q, k) => boundaryInk(analysis!, q).forEach((v, side) => { if (v > WARN_INK) touched.push(`${SIDE_NAMES[side]} edge of the ${names[k]} page`); }));
+        if (touched.length) out.push(`Writing touches ${touched.length === 1 ? 'an edge' : `${touched.length} edges`}: move ${touched.length === 1 ? 'that handle' : 'those handles'} outward.|${touched.join(', ')}`);
       }
       return out;
     }
 
     function refresh() {
       const w = warnings();
-      banner.replaceChildren(...w.slice(0, 3).map((t) => h('div', {}, t)));
+      banner.replaceChildren(...w.slice(0, 2).map((t) => { const [text, tip] = t.split('|'); return h('div', { title: tip }, text); }));
       banner.classList.toggle('on', w.length > 0);
       apply.disabled = !valid() || (!confirmed && o.mode !== 'edit');
       confirmBtn.hidden = confirmed || o.mode === 'edit';
       modeBtn.textContent = independent ? 'Link pages to the spread' : 'Adjust each page';
       modeBtn.setAttribute('aria-pressed', String(independent));
-      sub.textContent = independent ? 'Each page has its own four corners.' : 'Drag the four outer corners, and the two centre handles along the fold. Each handle slides along the edge, so the split can tilt.';
+      sub.textContent = independent ? 'Each page has its own four corners.' : 'Drag the corners. Slide the two centre handles along the fold.';
     }
 
     const fit = () => ({ maxW: Math.max(100, stage.clientWidth - 24), maxH: Math.max(100, stage.clientHeight - 24) });
@@ -226,7 +227,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
         h('div', { class: 'head' }, h('button', { class: 'icon-btn', 'aria-label': 'Cancel', onclick: () => { if (!applied) finish(false); } }, icon('arrow-left')),
           h('h2', {}, o.mode === 'retake' ? 'Retake spread' : o.mode === 'edit' ? 'Edit spread' : 'Review spread'), apply),
         stage,
-        h('div', { class: 'tools' }, banner, sub, h('div', { class: 'row' }, autoBtn, rotateBtn, modeBtn, confirmBtn), filterChips));
+        h('div', { class: 'tools' }, sub, h('div', { class: 'row ed-tools' }, autoBtn, rotateBtn, modeBtn, confirmBtn), filterChips));
     }, 'Review spread', () => { bitmap?.close(); watch.disconnect(); window.removeEventListener('app-flush-drafts', persistDraft); window.clearTimeout(draftTimer); if (!applied) resolve(false); });
     window.addEventListener('app-flush-drafts', persistDraft);
     dlg.classList.add('full');

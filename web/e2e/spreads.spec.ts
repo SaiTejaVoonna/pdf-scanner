@@ -8,7 +8,17 @@ const spread = (name: string, o?: { fold?: number; seed?: number }) => ({ name, 
 const pagesList = (page: Page) => page.getByRole('list', { name: 'Pages' }).locator('li');
 const review = (page: Page) => page.getByRole('dialog', { name: 'Review spread' });
 
-async function bookMode(page: Page) { await page.getByRole('radio', { name: 'Book spread' }).click(); }
+/** The capture-mode switch is inside the Import sheet on the home screen and inside the Add pages sheet while a document is open. */
+async function setMode(page: Page, name: 'Single page' | 'Book spread') {
+  const radio = page.getByRole('radio', { name });
+  if (await radio.isVisible()) { await radio.click(); return; }
+  const inDoc = await page.getByRole('button', { name: 'Add pages' }).isVisible();
+  const sheet = page.getByRole('dialog', { name: inDoc ? 'Add pages' : 'Import images' });
+  await page.getByRole('button', { name: inDoc ? 'Add pages' : 'Import images' }).click();
+  await radio.click();
+  await sheet.getByRole('button', { name: 'Close' }).click();
+}
+async function bookMode(page: Page) { await setMode(page, 'Book spread'); }
 async function importSpread(page: Page, file = spread('book.png'), apply = true) {
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [file]);
   await expect(review(page)).toBeVisible();
@@ -106,7 +116,7 @@ test('mixed single pages and spreads keep their order', async ({ page }) => {
   await expect(pagesList(page)).toHaveCount(1);
   await bookMode(page);
   await importSpread(page);
-  await page.getByRole('radio', { name: 'Single page' }).click();
+  await setMode(page, 'Single page');
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'q.png', mimeType: 'image/png', buffer: spreadPng(400, 500, { fold: 0 }) }]);
   await expect(pagesList(page)).toHaveCount(4);
   const badges = await pagesList(page).locator('.badge').allTextContents();
@@ -186,7 +196,9 @@ test('spreads survive a reload and keep their badges', async ({ page }) => {
   await page.reload();
   await expect(pagesList(page)).toHaveCount(4);
   expect(await pagesList(page).locator('.badge').allTextContents()).toEqual(['Spread 1 · L', 'Spread 1 · R', 'Spread 2 · L', 'Spread 2 · R']);
+  await page.getByRole('button', { name: 'Add pages' }).click();
   await expect(page.getByRole('radio', { name: 'Book spread' })).toHaveAttribute('aria-checked', 'true');
+  await page.getByRole('dialog', { name: 'Add pages' }).getByRole('button', { name: 'Close' }).click();
   // Edit state survives too.
   await page.getByRole('button', { name: 'Edit spread for page 1' }).click();
   await expect(review(page).locator('.handle')).toHaveCount(6);

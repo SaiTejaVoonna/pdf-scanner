@@ -149,23 +149,24 @@ export function mountApp(root: HTMLElement): void {
     try { await reviewSpread(blob); } finally { retaking = null; }
   }, () => { retaking = retake ?? null; captureInput.click(); },
   retake ? { mode: { get: () => 'spread', set: () => undefined }, single: true, onEditPage: editPage } : { mode: cameraMode, onEditPage: editPage, onClosed: () => { if (state.pages.length === 0 && !retake) store.closeDoc(); } }); };
-  const scanBtn = h('button', { class: 'btn primary scan', type: 'button', onclick: () => scan() }, icon('scan', 30), 'Scan pages');
-  const tiles = h('div', { class: 'tiles', role: 'group', 'aria-label': 'More ways to add pages and tools' },
-    tile('image', 'Import images', () => importInput.click()),
-    tile('camera', 'Take photo', () => captureInput.click()),
-    tile('combine', 'Combine PDFs', () => openCombine()),
-    tile('resize', 'Resize images', () => openResize()));
+  const homeScan = h('button', { class: 'btn primary entry-scan', type: 'button', 'aria-label': 'Scan pages', onclick: () => scan() }, icon('scan', 26), 'Scan');
+  const entry = h('div', { class: 'entry', role: 'group', 'aria-label': 'Start' }, homeScan,
+    h('button', { class: 'btn entry-btn', type: 'button', 'aria-label': 'Import images', onclick: () => openImport() }, icon('image', 24), 'Import'),
+    h('button', { class: 'btn entry-btn', type: 'button', 'aria-label': 'Tools', onclick: () => openTools() }, icon('combine', 24), 'Tools'));
+  const drafts = h('div', { class: 'drafts' });
+  const pdfSearch = h('input', { type: 'search', class: 'pdf-search', placeholder: 'Search PDFs', 'aria-label': 'Search PDFs' });
+  pdfSearch.addEventListener('input', () => renderPdfList());
+  const pdfList = h('ul', { class: 'pdf-list', 'aria-label': 'PDFs' });
   const list = h('ul', { class: 'grid', 'aria-label': 'Pages' });
   const empty = h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, icon('document', 56)), h('h2', {}, 'No pages yet'),
-    h('p', {}, 'Tap Scan, or import photos. Then make one PDF. Nothing leaves this device.'));
+    h('p', {}, 'Tap Add to scan or import photos. Then make one PDF. Nothing leaves this device.'));
   const docHead = h('div', { class: 'doc-head' });
   const bar = h('div', { class: 'bar' });
   const notice = h('p', { class: 'notice', hidden: true });
   // Documents list (home) and the bar of the open document.
   const docsHead = h('div', { class: 'doc-head' });
-  const docList = h('ul', { class: 'doc-grid', 'aria-label': 'Documents' });
-  const docsEmpty = h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, icon('document', 56)), h('h2', {}, 'No documents yet'),
-    h('p', {}, 'Tap Scan pages or import photos. Each scan becomes a document you can reopen, add to and turn into a PDF. Nothing leaves this device.'));
+  const docsEmpty = h('div', { class: 'empty' }, h('div', { class: 'empty-icon' }, icon('document', 56)), h('h2', {}, 'No PDFs yet'),
+    h('p', {}, 'Tap Scan, or import photos, then make a PDF. It appears here. Nothing leaves this device.'));
   const tipKey = 'pdf-scanner.tip-keep';
   const tip = h('div', { class: 'notice tip', hidden: true });
   const trashLink = h('button', { class: 'btn trash-link', type: 'button', onclick: openTrash });
@@ -173,12 +174,11 @@ export function mountApp(root: HTMLElement): void {
   const exportsBox = h('div', { class: 'exports', hidden: true });
 
   const main = h('main', {});
-  root.append(
-    h('header', { class: 'top' },
+  const topBar = h('header', { class: 'top' },
       h('div', { class: 'brand' }, h('h1', {}, 'PDF Scanner', h('span', { class: 'beta' }, `beta ${__APP_VERSION__}`)),
         h('p', { class: 'sub' }, icon('lock', 16), ' Private, saved on this device')),
-      h('button', { class: 'icon-btn', 'aria-label': 'Settings', onclick: openSettings }, icon('gear'))),
-    main, bar, importInput, captureInput);
+      h('button', { class: 'icon-btn', 'aria-label': 'Settings', onclick: openSettings }, icon('gear')));
+  root.append(topBar, main, bar, importInput, captureInput);
 
   function render() {
     const pages = state.pages;
@@ -189,8 +189,9 @@ export function mountApp(root: HTMLElement): void {
       ? 'Your browser has no space left, so recent changes are not saved. Export your PDF now, or delete pages to free space. Your pages are still here until you close this tab.'
       : 'Your browser is not keeping scans between visits (private mode?). Export before closing this tab.';
     main.replaceChildren(...(inDoc
-      ? [notice, docBar, scanBtn, modeSwitch, modeHint, tiles, docHead, list, empty, exportsBox]
-      : [notice, tip, scanBtn, modeSwitch, modeHint, tiles, docsHead, docList, docsEmpty, trashLink]));
+      ? [notice, docBar, docHead, list, empty, exportsBox]
+      : [notice, tip, entry, drafts, docsHead, pdfSearch, pdfList, docsEmpty, trashLink]));
+    topBar.hidden = inDoc; // an open document has its own bar (back, name, menu)
     if (inDoc) {
       empty.hidden = pages.length > 0;
       list.hidden = pages.length === 0;
@@ -213,28 +214,67 @@ export function mountApp(root: HTMLElement): void {
 
   const when = (t: number) => new Date(t).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 
+  const sizeOf = (d: store.Doc): number => d.exports[d.exports.length - 1]?.bytes ?? 0;
   function renderHome() {
-    const docs = store.liveDocs();
-    docsEmpty.hidden = docs.length > 0;
-    docList.hidden = docs.length === 0;
-    docsHead.hidden = docs.length === 0;
-    docsHead.replaceChildren(h('div', { class: 'titles' }, h('h2', {}, 'Your documents'), h('span', { class: 'hint' }, `${docs.length} document${docs.length === 1 ? '' : 's'}`)));
-    docList.replaceChildren(...docs.map((d) => {
+    const pdfs = store.pdfDocs();
+    const ds = store.draftDocs();
+    drafts.hidden = ds.length === 0;
+    drafts.replaceChildren(...ds.map((d) => {
+      const n = store.docPageCount(d);
+      const img = h('img', { alt: '', draggable: 'false' });
+      const first = d.pages[0];
+      if (first) thumbUrl(first).then((u) => { img.src = u; }).catch(() => undefined);
+      return h('div', { class: 'draft-banner', 'data-doc': d.id },
+        h('span', { class: 'draft-thumb' }, first ? img : icon('document', 28)),
+        h('div', { class: 'draft-text' }, h('strong', {}, 'Continue scanning'), h('span', { class: 'hint' }, `${n} page${n === 1 ? '' : 's'} · auto-saved`)),
+        h('button', { class: 'btn draft-open', type: 'button', 'aria-label': 'Open draft', onclick: () => store.openDoc(d.id) }, 'Open'),
+        h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Discard draft', onclick: () => { const undo = store.deleteDoc(d.id); toast('Draft discarded.', { label: 'Undo', run: undo }); } }, icon('trash')));
+    }));
+    docsEmpty.hidden = pdfs.length > 0 || ds.length > 0;
+    docsHead.hidden = pdfs.length === 0;
+    pdfSearch.hidden = pdfs.length < 4;
+    docsHead.replaceChildren(h('div', { class: 'titles' }, h('h2', {}, 'PDFs'), h('span', { class: 'hint' }, `${pdfs.length} file${pdfs.length === 1 ? '' : 's'}`)));
+    renderPdfList();
+    const trash = store.trashedDocs().length;
+    trashLink.hidden = trash === 0;
+    trashLink.textContent = `Recently deleted (${trash})`;
+  }
+
+  function renderPdfList() {
+    const q = pdfSearch.value.trim().toLowerCase();
+    const pdfs = store.pdfDocs().filter((d) => !q || d.name.toLowerCase().includes(q));
+    pdfList.hidden = pdfs.length === 0;
+    pdfList.replaceChildren(...pdfs.map((d) => {
       const n = store.docPageCount(d);
       const first = d.pages[0];
       const img = h('img', { alt: '', draggable: 'false' });
       if (first) thumbUrl(first).then((u) => { img.src = u; }).catch(() => undefined);
-      return h('li', { class: 'doc-card', 'data-doc': d.id },
-        h('button', { class: 'doc-open', type: 'button', 'aria-label': `Open ${d.name}`, onclick: () => store.openDoc(d.id) },
-          h('span', { class: 'doc-thumb' }, first ? img : icon('document', 32)),
-          h('span', { class: 'doc-name' }, d.name),
-          h('span', { class: 'doc-meta' }, `${n} page${n === 1 ? '' : 's'} · ${when(d.updatedAt)}`),
-          h('span', { class: `doc-status ${d.status}` }, d.status === 'done' ? 'PDF made' : 'Draft')),
+      return h('li', { class: 'pdf-row', 'data-doc': d.id },
+        h('button', { class: 'pdf-open', type: 'button', 'aria-label': `Open ${d.name}`, onclick: () => store.openDoc(d.id) },
+          h('span', { class: 'pdf-thumb' }, first ? img : icon('document', 28)),
+          h('span', { class: 'pdf-text' }, h('strong', { class: 'doc-name' }, d.name),
+            h('span', { class: 'hint' }, `${n} page${n === 1 ? '' : 's'} · ${formatBytes(sizeOf(d))} · ${when(d.updatedAt)}`),
+            store.isEdited(d) ? h('span', { class: 'doc-status edited' }, 'Edited, save to update') : null)),
         h('button', { class: 'icon-btn doc-menu', type: 'button', 'aria-label': `${d.name} menu`, onclick: () => openDocMenu(d) }, icon('more')));
     }));
-    const trash = store.trashedDocs().length;
-    trashLink.hidden = trash === 0;
-    trashLink.textContent = `Recently deleted (${trash})`;
+  }
+
+  /** Import from the home screen: pick whether the photos are single pages or book spreads, then choose them. */
+  function openImport() {
+    openDialog((close) => h('div', { class: 'dlg menu' }, h('h2', {}, 'Import images'), modeSwitch, modeHint,
+      h('button', { class: 'btn primary tool-item', type: 'button', onclick: () => { close(); importInput.click(); } }, icon('image', 22), 'Choose photos'),
+      h('button', { class: 'btn', type: 'button', onclick: close }, 'Close')), 'Import images');
+  }
+
+  /** Tools sheet (the Tools hub replaces it later). */
+  function openTools() {
+    openDialog((close) => {
+      const item = (label: string, ic: IconName, fn: () => void) => h('button', { class: 'btn tool-item', type: 'button', onclick: () => { close(); fn(); } }, icon(ic, 22), label);
+      return h('div', { class: 'dlg menu' }, h('h2', {}, 'Tools'),
+        item('Combine PDFs', 'combine', () => openCombine()),
+        item('Resize images', 'resize', () => openResize()),
+        h('button', { class: 'btn', type: 'button', onclick: close }, 'Close'));
+    }, 'Tools');
   }
 
   function renderDocBar() {
@@ -243,7 +283,7 @@ export function mountApp(root: HTMLElement): void {
       h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Back to documents', onclick: () => store.closeDoc() }, icon('arrow-left')),
       h('div', { class: 'doc-title' },
         h('button', { class: 'doc-rename', type: 'button', 'aria-label': 'Rename document', onclick: () => d && void renameFlow(d.id, d.name) }, h('strong', {}, d?.name ?? 'Document')),
-        h('span', { class: 'hint' }, d ? `${d.status === 'done' ? 'PDF made' : 'Draft, saved automatically'}` : '')),
+        h('span', { class: 'hint' }, d ? (d.status === 'done' ? (store.isEdited(d) ? 'PDF made · edited, make it again to update' : 'PDF made') : 'Draft, saved automatically') : '')),
       h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Document menu', onclick: () => d && openDocMenu(d) }, icon('more')));
   }
 
@@ -256,8 +296,9 @@ export function mountApp(root: HTMLElement): void {
     openDialog((close) => {
       const item = (label: string, fn: () => void, danger = false) => h('button', { class: `btn${danger ? ' danger' : ''}`, type: 'button', onclick: () => { close(); fn(); } }, label);
       return h('div', { class: 'dlg menu' }, h('h2', {}, d.name),
+        d.exports.length ? item('Download PDF', () => { const e = d.exports[d.exports.length - 1]; const b = store.pdfBlob(e.id); if (b) download(b, `${e.name}.pdf`); else toast('That PDF is no longer stored.'); }) : null,
         item('Rename', () => void renameFlow(d.id, d.name)),
-        item('Delete document', () => { const undo = store.deleteDoc(d.id); toast(`Deleted "${d.name}". It stays in Recently deleted for 30 days.`, { label: 'Undo', run: undo }); }, true),
+        item('Delete', () => { const undo = store.deleteDoc(d.id); toast(`Deleted "${d.name}". It stays in Recently deleted for 30 days.`, { label: 'Undo', run: undo }); }, true),
         h('button', { class: 'btn', type: 'button', onclick: close }, 'Close'));
     }, `${d.name} menu`);
   }
@@ -284,8 +325,9 @@ export function mountApp(root: HTMLElement): void {
       return;
     }
     const spreads = state.spreads.length;
+    const toCheck = state.spreads.filter((x) => x.check).length;
     docHead.append(h('div', { class: 'titles' }, h('h2', {}, 'Your pages'),
-        h('span', { class: 'hint' }, `${state.pages.length} page${state.pages.length === 1 ? '' : 's'}${spreads ? ` · ${spreads} spread${spreads === 1 ? '' : 's'}` : ''}`)),
+        h('span', { class: 'hint' }, `${state.pages.length} page${state.pages.length === 1 ? '' : 's'}${spreads ? ` · ${spreads} spread${spreads === 1 ? '' : 's'}` : ''}${toCheck ? ` · ${toCheck} to check` : ''}`)),
       h('button', { class: 'btn', onclick: () => { selectMode = true; render(); } }, 'Select'));
   }
 
@@ -325,17 +367,32 @@ export function mountApp(root: HTMLElement): void {
       p.spread && state.spreads.find((s) => s.id === p.spread!.id)?.check ? h('small', { class: 'badge check-badge' }, 'Check') : null);
     const bar = h('div', { class: 'card-bar' }, label,
       selecting ? null : h('button', { class: 'icon-btn', 'aria-label': `Page ${index + 1} menu`, onclick: () => openMenu(p, index, total) }, icon('more')));
-    return h('li', { class: 'card', 'data-id': p.id, 'data-selected': String(selected) }, thumb, bar);
+    const pair = p.spread ? (state.pages[index + 1]?.spread?.id === p.spread.id && state.pages[index - 1]?.spread?.id !== p.spread.id ? 'first' : state.pages[index - 1]?.spread?.id === p.spread.id ? 'second' : undefined) : undefined;
+    return h('li', { class: 'card', 'data-id': p.id, 'data-selected': String(selected), 'data-pair': pair }, thumb, bar);
+  }
+
+  /** The add sheet of an open document: scan, import or take a photo, and the single page / book spread switch. */
+  function openAdd() {
+    openDialog((close) => {
+      const item = (label: string, ic: IconName, fn: () => void) => h('button', { class: `btn tool-item${label === 'Scan pages' ? ' primary' : ''}`, type: 'button', onclick: () => { close(); fn(); } }, icon(ic, 22), label);
+      return h('div', { class: 'dlg menu' }, h('h2', {}, 'Add pages'), modeSwitch, modeHint,
+        item('Scan pages', 'scan', () => scan()),
+        item('Import images', 'image', () => importInput.click()),
+        item('Take photo', 'camera', () => captureInput.click()),
+        h('button', { class: 'btn', type: 'button', onclick: close }, 'Close'));
+    }, 'Add pages');
   }
 
   function renderBar() {
     bar.replaceChildren();
     const n = state.selection.size;
-    if (state.currentId === null || state.pages.length === 0) { bar.hidden = true; return; }
+    if (state.currentId === null) { bar.hidden = true; return; }
     bar.hidden = false;
+    if (state.pages.length === 0) { bar.append(h('button', { class: 'btn primary', type: 'button', onclick: openAdd }, icon('plus', 22), 'Add pages')); return; }
     if (n === 0 && !selectMode) {
-      bar.append(h('button', { class: 'btn primary', onclick: openExport }, `Make PDF (${state.pages.length})`),
-        h('button', { class: 'btn', onclick: () => openViewer(state.pages[0].id) }, 'Preview'));
+      bar.append(h('button', { class: 'btn add-btn', type: 'button', 'aria-label': 'Add pages', onclick: openAdd }, icon('plus', 22)),
+        h('button', { class: 'btn', onclick: () => openViewer(state.pages[0].id) }, 'Preview'),
+        h('button', { class: 'btn primary make-pdf', onclick: openExport }, `Make PDF (${state.pages.length})`));
       return;
     }
     if (n === 0) { bar.append(h('span', { class: 'hint' }, 'Tap pages to select them.')); return; }
@@ -395,8 +452,4 @@ async function offerDraftResume(): Promise<void> {
           }
         } catch { store.clearDraft(); toast('The draft could not be restored.'); }
       } }, 'Resume'))), 'Resume your edit?');
-}
-
-function tile(name: IconName, label: string, onClick: () => void): HTMLElement {
-  return h('button', { class: 'tile', type: 'button', onclick: onClick }, h('span', { class: 'big' }, icon(name, 26)), h('span', { class: 'label' }, label), h('span', { class: 'chev' }, icon('chevron-right', 22)));
 }

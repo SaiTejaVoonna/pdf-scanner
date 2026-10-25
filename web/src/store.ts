@@ -24,6 +24,8 @@ export interface ExportRecord { id: string; name: string; bytes: number; pages: 
  */
 export interface Doc {
   id: string; name: string; createdAt: number; updatedAt: number; status: 'draft' | 'done';
+  /** Fingerprint of the pages when the current PDF was made: a different fingerprint now means the PDF is out of date. */
+  exportSig?: string;
   pages: PageModel[]; spreads: Spread[]; exports: ExportRecord[];
   /** Set when the document was deleted: it stays in "Recently deleted" for a while and can be restored. */
   deletedAt?: number;
@@ -123,7 +125,7 @@ export async function restore(): Promise<void> {
     const now = Date.now();
     docs = docs.filter((x) => !x.deletedAt || now - x.deletedAt < TRASH_DAYS * 86400000).map((x) => {
       const pages = x.pages.filter((p) => blobs.has(p.sourceId));
-      return { ...x, exports: x.exports ?? [], pages, spreads: x.spreads.filter((sp) => blobs.has(sp.sourceId) && pages.some((p) => p.spread?.id === sp.id)) };
+      return { ...x, exports: x.exports ?? [], pages, exportSig: x.exportSig ?? (x.status === 'done' ? pagesSig(pages) : undefined), spreads: x.spreads.filter((sp) => blobs.has(sp.sourceId) && pages.some((p) => p.spread?.id === sp.id)) };
     });
     state.docs = docs;
     const legacy = docsMeta.result === undefined && docs.length > 0; // first start after the upgrade: open the migrated document as before
@@ -140,6 +142,9 @@ export async function restore(): Promise<void> {
     notify();
   } catch { state.persistent = false; }
 }
+
+/** A short fingerprint of what a PDF is made of (pages, crops, rotation, filters). */
+export const pagesSig = (pages: PageModel[]): string => JSON.stringify(pages.map((p) => [p.id, p.sourceId, p.corners, p.rotation, p.filter]));
 
 /** Copies the open document's live arrays back into its record. */
 function syncCurrent(): void {
@@ -353,6 +358,12 @@ export function clearAll(): void {
 
 const current = (): Doc | undefined => state.docs.find((d) => d.id === state.currentId);
 export const liveDocs = (): Doc[] => state.docs.filter((d) => !d.deletedAt).sort((a, b) => b.updatedAt - a.updatedAt);
+/** Unfinished scans: the draft(s) shown as "Continue scanning". */
+export const draftDocs = (): Doc[] => liveDocs().filter((d) => d.status === 'draft' && docPageCount(d) > 0);
+/** Finished PDFs, newest first: the home list. */
+export const pdfDocs = (): Doc[] => liveDocs().filter((d) => d.status === 'done' && d.exports.length > 0);
+/** True when the pages changed after the PDF was made (so "Save changes" would give a different file). */
+export const isEdited = (d: Doc): boolean => d.status === 'done' && d.exportSig !== undefined && d.exportSig !== pagesSig(d.id === state.currentId ? state.pages : d.pages);
 export const trashedDocs = (): Doc[] => state.docs.filter((d) => d.deletedAt).sort((a, b) => (b.deletedAt ?? 0) - (a.deletedAt ?? 0));
 export const currentDoc = (): Doc | undefined => { const d = current(); if (d) syncCurrent(); return d; };
 /** Page count of any document (the open one is read live). */
@@ -371,8 +382,17 @@ export function newDoc(name = scanName()): Doc {
   notify();
   return d;
 }
-/** The open document, creating one when none is open (so adding a photo from the list starts a new document). */
-export function ensureDoc(): Doc { return current() ?? newDoc(); }
+/**
+ * The open document. When none is open, new photos go into the unfinished draft if there is one (one draft at a time),
+ * otherwise a new draft starts.
+ */
+export function ensureDoc(): Doc {
+  const open = current();
+  if (open) return open;
+  const draft = draftDocs()[0];
+  if (draft) { openDoc(draft.id); return current()!; }
+  return newDoc();
+}
 
 export function openDoc(id: string): void {
   const d = state.docs.find((x) => x.id === id && !x.deletedAt);
@@ -432,12 +452,18 @@ export function emptyTrash(): void { trashedDocs().forEach((d) => purgeDoc(d.id)
 /** Keeps the PDF that was just made with its document, which is no longer a draft. */
 export function recordExport(name: string, bytes: Uint8Array, pages: number): void {
   const d = ensureDoc();
+  syncCurrent();
+  // A document has one current PDF: making it again replaces the earlier file.
+  for (const old of d.exports) blobs.delete(`${PDF_PREFIX}${old.id}`);
+  const replaced = d.exports.map((e) => `${PDF_PREFIX}${e.id}`);
+  d.exports = [];
+  d.exportSig = pagesSig(d.pages);
   const id = newId();
   blobs.set(`${PDF_PREFIX}${id}`, new Blob([bytes as BlobPart], { type: 'application/pdf' }));
   d.exports = [...d.exports, { id, name, bytes: bytes.length, pages, at: Date.now() }];
   d.status = 'done';
   if (/^Scan \d{4}-\d{2}-\d{2}/.test(d.name)) d.name = name; // a document still called by its date takes the PDF's name
-  persist([`${PDF_PREFIX}${id}`]);
+  persist([`${PDF_PREFIX}${id}`], replaced);
   notify();
 }
 export const pdfBlob = (exportId: string): Blob | undefined => blobs.get(`${PDF_PREFIX}${exportId}`);
