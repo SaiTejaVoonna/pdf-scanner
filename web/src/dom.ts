@@ -25,8 +25,9 @@ export function toast(message: string, action?: { label: string; run: () => void
   if (!host) { host = h('div', { class: 'toasts', 'aria-live': 'polite', role: 'status' }); container.append(host); }
   const t = h('div', { class: 'toast' }, message);
   if (action) t.append(h('button', { class: 'toast-action', type: 'button', onclick: () => { t.remove(); action.run(); } }, action.label));
-  host.append(t);
-  setTimeout(() => { t.remove(); if (host && !host.childElementCount) host.remove(); }, action ? 9000 : 6000);
+  // One message at a time: a new one replaces the last, so they never pile up over the screen.
+  host.replaceChildren(t);
+  setTimeout(() => { t.remove(); if (host && !host.childElementCount) host.remove(); }, action ? 6000 : 3500);
 }
 
 /** Opens a modal <dialog> built by `build`; removed from the DOM when closed. `close(value)` resolves nothing special. */

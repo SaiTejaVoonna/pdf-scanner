@@ -165,8 +165,8 @@ export function mountApp(root: HTMLElement): void {
   // ---- shell: sidebar (wide screens), main, dock (phones)
   const tabButton = (t: (typeof TABS)[number], cls: string) => h('button', { class: cls, type: 'button', 'data-tab': t.id, onclick: () => { tab = t.id; if (store.state.currentId !== null) store.closeDoc(); else render(); } }, icon(t.icon, cls === 'tab' ? 22 : 20), cls === 'tab' ? h('span', {}, t.label) : t.label);
   const dock = h('nav', { class: 'dock', 'aria-label': 'Main' },
-    h('div', { class: 'cap frost' }, ...TABS.map((t) => tabButton(t, 'tab'))),
-    h('button', { class: 'scan-fab', type: 'button', 'aria-label': 'Scan pages', onclick: () => scan() }, icon('camera', 28)));
+    h('div', { class: 'cap frost' }, ...TABS.map((t) => tabButton(t, 'tab')),
+      h('button', { class: 'tab go', type: 'button', 'aria-label': 'Scan pages', onclick: () => scan() }, icon('camera', 22), h('span', {}, 'Scan'))));
   const sidebar = h('aside', { class: 'sidebar', 'aria-label': 'Main' }, h('h2', {}, 'PDF Scanner'), ...TABS.map((t) => tabButton(t, 'item')),
     h('button', { class: 'btn primary scan-side', type: 'button', 'aria-label': 'Scan pages', onclick: () => scan() }, icon('camera', 20), 'Scan'));
   const main = h('main', { class: 'page' });

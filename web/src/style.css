@@ -289,3 +289,24 @@ dialog .toasts { bottom: 24px; }
 .btn { min-height: 50px; }
 .field input[type='text'], .field input[type='number'], .field select, label.field input[type='text'], label.field input[type='number'] { min-height: 46px; }
 .qcard, .tool-tile { border-radius: 16px; }
+
+/* ---------- one dock: Scan is the filled fourth item ---------- */
+.dock .tab.go { color: var(--on-acc); background: linear-gradient(160deg, var(--acc-hi), var(--acc)); box-shadow: 0 4px 12px rgba(53, 82, 217, .35), inset 0 1px 0 rgba(255, 255, 255, .3); font-weight: 600; }
+/* ---------- compact settings ---------- */
+.set .row { min-height: 48px; padding-top: 7px; padding-bottom: 7px; }
+.set .row b { font-weight: 500; font-size: .95rem; }
+.set .ico { width: 26px; height: 26px; border-radius: 7px; }
+.set .row + .row::before { left: 52px; }
+.set .row.sub { padding-left: 52px; }
+.set .row.sub .seg { flex: 1; }
+.set .seg button, .set .seg .chip { min-height: 44px; font-size: .85rem; }
+.set .seg { padding: 2px; }
+.set .row > .seg { flex: none; }
+.set .sw { width: 44px; height: 27px; } .set .sw::after { width: 23px; height: 23px; } .set .sw:checked::after { transform: translateX(17px); }
+.proto { margin-left: auto; font-size: .68rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; color: var(--acc); background: var(--fill); border-radius: 6px; padding: 3px 8px; }
+.settings .page-title, .tools-page .page-title { font-size: 1.75rem; }
+/* ---------- tools: four equal tiles ---------- */
+.tool-tile { min-height: 0; height: 124px; padding: 14px; }
+.tool-tile .tool-ic { width: 40px; height: 40px; border-radius: 12px; }
+.tool-tile strong { font-size: .95rem; white-space: nowrap; }
+.tool-tile .hint { white-space: nowrap; }

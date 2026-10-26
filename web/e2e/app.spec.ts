@@ -135,7 +135,7 @@ test('scans are kept across a reload', async ({ page }) => {
 
 test('settings are stored and auto-crop on import crops the page', async ({ page }) => {
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
-  await page.getByLabel('Auto-crop imported images').check();
+  await page.getByLabel('Auto-crop imports').check();
   await page.getByRole('radio', { name: 'Enhanced' }).click();
   await page.getByRole('button', { name: 'PDFs', exact: true }).click();
   await importImages(page, 1);
