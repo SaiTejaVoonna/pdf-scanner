@@ -1,7 +1,7 @@
 import { combinePdfs, pageCount, safeFileName } from '../core/pdf';
 import { download, formatBytes, h, openDialog, toast } from '../dom';
 import { icon } from './icons';
-import { toolPage } from './toolPage';
+import { fileCard, toolPage } from './toolPage';
 
 interface Item { file: File; pages: number }
 
@@ -40,7 +40,7 @@ export function openCombine(): void {
       finally { go.disabled = items.length < 2; }
     });
     return toolPage('Combine PDFs', close, picker,
-      h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Add PDFs…')),
+      fileCard('pdf', 'PDFs', 'Add two or more PDFs to join', () => picker.click(), 'Add'),
       h('label', { class: 'field' }, 'File name', nameInput), list, status, h('div', { class: 'row end' }, go));
   }, 'Combine PDFs').classList.add('full');
 }

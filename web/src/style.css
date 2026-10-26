@@ -262,3 +262,23 @@ dialog .toasts { bottom: 24px; }
 .toolpage .nav { position: sticky; }
 .toolbody { width: 100%; max-width: 640px; margin: 0 auto; padding-bottom: calc(24px + env(safe-area-inset-bottom)); }
 .toolbody .hint { font-size: .85rem; }
+.nav .titles .ttl { margin: 0; font-size: 1rem; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.fcard { display: flex; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; border-radius: 16px; text-align: left; cursor: pointer; color: inherit; min-height: 64px; box-shadow: var(--shadow); }
+.fcard .ico { width: 40px; height: 40px; border-radius: 12px; background: var(--acc-soft); color: var(--acc); display: grid; place-items: center; flex: none; }
+.fcard .grow { flex: 1; min-width: 0; }
+.fcard b { display: block; }
+.fcard small { display: block; color: var(--mut); font-size: .8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.fcard .chg { color: var(--acc); font-weight: 600; font-size: .9rem; }
+.ba { display: flex; align-items: center; gap: 10px; }
+.ba > div { flex: 1; border-radius: 16px; padding: 12px; text-align: center; background: var(--glass); border: 1px solid var(--gline); }
+.ba small { display: block; color: var(--mut); font-size: .75rem; } .ba b { font-size: 1.25rem; }
+.ba .new { border-color: var(--acc); } .ba .new b { color: var(--acc); } .ba .arrow { color: var(--acc); display: flex; }
+.toolbody .row.end { flex-direction: column-reverse; align-items: stretch; gap: 10px; }
+.toolbody .row.end .btn { width: 100%; min-height: 50px; }
+.toolbody .list li, .toolbody .result-list li { background: var(--glass); border: 1px solid var(--gline); }
+.toolbody .seg-row { display: flex; }
+.xform[hidden] { display: none; }
+.cont strong { white-space: nowrap; font-size: .98rem; }
+.cont .btn { padding: 0 14px; }
+@media (min-width: 720px) { .bar { left: 210px; } .toasts { left: 222px; } }

@@ -18,5 +18,5 @@ test('warns that only one page is seen and never auto-captures', async ({ page }
   await expect(cam.getByText(/Fold not confirmed/)).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(6000);
   await expect(cam.getByRole('button', { name: 'Done', exact: true })).toBeVisible();
-  await expect(cam.getByRole('button', { name: /Done \(/ })).toHaveCount(0);
+  await expect(cam.getByRole('button', { name: /Done ·/ })).toHaveCount(0);
 });

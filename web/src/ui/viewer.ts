@@ -53,7 +53,7 @@ export function openViewer(startId: string): void {
   }
 
   const dlg = openDialog((close) => h('div', { class: 'editor viewer' },
-    h('div', { class: 'nav' }, h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Close preview', onclick: close }, icon('chevron-left', 26)), h('div', { class: 'titles' }, h('strong', {}, 'Preview')),
+    h('div', { class: 'nav' }, h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Close preview', onclick: close }, icon('chevron-left', 26)), h('div', { class: 'titles' }, h('h2', { class: 'ttl' }, 'Preview')),
       h('button', { class: 'txt-btn', type: 'button', onclick: () => { const p = page(); if (p) { close(); openEditor(p); } } }, 'Edit this page')),
     scroller,
     h('div', { class: 'bottomtools viewer-bar' }, prev, counter, next, h('span', { class: 'spacer' }), zoomOut, zoomLabel, zoomIn)), 'Preview',

@@ -15,5 +15,5 @@ test('auto-capture never photographs a floor or other non-page scene', async ({ 
   const cam = page.getByRole('dialog', { name: 'Camera' });
   await expect(cam.getByRole('switch', { name: 'Auto-capture' })).toHaveAttribute('aria-checked', 'true');
   await page.waitForTimeout(9000);
-  await expect(cam.getByRole('button', { name: /Done \(/ })).toHaveCount(0);
+  await expect(cam.getByRole('button', { name: /Done ·/ })).toHaveCount(0);
 });

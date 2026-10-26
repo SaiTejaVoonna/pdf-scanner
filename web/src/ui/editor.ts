@@ -43,7 +43,7 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
       close();
     } }, 'Save');
     return h('div', { class: 'editor' },
-      h('div', { class: 'nav' }, h('button', { class: 'txt-btn', type: 'button', 'aria-label': 'Back', onclick: () => requestClose(close) }, 'Cancel'), h('div', { class: 'titles' }, h('strong', {}, `Edit page ${index}`)), save),
+      h('div', { class: 'nav' }, h('button', { class: 'txt-btn', type: 'button', 'aria-label': 'Back', onclick: () => requestClose(close) }, 'Cancel'), h('div', { class: 'titles' }, h('h2', { class: 'ttl' }, `Edit page ${index}`)), save),
       stage, h('div', { class: 'bottomtools' }, tools, filterRow));
   };
   const discard = () => askConfirm('Discard your changes?', 'Your edits to this page have not been saved.', 'Discard');

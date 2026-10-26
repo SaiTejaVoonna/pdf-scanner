@@ -1,7 +1,7 @@
 import { safeFileName } from '../core/pdf';
 import { extractPages, pageCount, parseRanges } from '../core/split';
 import { zipStore } from '../core/zip';
-import { toolPage } from './toolPage';
+import { fileCard, toolPage } from './toolPage';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 
 /** Keeps chosen pages of a PDF as a new PDF, or saves every page as its own file (in a ZIP). Nothing is re-rendered. */
@@ -9,7 +9,7 @@ export function openSplit(): void {
   let file: File | null = null, data: Uint8Array | null = null, count = 0, mode: 'keep' | 'each' = 'keep';
   openDialog((close) => {
     const picker = h('input', { type: 'file', accept: 'application/pdf,.pdf', class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true' });
-    const info = h('div', { class: 'hint' }, 'Choose the PDF to split.');
+    const info = h('small', {}, 'Choose the PDF to split');
     const pages = h('input', { type: 'text', placeholder: 'For example 1-3, 5', inputmode: 'numeric', 'aria-label': 'Pages to keep' });
     const pagesField = h('label', { class: 'field' }, 'Pages to keep', pages);
     const status = h('div', { class: 'hint', role: 'status' });
@@ -43,7 +43,7 @@ export function openSplit(): void {
     });
     const modeChips = chips([{ id: 'keep' as const, label: 'Keep some pages' }, { id: 'each' as const, label: 'Every page on its own' }], mode, (id) => { mode = id; pagesField.hidden = id !== 'keep'; });
     return toolPage('Split PDF', close, picker,
-      h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Choose PDF…')), info,
+      fileCard('pdf', 'PDF', info, () => picker.click(), 'Change'),
       modeChips, pagesField, status, h('div', { class: 'row end' }, go));
   }, 'Split PDF').classList.add('full');
 }

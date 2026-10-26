@@ -12,7 +12,7 @@ export function openTrash(): void {
       const docs = store.trashedDocs();
       body.replaceChildren(
         h('div', { class: 'nav' }, h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Back', onclick: close }, icon('chevron-left', 26)),
-          h('div', { class: 'titles' }, h('strong', {}, 'Recently deleted'), h('small', {}, `Kept for ${DAYS} days`)), h('span', { style: 'width:44px' })),
+          h('div', { class: 'titles' }, h('h2', { class: 'ttl' }, 'Recently deleted'), h('small', {}, `Kept for ${DAYS} days`)), h('span', { style: 'width:44px' })),
         h('div', { style: 'padding-top:16px' },
           docs.length === 0 ? h('p', { class: 'hint', style: 'text-align:center;padding:40px 20px' }, 'Nothing here.') : h('ul', { class: 'group trash-list' }, ...docs.map((d) => {
             const left = Math.max(0, DAYS - Math.floor((Date.now() - (d.deletedAt ?? 0)) / 86400000));

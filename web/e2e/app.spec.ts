@@ -127,7 +127,7 @@ test('scans are kept across a reload', async ({ page }) => {
   await page.reload();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
   await page.getByRole('button', { name: 'Document menu' }).click();
-  await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
+  await page.getByRole('dialog').getByRole('button', { name: 'Discard draft' }).click();
   await expect(page.getByText('No PDFs yet')).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click(); // a delete can always be undone
   await expect(page.getByRole('button', { name: 'Open draft' })).toHaveCount(1);
@@ -236,7 +236,7 @@ test('editor can compare the result with the original photo', async ({ page }) =
   await importImages(page, 1);
   await page.getByRole('button', { name: 'Edit page 1' }).click();
   const editor = page.getByRole('dialog', { name: 'Edit page' });
-  await editor.getByRole('tab', { name: 'Enhance' }).click();
+  await editor.getByRole('button', { name: 'Look' }).click();
   await expect(editor.getByRole('img', { name: 'Preview of the corrected page' })).toBeVisible();
   await editor.getByRole('button', { name: 'Show original' }).click();
   await expect(editor.getByRole('img', { name: 'Original photo' })).toBeVisible();

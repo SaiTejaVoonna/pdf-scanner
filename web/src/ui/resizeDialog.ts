@@ -4,7 +4,7 @@ import { zipStore } from '../core/zip';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, decode } from '../imaging';
 import { icon } from './icons';
-import { toolPage } from './toolPage';
+import { fileCard, toolPage } from './toolPage';
 
 interface Item { file: File; w: number; h: number }
 interface Result { name: string; blob: Blob; w: number; h: number; before: number; note?: string }
@@ -169,7 +169,7 @@ export function openResize(): void {
     const modeChips = chips([{ id: 'side' as const, label: 'Longest side' }, { id: 'exact' as const, label: 'Exact size' }], mode, (id) => { mode = id; sideBox.hidden = id !== 'side'; exactBox.hidden = id !== 'exact'; });
     const formatChips = chips([{ id: 'jpeg' as const, label: 'JPEG (smaller)' }, { id: 'png' as const, label: 'PNG' }], format, (id) => { format = id; });
     return toolPage('Resize photo', close, picker,
-      h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Add images…')),
+      fileCard('image', 'Photos', 'Add the photos to resize', () => picker.click(), 'Add'),
       list, modeChips, sideBox, exactBox,
       h('div', { class: 'field' }, h('span', {}, 'Format'), formatChips),
       h('div', { class: 'row size-row' }, h('label', { class: 'field' }, 'Largest file (KB)', maxKb), h('label', { class: 'field' }, 'Smallest file (KB)', minKb)),

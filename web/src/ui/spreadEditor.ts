@@ -238,7 +238,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       void close;
       return h('div', { class: 'editor' },
         h('div', { class: 'nav' }, h('button', { class: 'txt-btn', type: 'button', 'aria-label': 'Cancel', onclick: () => { if (!applied) finish(false); } }, 'Cancel'),
-          h('div', { class: 'titles' }, h('strong', {}, o.mode === 'retake' ? 'Retake spread' : o.mode === 'edit' ? 'Edit spread' : 'Review spread')), apply),
+          h('div', { class: 'titles' }, h('h2', { class: 'ttl' }, o.mode === 'retake' ? 'Retake spread' : o.mode === 'edit' ? 'Edit spread' : 'Review spread')), apply),
         stage,
         h('div', { class: 'bottomtools' }, tools, filterRow));
     }, 'Review spread', () => { bitmap?.close(); watch.disconnect(); window.removeEventListener('app-flush-drafts', persistDraft); window.clearTimeout(draftTimer); if (!applied) resolve(false); });

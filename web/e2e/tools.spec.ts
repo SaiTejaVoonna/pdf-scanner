@@ -7,7 +7,7 @@ test.beforeEach(async ({ page }) => { await page.goto('/'); });
 
 async function openTool(page: Page, name: string) {
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Tools' }).getByRole('button', { name: new RegExp(name) }).click();
+  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click();
 }
 async function readDownload(dl: import('@playwright/test').Download): Promise<Buffer> {
   const chunks: Buffer[] = []; for await (const c of await dl.createReadStream()) chunks.push(c as Buffer); return Buffer.concat(chunks);
@@ -28,11 +28,10 @@ async function scanPdf(page: Page, pages: number): Promise<Buffer> {
   return Buffer.from(await doc.save());
 }
 
-test('the Tools hub lists the four tools, and each one opens', async ({ page }) => {
+test('the Tools tab lists the four tools, and each one opens', async ({ page }) => {
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  const hub = page.getByRole('dialog', { name: 'Tools' });
-  for (const t of ['Compress PDF', 'Resize photo', 'Combine PDFs', 'Split PDF']) await expect(hub.getByRole('button', { name: new RegExp(t) })).toBeVisible();
-  await hub.getByRole('button', { name: /Split PDF/ }).click();
+  for (const t of ['Compress PDF', 'Resize photo', 'Combine PDFs', 'Split PDF']) await expect(page.getByRole('button', { name: new RegExp(`^${t}`) })).toBeVisible();
+  await page.getByRole('button', { name: /^Split PDF/ }).click();
   await expect(page.getByRole('dialog', { name: 'Split PDF' })).toBeVisible();
 });
 

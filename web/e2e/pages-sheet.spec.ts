@@ -26,21 +26,22 @@ test('tap the pages thumbnail on the live camera: see the pages, move one, delet
   await sheet.getByRole('button', { name: 'Close' }).click();
   await expect(sheet).toBeHidden();
   await shutter.click();
-  await expect(cam.getByText('2 pages', { exact: true })).toBeVisible({ timeout: 10_000 });
+  await expect(cam.getByRole('button', { name: 'Show my pages' })).toContainText('2', { timeout: 10_000 });
   await cam.getByRole('button', { name: /Done/ }).click();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
 });
 
-test('the preview fills the width and nothing is laid over the picture', async ({ page }) => {
+test('the preview fills the screen and the page frame sits between the top and bottom controls', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await page.getByRole('button', { name: 'Scan pages', exact: true }).click();
   const cam = page.getByRole('dialog', { name: 'Camera' });
   await expect(cam.getByRole('button', { name: 'Capture page' })).toBeEnabled();
-  const { stage, vid, bars } = await page.evaluate(() => {
+  const { stage, vid, top, frame, controls } = await page.evaluate(() => {
     const r = (sel: string) => { const b = document.querySelector(sel)!.getBoundingClientRect(); return { l: b.left, t: b.top, w: b.width, h: b.height, bottom: b.bottom }; };
-    return { stage: r('.cam-stage'), vid: r('.cam-stage video'), bars: [r('.cam-top'), r('.cam-auto'), r('.cam-hint')] };
+    return { stage: r('.cam-stage'), vid: r('.cam-stage video'), top: r('.cam-status'), frame: r('.cam-stage .guide'), controls: r('.camera .controls') };
   });
   expect(vid.w).toBeGreaterThanOrEqual(stage.w - 1);          // full width, no black side bars
-  expect(vid.h).toBeGreaterThanOrEqual(stage.h - 1);
-  for (const b of bars) expect(b.bottom).toBeLessThanOrEqual(stage.t + 1); // every bar ends above the picture
+  expect(vid.h).toBeGreaterThanOrEqual(stage.h - 1);          // and full height: the controls float over the picture
+  expect(frame.t).toBeGreaterThanOrEqual(top.bottom - 1);      // the page frame starts below the status pill
+  expect(frame.bottom).toBeLessThanOrEqual(controls.t + 1);    // and ends above the shutter row
 });

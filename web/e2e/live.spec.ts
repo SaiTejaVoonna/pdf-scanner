@@ -37,10 +37,10 @@ test('auto-capture is on by default, fires once per page, never twice for the sa
   await cam.getByRole('switch', { name: 'Auto-capture' }).click();
   await expect(cam.getByRole('switch', { name: 'Auto-capture' })).toHaveAttribute('aria-checked', 'false');
   await page.waitForTimeout(4000);
-  await expect(cam.getByRole('button', { name: /Done \(\d+\)/ })).toHaveText(/Done \(2\)|Done \(3\)/); // at most one shot raced the click
-  const before = await cam.getByRole('button', { name: /Done \(\d+\)/ }).textContent();
+  await expect(cam.getByRole('button', { name: /Done · \d+/ })).toHaveText(/Done · 2|Done · 3/); // at most one shot raced the click
+  const before = await cam.getByRole('button', { name: /Done · \d+/ }).textContent();
   await page.waitForTimeout(6000);
-  await expect(cam.getByRole('button', { name: /Done \(\d+\)/ })).toHaveText(before!);
+  await expect(cam.getByRole('button', { name: /Done · \d+/ })).toHaveText(before!);
   expect(await page.evaluate(() => localStorage.getItem('pdf-scanner.auto'))).toBe('off');
 });
 
