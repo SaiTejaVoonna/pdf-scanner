@@ -1,6 +1,7 @@
 import { safeFileName } from '../core/pdf';
 import { extractPages, pageCount, parseRanges } from '../core/split';
 import { zipStore } from '../core/zip';
+import { toolPage } from './toolPage';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 
 /** Keeps chosen pages of a PDF as a new PDF, or saves every page as its own file (in a ZIP). Nothing is re-rendered. */
@@ -41,8 +42,8 @@ export function openSplit(): void {
       finally { go.disabled = false; }
     });
     const modeChips = chips([{ id: 'keep' as const, label: 'Keep some pages' }, { id: 'each' as const, label: 'Every page on its own' }], mode, (id) => { mode = id; pagesField.hidden = id !== 'keep'; });
-    return h('div', { class: 'dlg' }, h('h2', {}, 'Split PDF'), picker,
+    return toolPage('Split PDF', close, picker,
       h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Choose PDF…')), info,
-      modeChips, pagesField, status, h('div', { class: 'row end' }, h('button', { class: 'btn', onclick: close }, 'Close'), go));
-  }, 'Split PDF');
+      modeChips, pagesField, status, h('div', { class: 'row end' }, go));
+  }, 'Split PDF').classList.add('full');
 }

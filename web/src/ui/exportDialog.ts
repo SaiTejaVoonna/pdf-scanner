@@ -1,5 +1,5 @@
 import { buildPdf, defaultName, pdfOverheadBytes, PAGE_SIZES, pickQualityForTarget, QUALITIES, safeFileName, type PageSizeName, type QualityName } from '../core/pdf';
-import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
+import { chips, download, formatBytes, h, openSheet, toast } from '../dom';
 import { canvasToBlob, renderPage } from '../imaging';
 import { currentDoc, recordExport, state } from '../store';
 import { icon } from './icons';
@@ -28,15 +28,16 @@ export function openExport(): void {
   let estimating = true; // stops as soon as the real export starts, so two full renders never run at once
   const estimates: Partial<Record<QualityName, number>> = {};
 
-  openDialog((close) => {
+  openSheet((close) => {
     const input = h('input', { type: 'text', value: name, maxlength: '100', oninput: () => { name = input.value; } });
     const target = h('input', { type: 'number', min: '0.05', step: '0.1', inputmode: 'decimal', placeholder: 'e.g. 2', 'aria-describedby': 'size-hint' });
     const progress = h('progress', { max: '1', value: '0', hidden: true, 'aria-label': 'Export progress' });
     const status = h('div', { class: 'hint', role: 'status' });
     const sizeHint = h('div', { class: 'hint', id: 'size-hint', role: 'status' }, 'Calculating file sizes…');
-    const dl = h('button', { class: 'btn primary wide' }, 'Create PDF');
-    const share = h('button', { class: 'btn wide' }, 'Share');
-    const cancel = h('button', { class: 'btn wide', onclick: close }, 'Keep scanning');
+    const dl = h('button', { class: 'btn primary' }, 'Create PDF');
+    const share = h('button', { class: 'btn' }, icon('share', 20), 'Share');
+    const cancel = h('button', { class: 'btn', style: 'border-color:transparent;background:transparent', onclick: close }, 'Keep scanning');
+    const saved = h('div', { class: 'saved', hidden: true, role: 'status' });
     const canShare = typeof navigator.share === 'function' && typeof navigator.canShare === 'function';
 
     // Quality cards that show the estimated size once it is known.
@@ -116,6 +117,7 @@ export function openExport(): void {
       try {
         const { bytes, file } = await build();
         status.textContent = `${file} · ${formatBytes(bytes.length)}`;
+        saved.hidden = false; saved.replaceChildren(h('div', { class: 'bigcheck' }, icon('check', 40)), h('strong', {}, 'PDF saved'), h('small', {}, `${file} · ${state.pages.length} pages · ${formatBytes(bytes.length)}`)); dl.textContent = 'Download again';
         recordExport(file.replace(/\.pdf$/i, ''), bytes, state.pages.length); // kept with the document, so it can be downloaded again
         if (action === 'share') {
           const f = new File([bytes as BlobPart], file, { type: 'application/pdf' });
@@ -131,19 +133,19 @@ export function openExport(): void {
     if (!canShare) share.hidden = true;
     const n = state.pages.length;
     status.textContent = '';
-    return h('div', { class: 'sheet' },
-      h('div', { class: 'sheet-body' },
-        h('button', { class: 'back', type: 'button', onclick: close }, icon('chevron-left', 22), 'Back'),
-        h('h2', {}, 'Ready to make your PDF'),
-        h('p', { class: 'hint lead' }, `${n} page${n === 1 ? '' : 's'}, saved on this device`),
-        strip,
-        h('h3', {}, 'Image quality'), qualityRow, sizeHint,
-        h('details', { class: 'more' }, h('summary', {}, 'More options'),
-          h('label', { class: 'field' }, 'File name', input),
+    return [
+      h('h2', {}, 'Make PDF', h('small', {}, `${n} page${n === 1 ? '' : 's'}, saved on this device`)),
+      saved, strip,
+      h('label', { class: 'field' }, 'File name', input),
+      h('h3', { class: 'lab', style: 'padding:12px 0 6px;margin:0' }, 'Image quality'), qualityRow, sizeHint,
+      h('details', { class: 'more' }, h('summary', {}, 'More options'),
+        h('div', { class: 'stack' },
           h('div', {}, h('div', { class: 'hint' }, 'Page size'), chips(PAGE_SIZES, size, (id) => { size = id; })),
           h('label', { class: 'field' }, 'Keep under (MB), optional', target),
-          h('p', { class: 'hint' }, 'We try to pick the best quality that fits. The final size is shown after the PDF is made, and if nothing fits you are told.')),
-        progress, status),
-      h('div', { class: 'sheet-actions' }, dl, share, cancel));
-  }, 'Export PDF', () => { closed = true; }).classList.add('sheetdlg');
+          h('p', { class: 'hint' }, 'We try to pick the best quality that fits. The final size is shown after the PDF is made, and if nothing fits you are told.'))),
+      progress, status,
+      h('div', { class: 'actions' }, share, dl),
+      h('div', { class: 'stack', style: 'margin-top:4px' }, cancel),
+    ];
+  }, 'Export PDF', () => { closed = true; });
 }

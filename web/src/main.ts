@@ -1,3 +1,4 @@
+import './camera.css';
 import './style.css';
 import { restore, setProtectedStorage } from './store';
 import { mountApp } from './ui/app';

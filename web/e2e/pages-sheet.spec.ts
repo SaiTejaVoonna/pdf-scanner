@@ -12,9 +12,9 @@ test('tap the pages thumbnail on the live camera: see the pages, move one, delet
   await expect(shutter).toBeEnabled();
   await page.waitForFunction(() => (document.querySelector('video') as HTMLVideoElement).videoWidth > 0);
   await shutter.click();
-  await expect(cam.getByRole('button', { name: 'Done (1)' })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Done · 1' })).toBeVisible();
   await shutter.click();
-  await expect(cam.getByRole('button', { name: 'Done (2)' })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Done · 2' })).toBeVisible();
   await cam.getByRole('button', { name: 'Show my pages' }).click();
   const sheet = cam.getByRole('region', { name: 'Your pages' });
   await expect(sheet).toBeVisible();

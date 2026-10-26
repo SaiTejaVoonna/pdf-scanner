@@ -1,6 +1,7 @@
 import { combinePdfs, pageCount, safeFileName } from '../core/pdf';
 import { download, formatBytes, h, openDialog, toast } from '../dom';
 import { icon } from './icons';
+import { toolPage } from './toolPage';
 
 interface Item { file: File; pages: number }
 
@@ -38,8 +39,8 @@ export function openCombine(): void {
       } catch (e) { toast(`Could not combine: ${(e as Error).message}`); status.textContent = 'Failed.'; }
       finally { go.disabled = items.length < 2; }
     });
-    return h('div', { class: 'dlg' }, h('h2', {}, 'Combine PDFs'), picker,
+    return toolPage('Combine PDFs', close, picker,
       h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Add PDFs…')),
-      h('label', { class: 'field' }, 'File name', nameInput), list, status, h('div', { class: 'row end' }, h('button', { class: 'btn', onclick: close }, 'Close'), go));
-  }, 'Combine PDFs');
+      h('label', { class: 'field' }, 'File name', nameInput), list, status, h('div', { class: 'row end' }, go));
+  }, 'Combine PDFs').classList.add('full');
 }

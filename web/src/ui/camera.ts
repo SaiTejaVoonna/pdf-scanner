@@ -1,17 +1,12 @@
 import { h, openDialog, toast } from '../dom';
 import { icon } from './icons';
 import { frameToSource } from '../imaging';
-import { movePage, removePages, state, subscribe, updateSettings, type CaptureMode, type PageModel } from '../store';
+import { movePage, removePages, state, subscribe, type CaptureMode, type PageModel } from '../store';
 import { thumbUrl } from './thumbs';
-import { ANCHOR_LEFT, ANCHOR_RIGHT } from '../core/anchor';
 import type { Quad } from '../core/geometry';
 import { LiveLoop } from '../live/loop';
-import { AutoTracker, MIN_SHARP_ABS, SPEEDS, type LiveState, type Speed } from '../live/tracker';
-
-const AUTO_KEY = 'pdf-scanner.auto', SPEED_KEY = 'pdf-scanner.autospeed';
-const readPref = (k: string): string | null => { try { return localStorage.getItem(k); } catch { return null; } };
-const writePref = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* private mode: the choice just isn't remembered */ } };
-const SPEED_ORDER: Speed[] = ['fast', 'normal', 'careful'];
+import { AutoTracker, MIN_SHARP_ABS, type LiveState } from '../live/tracker';
+import { getAuto, getSpeed, setAuto } from '../prefs';
 
 export interface CameraOptions {
   /** Current Single page / Book spread mode and a way to change it from the camera screen. */
@@ -20,6 +15,8 @@ export interface CameraOptions {
   onEditPage?: (p: PageModel) => void | Promise<void>;
   /** Called after the camera screen has closed. */
   onClosed?: () => void;
+  /** Offers the photo picker when the camera cannot be used. */
+  onImport?: () => void;
   /** One shot only (a retake): the camera closes after it. */
   single?: boolean;
 }
@@ -34,7 +31,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
   const video = h('video', { autoplay: true, playsinline: true, muted: true, 'aria-label': 'Camera preview' });
   const msg = h('div', { class: 'msg', hidden: true, role: 'alert' });
   const shutter = h('button', { class: 'shutter', 'aria-label': 'Capture page', disabled: true });
-  const done = h('button', { class: 'btn' }, 'Done');
+  const done = h('button', { class: 'cam-done dk', type: 'button' }, 'Done');
   const last = h('img', { class: 'last-shot', alt: '', hidden: true });
   const flash = h('div', { class: 'flash', 'aria-hidden': 'true' });
   let lastUrl = '';
@@ -48,11 +45,12 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     return { sx: (vw - sw) / 2, sy: (vh - sh) / 2, sw, sh };
   };
   const guide = h('div', { class: 'guide', 'aria-hidden': 'true' }, h('i'), h('i'), h('i'), h('i'));
-  const hint = h('div', { class: 'cam-hint', role: 'status' });
+  const hint = h('span', { class: 'cam-hint', role: 'status' });
+  const pill = h('button', { class: 'cam-pill dk', type: 'button', role: 'switch', 'aria-label': 'Auto-capture', title: 'Tap to turn auto-capture on or off' }, h('span', { class: 'dot' }), hint);
   const count = h('span', { class: 'shot-count' });
   const overlay = h('canvas', { class: 'live-overlay', 'aria-hidden': 'true' });
-  let auto = readPref(AUTO_KEY) !== 'off';
-  let speed: Speed = (SPEED_ORDER as string[]).includes(readPref(SPEED_KEY) ?? '') ? (readPref(SPEED_KEY) as Speed) : 'normal';
+  let auto = getAuto();
+  const speed = getSpeed();
   const tracker = new AutoTracker(speed);
   let live: LiveLoop | null = null;
   let liveState: LiveState = 'searching';
@@ -61,20 +59,11 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
   const spreadNote = h('div', { class: 'spread-note', role: 'status' });
   /** What the last live frame said about a found outline that is not a sure page. */
   let unsure: 'dark' | 'plain' | 'blank' | null = null;
-  let pinned: 'left' | 'right' | 'both' | null = null;
-  const linesBtn = h('button', { class: 'chip auto-toggle', type: 'button', role: 'switch', 'aria-label': 'Guide lines' }, 'Lines');
-  const autoBtn = h('button', { class: 'chip auto-toggle', type: 'button', role: 'switch', 'aria-label': 'Auto-capture' }, h('span', { class: 'dot' }), 'Auto');
-  const speedBtn = h('button', { class: 'chip auto-speed', type: 'button', 'aria-label': 'Auto-capture speed' });
   const paintAuto = () => {
-    autoBtn.setAttribute('aria-checked', String(auto));
-    speedBtn.hidden = !auto;
-    const single = (opts.mode?.get() ?? 'single') !== 'spread' && !opts.single;
-    linesBtn.hidden = !single;
-    linesBtn.setAttribute('aria-checked', String(state.settings.guideLines));
-    speedBtn.textContent = SPEEDS[speed].label;
+    pill.setAttribute('aria-checked', String(auto));
     if (!auto) paint();
   };
-  const paintCount = () => { const n = state.pages.length; count.textContent = n ? `${n} page${n === 1 ? '' : 's'}` : ''; };
+  const paintCount = () => { const n = state.pages.length; count.textContent = n ? String(n) : ''; count.hidden = !n; };
   const paint = () => {
     const m = opts.mode?.get() ?? 'single';
     guide.className = `guide ${m}`;
@@ -92,15 +81,23 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       else if (liveState === 'steady') text = spread ? 'Both pages found. Hold steady…' : 'Hold steady…';
     }
     hint.textContent = text;
-    hint.classList.toggle('cam-warn', warn);
+    pill.dataset.tone = warn ? 'warn' : auto && (liveState === 'steady' || liveState === 'cooldown') ? 'ok' : 'idle';
     const a = state.pages.length + 1;
     spreadNote.hidden = !spread;
     spreadNote.textContent = `Spread ${(state.spreads?.length ?? 0) + 1} · will be pages ${a} & ${a + 1}`;
     segs.forEach(([id, b]) => b.setAttribute('aria-checked', String(id === m)));
     if (live) live.mode = m;
   };
-  const segs = opts.mode && !opts.single ? (['single', 'spread'] as const).map((id) => [id, h('button', { class: 'chip', role: 'radio', type: 'button', onclick: () => { opts.mode!.set(id); tracker.reset(); pinned = null; unsure = null; paint(); paintAuto(); if (live) live.mode = id; redraw(); } }, id === 'single' ? 'Single page' : 'Book spread')] as const) : [];
-  const modeBar = h('div', { class: 'chips cam-modes', role: 'radiogroup', 'aria-label': 'Capture mode' }, ...segs.map(([, b]) => b));
+  const segs = opts.mode && !opts.single ? (['single', 'spread'] as const).map((id) => [id, h('button', { role: 'radio', type: 'button', 'aria-label': id === 'single' ? 'Single page' : 'Book spread', onclick: () => { opts.mode!.set(id); tracker.reset(); unsure = null; paint(); paintAuto(); if (live) live.mode = id; redraw(); } }, icon(id, 20))] as const) : [];
+  const modeBar = h('div', { class: 'cam-seg dk', role: 'radiogroup', 'aria-label': 'Capture mode' }, ...segs.map(([, b]) => b));
+  const flashBtn = h('button', { class: 'cam-circle dk', type: 'button', 'aria-label': 'Flashlight', 'aria-pressed': 'false', hidden: true }, icon('bolt', 20));
+  let torchOn = false;
+  flashBtn.addEventListener('click', async () => {
+    const t = stream?.getVideoTracks()[0];
+    if (!t) return;
+    try { torchOn = !torchOn; await t.applyConstraints({ advanced: [{ torch: torchOn } as MediaTrackConstraintSet] }); flashBtn.setAttribute('aria-pressed', String(torchOn)); }
+    catch { torchOn = false; flashBtn.setAttribute('aria-pressed', 'false'); toast('The flashlight is not available on this camera.'); }
+  });
   const stop = () => stream?.getTracks().forEach((t) => t.stop());
   // Page count and "will be pages N & M" follow the page list, so Undo (or anything else) is reflected here at once.
   const unsubscribe = subscribe(() => { paintCount(); paint(); paintSheet(); });
@@ -139,9 +136,9 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
         const v = viewRect() ?? { sx: 0, sy: 0, sw: video.videoWidth, sh: video.videoHeight };
         const { blob, w, h: ph, sharp } = await frameToSource(video, v);
         const before = state.pages.length;
-        await onShot(blob, { foldOnGuide: opts.mode?.get() === 'spread' && !opts.single, anchored: opts.mode?.get() !== 'spread' && !opts.single && state.settings.guideLines, w, h: ph });
+        await onShot(blob, { foldOnGuide: opts.mode?.get() === 'spread' && !opts.single, anchored: false, w, h: ph });
         shots++;
-        done.textContent = `Done (${shots})`;
+        done.textContent = `Done · ${shots}`;
         if (lastUrl) URL.revokeObjectURL(lastUrl);
         lastUrl = URL.createObjectURL(blob);
         last.src = lastUrl; last.alt = `Last captured page (page ${shots} of this session)`; last.hidden = false;
@@ -157,23 +154,17 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     };
     capturePage = capture;
     shutter.addEventListener('click', capture);
-    autoBtn.addEventListener('click', () => {
-      auto = !auto; writePref(AUTO_KEY, auto ? 'on' : 'off');
+    pill.addEventListener('click', () => {
+      auto = !auto; setAuto(auto);
       tracker.reset(); liveState = 'searching'; drawQuad(null, 'searching', 0); paintAuto(); paint(); startLive();
     });
-    speedBtn.addEventListener('click', () => {
-      speed = SPEED_ORDER[(SPEED_ORDER.indexOf(speed) + 1) % SPEED_ORDER.length];
-      tracker.speed = speed; writePref(SPEED_KEY, speed); paintAuto();
-    });
-    linesBtn.addEventListener('click', () => { updateSettings({ guideLines: !state.settings.guideLines }); if (live) live.anchors = state.settings.guideLines; pinned = null; paintAuto(); redraw(); });
     paintAuto();
     paint();
     paintCount();
     return h('div', { class: 'camera' },
-      h('div', { class: 'cam-top' }, h('button', { class: 'cam-close', type: 'button', 'aria-label': 'Close', onclick: close }, icon('close', 20)), modeBar),
-      h('div', { class: 'cam-auto' }, autoBtn, speedBtn, linesBtn),
-      hint, spreadNote,
       h('div', { class: 'cam-stage' }, video, overlay, guide, flash),
+      h('div', { class: 'cam-top' }, h('button', { class: 'cam-circle dk', type: 'button', 'aria-label': 'Close', onclick: close }, icon('close', 20)), modeBar, flashBtn),
+      h('div', { class: 'cam-status' }, pill, spreadNote),
       msg, sheet,
       h('div', { class: 'controls' }, pagesBtn, shutter, done));
   }, 'Camera', () => { unsubscribe(); live?.stop(); stop(); if (lastUrl) URL.revokeObjectURL(lastUrl); opts.onClosed?.(); });
@@ -191,16 +182,6 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     if (!video.videoWidth) return;
     // The overlay covers the same box as the (cover-fitted) preview, so normalized coordinates map straight onto it.
     const pt = (p: { x: number; y: number }) => [p.x * cw, p.y * ch] as const;
-    // Dark core with white edges, so a line stays visible on bright pages and dark desks alike.
-    const stroke = (a: readonly [number, number], b: readonly [number, number], w: number, c: string) => { g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.lineWidth = w; g.strokeStyle = c; g.lineCap = 'butt'; g.stroke(); };
-    const single = (opts.mode?.get() ?? 'single') !== 'spread' && !opts.single;
-    if (single && state.settings.guideLines) {
-      for (const [x, side] of [[ANCHOR_LEFT, 'left'], [ANCHOR_RIGHT, 'right']] as const) {
-        const on = pinned === side || pinned === 'both';
-        const a = pt({ x, y: 0.14 }), b = pt({ x, y: 0.86 });
-        stroke(a, b, on ? 9 : 7, on ? '#34c759' : '#fff'); stroke(a, b, on ? 5 : 3, '#0b0c10');
-      }
-    }
     if (!q) return;
     g.beginPath();
     q.forEach((p, i) => { const [x, y] = pt(p); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
@@ -212,7 +193,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
   const redraw = () => drawQuad(null, 'searching', 0);
   const startLive = () => {
     live?.stop(); live = null;
-    pinned = null; unsure = null;
+    unsure = null;
     if (!auto || !stream) { redraw(); return; }
     live = new LiveLoop(video, viewRect, (r) => {
       const spread = live!.mode === 'spread' && !opts.single;
@@ -223,18 +204,22 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       const covered = sheetOpen || [...document.querySelectorAll('dialog[open]')].pop() !== dialog;
       const res = tracker.push({ t: r.t, quad: sure && !covered ? r.quad : null, sharp: r.sharp });
       const nextUnsure = r.quad && !r.sure && !(spread && seen === 'one') ? r.why : !r.quad && r.why === 'dark' ? 'dark' : null;
-      if (res.state !== liveState || seen !== spreadSeen || nextUnsure !== unsure || r.anchor !== pinned) { liveState = res.state; spreadSeen = seen; unsure = nextUnsure; pinned = r.anchor; paint(); }
+      if (res.state !== liveState || seen !== spreadSeen || nextUnsure !== unsure) { liveState = res.state; spreadSeen = seen; unsure = nextUnsure; paint(); }
       drawQuad(r.quad, res.state, res.progress, !r.quad ? undefined : sure ? 'sure' : 'unsure');
       shutter.style.setProperty('--p', String(res.state === 'steady' ? res.progress : 0));
       overlay.dataset.state = res.state;
       if (res.fire) void capturePage();
     }, () => { auto = false; live = null; paintAuto(); toast('Auto-capture is not available on this device. Use the shutter button.'); });
     live.mode = opts.mode?.get() ?? 'single';
-    live.anchors = state.settings.guideLines;
+    live.anchors = false;
     live.start();
   };
-  const fail = (text: string) => { msg.hidden = false; msg.textContent = text; shutter.disabled = true;
-    msg.append(' ', h('button', { class: 'btn', onclick: () => { dialog.close(); fallback(); } }, 'Use phone camera instead')); };
+  const fail = (text: string) => {
+    msg.hidden = false; msg.classList.add('blocked'); shutter.disabled = true;
+    msg.replaceChildren(h('span', { class: 'cam-circle dk big', 'aria-hidden': 'true' }, icon('camera', 34)), h('strong', {}, 'Camera is blocked'), h('p', {}, text),
+      h('button', { class: 'btn primary', type: 'button', onclick: () => { dialog.close(); fallback(); } }, 'Use phone camera instead'));
+    if (opts.onImport) msg.append(h('button', { class: 'btn', type: 'button', onclick: () => { dialog.close(); opts.onImport!(); } }, 'Import photos'));
+  };
 
   if (!navigator.mediaDevices?.getUserMedia) { fail('This browser cannot open the camera here (it needs a secure https page).'); return; }
   const startStream = () => navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false })
@@ -244,6 +229,8 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       if (!dialog.open) { stop(); return; }
       // The shutter only works once the first frame has arrived (a tap before that would silently do nothing).
       video.addEventListener('loadeddata', () => { shutter.disabled = false; }, { once: true });
+      const caps = s.getVideoTracks()[0]?.getCapabilities?.() as (MediaTrackCapabilities & { torch?: boolean }) | undefined;
+      flashBtn.hidden = !caps?.torch;
       startLive();
     })
     .catch((e: DOMException) => fail(e.name === 'NotAllowedError' ? 'Camera access was denied. Allow it in the browser settings, or use the phone camera.' : 'The camera could not be started.'));

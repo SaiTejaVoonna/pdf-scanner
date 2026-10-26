@@ -17,7 +17,7 @@ test.use({ launchOptions: { executablePath, args: args(video) } });
 test('both pages and the fold are found, the capture adds pages 1 & 2 without a review screen, and Undo removes them', async ({ page }) => {
   const cam = await openSpreadCamera(page);
   await expect(cam.getByText('Spread 1 · will be pages 1 & 2')).toBeVisible();
-  await expect(cam.getByRole('button', { name: 'Done (1)' })).toBeVisible({ timeout: 25_000 });
+  await expect(cam.getByRole('button', { name: 'Done · 1' })).toBeVisible({ timeout: 25_000 });
   await expect(cam.getByText(/Pages 1 & 2 added/)).toBeVisible();
   await expect(page.getByRole('dialog', { name: /Review spread/ })).toHaveCount(0);
   await expect(cam.getByText('Spread 2 · will be pages 3 & 4')).toBeVisible();
@@ -30,7 +30,7 @@ test('both pages and the fold are found, the capture adds pages 1 & 2 without a 
 
 test('the capture is kept as two pages, left then right, in the page list', async ({ page }) => {
   const cam = await openSpreadCamera(page);
-  await expect(cam.getByRole('button', { name: 'Done (1)' })).toBeVisible({ timeout: 25_000 });
+  await expect(cam.getByRole('button', { name: 'Done · 1' })).toBeVisible({ timeout: 25_000 });
   await cam.getByRole('switch', { name: 'Auto-capture' }).click(); // stop further captures while we look
   await cam.getByRole('button', { name: /Done/ }).click();
   const items = page.getByRole('list', { name: 'Pages' }).locator('li');

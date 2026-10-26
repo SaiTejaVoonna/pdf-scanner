@@ -40,6 +40,39 @@ export function openDialog(build: (close: () => void) => HTMLElement, label: str
   return dialog;
 }
 
+/**
+ * A bottom sheet (menus and small tasks): a frosted card that slides up on a phone and sits in the middle on a wide screen.
+ * `build` returns what goes inside; tapping the dimmed area closes it.
+ */
+export function openSheet(build: (close: () => void) => Node | Node[], label: string, onClosed?: () => void): HTMLDialogElement {
+  const dialog = h('dialog', { class: 'sheetdlg', 'aria-label': label });
+  const close = () => dialog.close();
+  const sheet = h('div', { class: 'sheet', tabindex: '-1', autofocus: true }, h('div', { class: 'grab', 'aria-hidden': 'true' }));
+  const content = build(close);
+  sheet.append(...(Array.isArray(content) ? content : [content]));
+  dialog.append(sheet);
+  dialog.addEventListener('click', (e) => { if (e.target === dialog) dialog.close(); });
+  dialog.addEventListener('close', () => { dialog.remove(); onClosed?.(); });
+  document.body.append(dialog);
+  dialog.showModal();
+  return dialog;
+}
+
+/** One tappable row of a sheet: an icon, a label, and what happens (the sheet closes first). */
+export function sheetItem(icon: Node, label: string, run: () => void, close: () => void, danger = false): HTMLButtonElement {
+  return h('button', { class: `item${danger ? ' danger' : ''}`, type: 'button', onclick: () => { close(); run(); } }, icon, label);
+}
+
+/** Shares a file with the phone's share sheet where the browser allows it; otherwise saves it. */
+export async function shareFile(blob: Blob, filename: string): Promise<void> {
+  const file = new File([blob], filename, { type: blob.type || 'application/pdf' });
+  try {
+    if (typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: filename }); return; }
+  } catch (e) { if ((e as DOMException).name === 'AbortError') return; }
+  download(blob, filename, blob.type);
+  toast('Sharing files is not supported here, so the PDF was saved instead.');
+}
+
 export function chips<T extends string>(items: { id: T; label: string }[], current: T, onPick: (id: T) => void, disabled = false): HTMLElement {
   const wrap = h('div', { class: 'chips', role: 'radiogroup' });
   const buttons = items.map((it) => {

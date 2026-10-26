@@ -22,11 +22,11 @@ test.beforeEach(async ({ page }) => {
 
 async function openTool(page: import('@playwright/test').Page, name: string) {
   await page.getByRole('button', { name: 'Tools', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Tools' }).getByRole('button', { name }).click();
+  await page.getByRole('button', { name: new RegExp(`^${name}`) }).click();
 }
 
 test('starts empty, with the privacy-friendly basics in place', async ({ page }) => {
-  await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'PDFs', exact: true })).toBeVisible();
   await expect(page.getByText('No PDFs yet')).toBeVisible();
   await expect(page.getByRole('button', { name: /Make PDF/ })).toBeHidden();
   // The app never talks to another origin.
@@ -52,7 +52,7 @@ test('imports images, edits a page, reorders, and exports a valid multipage PDF'
   await tl.focus(); await page.keyboard.press('ArrowRight');
   await expect.poll(async () => (await tl.boundingBox())!.x).toBeGreaterThan(x0);
   // Enhance tab: pick a filter and rotate.
-  await editor.getByRole('tab', { name: 'Enhance' }).click();
+  await editor.getByRole('button', { name: 'Look' }).click();
   await editor.getByRole('radio', { name: 'Black & white' }).click();
   await editor.getByRole('button', { name: 'Rotate right' }).click();
   await expect(editor.getByRole('img', { name: 'Preview of the corrected page' })).toBeVisible();
@@ -107,10 +107,9 @@ test('selection mode applies bulk actions to the selected pages only', async ({ 
   await expect(page.getByRole('status').filter({ hasText: '1 selected' })).toBeVisible();
   await page.getByRole('button', { name: 'Select page 3' }).click(); // thumb toggles in selection mode
   await expect(page.getByRole('status').filter({ hasText: '2 selected' })).toBeVisible();
-  await page.getByLabel('Filter for selected pages').selectOption('enhanced');
+  await page.getByRole('button', { name: 'Filter' }).click();
+  await page.getByRole('dialog', { name: 'Filter for selected pages' }).getByRole('button', { name: 'Enhanced' }).click();
   await page.getByRole('button', { name: 'Rotate' }).click();
-  await page.getByRole('button', { name: 'Delete' }).click({ trial: true });
-  page.once('dialog', (d) => d.accept());
   await page.getByRole('button', { name: 'Delete' }).click();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(1);
   await expect(page.getByRole('button', { name: /Make PDF/ })).toBeVisible();
@@ -131,15 +130,14 @@ test('scans are kept across a reload', async ({ page }) => {
   await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await expect(page.getByText('No PDFs yet')).toBeVisible();
   await page.getByRole('button', { name: 'Undo' }).click(); // a delete can always be undone
-  await expect(page.locator('.draft-banner')).toHaveCount(1);
+  await expect(page.getByRole('button', { name: 'Open draft' })).toHaveCount(1);
 });
 
 test('settings are stored and auto-crop on import crops the page', async ({ page }) => {
-  await page.getByRole('button', { name: 'Settings' }).click();
-  const s = page.getByRole('dialog', { name: 'Settings' });
-  await s.getByLabel('Auto-crop imported images').check();
-  await s.getByRole('radio', { name: 'Enhanced' }).click();
-  await s.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Settings', exact: true }).click();
+  await page.getByLabel('Auto-crop imported images').check();
+  await page.getByRole('radio', { name: 'Enhanced' }).click();
+  await page.getByRole('button', { name: 'PDFs', exact: true }).click();
   await importImages(page, 1);
   await firstPageCropped(page); // the crop is found in the background after the photo is added
   await page.getByRole('button', { name: 'Edit page 1' }).click();
@@ -163,9 +161,9 @@ test('live camera captures pages (fake camera) and shows a clear message if bloc
   await expect(shutter).toBeEnabled();
   await page.waitForFunction(() => (document.querySelector('video') as HTMLVideoElement).videoWidth > 0);
   await shutter.click();
-  await expect(cam.getByRole('button', { name: 'Done (1)' })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Done · 1' })).toBeVisible();
   await shutter.click();
-  await expect(cam.getByRole('button', { name: 'Done (2)' })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Done · 2' })).toBeVisible();
   await cam.getByRole('button', { name: /Done/ }).click();
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(2);
 });
@@ -206,7 +204,7 @@ test('works offline after the first visit (service worker)', async ({ page, cont
   await page.waitForFunction(async () => (await caches.keys()).length > 0 && (await (await caches.open((await caches.keys())[0])).keys()).length >= 3);
   await context.setOffline(true);
   await page.reload();
-  await expect(page.getByRole('heading', { name: /PDF Scanner/ })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'PDFs', exact: true })).toBeVisible();
   await importImages(page, 1);
   await page.getByRole('button', { name: /Make PDF/ }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Create PDF' }).click()]);
@@ -304,13 +302,15 @@ test('combine lets you name the output file', async ({ page }) => {
   expect((await dl).suggestedFilename()).toBe('Lab report.pdf');
 });
 
-test('home has three ways in (Scan, Import, Tools); Compress PDF is not offered because the feature does not exist', async ({ page }) => {
+test('home has the Scan button, Import, and three places (PDFs, Tools, Settings); Compress PDF is only a tool', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 780 });
   await expect(page.getByRole('button', { name: 'Scan pages', exact: true })).toBeInViewport();
-  const entry = page.getByRole('group', { name: 'Start' });
-  for (const t of ['Scan pages', 'Import images', 'Tools']) await expect(entry.getByRole('button', { name: t })).toBeInViewport();
+  await expect(page.getByRole('button', { name: 'Import images' })).toBeInViewport();
+  const dock = page.getByRole('navigation', { name: 'Main' }).last();
+  for (const t of ['PDFs', 'Tools', 'Settings']) await expect(dock.getByRole('button', { name: t })).toBeInViewport();
   await expect(page.getByRole('button', { name: /Compress PDF/ })).toHaveCount(0);
-  await expect(page.getByText('Private, saved on this device')).toBeVisible();
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await expect(page.getByRole('button', { name: /^Compress PDF/ })).toBeVisible();
 });
 
 test('make-PDF sheet shows page count, thumbnails and quality cards; Keep scanning goes back without losing pages', async ({ page }) => {
@@ -318,7 +318,7 @@ test('make-PDF sheet shows page count, thumbnails and quality cards; Keep scanni
   await importImages(page, 3);
   await page.getByRole('button', { name: /Make PDF \(3\)/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Export PDF' });
-  await expect(dlg.getByRole('heading', { name: 'Ready to make your PDF' })).toBeVisible();
+  await expect(dlg.getByRole('heading', { name: /^Make PDF/ })).toBeVisible();
   await expect(dlg.getByText('3 pages, saved on this device')).toBeVisible();
   await expect(dlg.getByRole('list', { name: 'Pages in the PDF' }).locator('li')).toHaveCount(3);
   await expect(dlg.getByRole('radio')).toHaveCount(4);
@@ -339,6 +339,6 @@ test('camera screen is honest: a framing guide and mode switch, no claim of live
   await cam.getByRole('radio', { name: 'Book spread' }).click();
   await expect(cam.getByText('Fit both pages in the frame')).toBeVisible();
   await expect(cam.getByText(/detected/i)).toHaveCount(0);
-  await expect(cam.getByText('1 page', { exact: true })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Show my pages' })).toContainText('1');
   await expect(cam.getByRole('button', { name: 'Close' })).toBeVisible();
 });

@@ -3,10 +3,10 @@ import { FILTERS, type FilterName } from '../core/filters';
 import { cloneQuad, clamp01, isValidCrop, type Pt, type Quad } from '../core/geometry';
 import type { Img } from '../core/image';
 import { boundaryInk, findGutter, gutterPoints, isValidSpread, splitSpread, turnOuter, type SpreadGeometry } from '../core/spread';
-import { chips, h, openDialog, toast } from '../dom';
+import { h, openDialog, toast } from '../dom';
 import { decode } from '../imaging';
 import * as store from '../store';
-import { icon } from './icons';
+import { icon, type IconName } from './icons';
 
 export interface SpreadDraftData {
   geo: SpreadGeometry; independent: boolean; left: Quad; right: Quad; filter: FilterName; confirmed: boolean;
@@ -56,10 +56,9 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     const stageInner = h('div', { class: 'stage-inner' });
     const banner = h('div', { class: 'warn', role: 'status' });
     const stage = h('div', { class: 'stage' }, stageInner, banner);
-    const apply = h('button', { class: 'btn primary', disabled: true }, o.mode === 'retake' ? 'Replace' : 'Apply');
-    const confirmBtn = h('button', { class: 'btn' }, 'Confirm split');
-    const modeBtn = h('button', { class: 'btn', 'aria-pressed': 'false' });
-    const sub = h('p', { class: 'hint' });
+    const apply = h('button', { class: 'txt-btn strong', type: 'button', disabled: true }, o.mode === 'retake' ? 'Replace' : 'Apply');
+    const tools = h('div', { class: 'tools4' });
+    const filterRow = h('div', { class: 'flt', role: 'radiogroup', 'aria-label': 'Look' });
 
     const halves = (): [Quad, Quad] => (independent ? [left, right] : splitSpread(geo));
     const valid = () => (independent ? isValidCrop(left, 0.005) && isValidCrop(right, 0.005) : isValidSpread(geo));
@@ -94,10 +93,25 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       banner.replaceChildren(...w.slice(0, 2).map((t) => { const [text, tip] = t.split('|'); return h('div', { title: tip }, text); }));
       banner.classList.toggle('on', w.length > 0);
       apply.disabled = !valid() || (!confirmed && o.mode !== 'edit');
-      confirmBtn.hidden = confirmed || o.mode === 'edit';
-      modeBtn.textContent = independent ? 'Link pages to the spread' : 'Adjust each page';
-      modeBtn.setAttribute('aria-pressed', String(independent));
-      sub.textContent = independent ? 'Each page has its own four corners.' : 'Drag the corners. Slide the two centre handles along the fold.';
+      paintTools();
+    }
+    const toolBtn = (ic: IconName, label: string, aria: string, on: boolean, run: () => void) =>
+      h('button', { type: 'button', class: on ? 'on' : '', 'aria-label': aria, 'aria-pressed': String(on), onclick: run }, h('i', {}, icon(ic, 22)), label);
+    function paintTools() {
+      tools.replaceChildren(
+        ...[toolBtn('wand', 'Auto', 'Auto-detect', false, autoDetect),
+        toolBtn('rotate', 'Rotate', 'Rotate spread', false, rotateSpread),
+        toolBtn(independent ? 'spread' : 'pages', independent ? 'Link pages' : 'Each page', independent ? 'Link pages to the spread' : 'Adjust each page', independent, toggleIndependent),
+        confirmed || o.mode === 'edit' ? null : toolBtn('check-circle', 'Confirm', 'Confirm split', false, confirmSplit)].filter(Boolean) as HTMLElement[]);
+    }
+    const FILTER_SWATCH: Record<string, string> = { original: '#cfc9b8', enhanced: '#f2efe3', grayscale: '#aaa', bw: '#fff' };
+    function paintFilters() {
+      filterRow.replaceChildren(...FILTERS.map((f) => {
+        const b = h('button', { type: 'button', class: f.id === filter ? 'on' : '', role: 'radio', 'aria-checked': String(f.id === filter), 'aria-label': f.label,
+          onclick: () => { filter = f.id; saveDraft(); paintFilters(); } },
+          h('div', { class: 't', style: `background:${FILTER_SWATCH[f.id] ?? '#ccc'}` }), h('span', {}, f.label));
+        return b;
+      }));
     }
 
     const fit = () => ({ maxW: Math.max(100, stage.clientWidth - 24), maxH: Math.max(100, stage.clientHeight - 24) });
@@ -180,27 +194,26 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     }
 
     // ---- toolbar actions
-    modeBtn.addEventListener('click', () => {
+    const toggleIndependent = () => {
       if (!independent) { [left, right] = splitSpread(geo).map(cloneQuad) as [Quad, Quad]; independent = true; }
       else { independent = false; }
       confirmed = true; layout(); refresh(); saveDraft();
-    });
-    confirmBtn.addEventListener('click', () => { confirmed = true; refresh(); saveDraft(); });
-    const autoBtn = h('button', { class: 'btn', onclick: () => {
+    };
+    const confirmSplit = () => { confirmed = true; refresh(); saveDraft(); };
+    const autoDetect = () => {
       if (!analysis) return;
       const d = detectSpread(analysis);
       geo = { outer: d.outer, tTop: d.tTop, tBottom: d.tBottom };
       independent = false; confirmed = !d.uncertain; layout(); refresh(); saveDraft();
       toast(d.uncertain ? 'Found the pages but not the fold. Place the fold handles and confirm.' : 'Detected the spread.');
-    } }, 'Auto-detect');
-    const rotateBtn = h('button', { class: 'btn', 'aria-label': 'Rotate spread', onclick: () => {
+    };
+    const rotateSpread = () => {
       if (!analysis) return;
       const outer = turnOuter(geo.outer, 1);
       const g = findGutter(analysis, outer);
       geo = { outer, tTop: g.tTop, tBottom: g.tBottom };
       independent = false; confirmed = g.confident; layout(); refresh(); saveDraft();
-    } }, icon('rotate', 20), ' Rotate');
-    const filterChips = chips(FILTERS, filter, (id) => { filter = id; saveDraft(); });
+    };
 
     const finish = (ok: boolean) => {
       window.clearTimeout(draftTimer);
@@ -224,10 +237,10 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     const dlg = openDialog((close) => {
       void close;
       return h('div', { class: 'editor' },
-        h('div', { class: 'head' }, h('button', { class: 'icon-btn', 'aria-label': 'Cancel', onclick: () => { if (!applied) finish(false); } }, icon('arrow-left')),
-          h('h2', {}, o.mode === 'retake' ? 'Retake spread' : o.mode === 'edit' ? 'Edit spread' : 'Review spread'), apply),
+        h('div', { class: 'nav' }, h('button', { class: 'txt-btn', type: 'button', 'aria-label': 'Cancel', onclick: () => { if (!applied) finish(false); } }, 'Cancel'),
+          h('div', { class: 'titles' }, h('strong', {}, o.mode === 'retake' ? 'Retake spread' : o.mode === 'edit' ? 'Edit spread' : 'Review spread')), apply),
         stage,
-        h('div', { class: 'tools' }, sub, h('div', { class: 'row ed-tools' }, autoBtn, rotateBtn, modeBtn, confirmBtn), filterChips));
+        h('div', { class: 'bottomtools' }, tools, filterRow));
     }, 'Review spread', () => { bitmap?.close(); watch.disconnect(); window.removeEventListener('app-flush-drafts', persistDraft); window.clearTimeout(draftTimer); if (!applied) resolve(false); });
     window.addEventListener('app-flush-drafts', persistDraft);
     dlg.classList.add('full');
@@ -251,6 +264,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
         layout(); refresh();
       } catch { toast('This image could not be opened.'); finish(false); }
     })();
+    paintFilters();
     refresh();
   });
 }

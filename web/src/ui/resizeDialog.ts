@@ -4,6 +4,7 @@ import { zipStore } from '../core/zip';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { canvasToBlob, decode } from '../imaging';
 import { icon } from './icons';
+import { toolPage } from './toolPage';
 
 interface Item { file: File; w: number; h: number }
 interface Result { name: string; blob: Blob; w: number; h: number; before: number; note?: string }
@@ -167,13 +168,13 @@ export function openResize(): void {
       dpiField, h('div', { class: 'field' }, h('span', {}, 'If the shape differs'), fitChips));
     const modeChips = chips([{ id: 'side' as const, label: 'Longest side' }, { id: 'exact' as const, label: 'Exact size' }], mode, (id) => { mode = id; sideBox.hidden = id !== 'side'; exactBox.hidden = id !== 'exact'; });
     const formatChips = chips([{ id: 'jpeg' as const, label: 'JPEG (smaller)' }, { id: 'png' as const, label: 'PNG' }], format, (id) => { format = id; });
-    return h('div', { class: 'dlg' }, h('h2', {}, 'Resize photo'), picker,
+    return toolPage('Resize photo', close, picker,
       h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Add images…')),
       list, modeChips, sideBox, exactBox,
       h('div', { class: 'field' }, h('span', {}, 'Format'), formatChips),
       h('div', { class: 'row size-row' }, h('label', { class: 'field' }, 'Largest file (KB)', maxKb), h('label', { class: 'field' }, 'Smallest file (KB)', minKb)),
       h('div', { class: 'hint', id: 'rs-hint' }, 'For upload forms with limits. Quality is lowered just enough; in "Longest side" mode the picture is also made smaller if needed. An exact size is never changed. A smallest size is reached by adding harmless metadata to a JPEG.'),
       status, resultList,
-      h('div', { class: 'row end' }, h('button', { class: 'btn', onclick: close }, 'Close'), zipBtn, go));
-  }, 'Resize photo');
+      h('div', { class: 'row end' }, zipBtn, go));
+  }, 'Resize photo').classList.add('full');
 }

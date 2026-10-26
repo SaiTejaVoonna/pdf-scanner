@@ -28,7 +28,7 @@ test('auto-capture is on by default, fires once per page, never twice for the sa
   const stamps: number[] = [];
   const t0 = Date.now();
   for (const n of [1, 2]) {
-    await expect(cam.getByRole('button', { name: `Done (${n})` })).toBeVisible({ timeout: 25_000 });
+    await expect(cam.getByRole('button', { name: `Done · ${n}` })).toBeVisible({ timeout: 25_000 });
     stamps.push(Date.now() - t0);
   }
   // The two pages are separated by empty desk, so the shots must be well apart: no duplicate of one page.
@@ -53,7 +53,7 @@ test('the shutter still works with auto-capture off, and a manual shot is never 
   await expect(cam.getByRole('button', { name: 'Capture page' })).toBeEnabled();
   await cam.getByRole('button', { name: 'Capture page' }).click();
   await page.waitForTimeout(3000);
-  await expect(cam.getByRole('button', { name: 'Done (1)' })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Done · 1' })).toBeVisible();
   await page.waitForTimeout(3000);
-  await expect(cam.getByRole('button', { name: 'Done (1)' })).toBeVisible();
+  await expect(cam.getByRole('button', { name: 'Done · 1' })).toBeVisible();
 });

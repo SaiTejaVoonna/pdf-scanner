@@ -33,11 +33,11 @@ export interface Doc {
   deletedAt?: number;
 }
 export type CaptureMode = 'single' | 'spread';
-export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode; /** Right-to-left books: the right page of a spread comes first. */ bookRtl: boolean; /** Two guide lines on the single-page camera; the edge on a line is the page's anchor. */ guideLines: boolean }
+export interface Settings { autoCropCamera: boolean; autoCropImport: boolean; defaultFilter: 'original' | 'enhanced'; captureMode: CaptureMode; /** Right-to-left books: the right page of a spread comes first. */ bookRtl: boolean }
 /** Unsaved editor state, kept so a reload or crash does not lose it. */
 export interface Draft { kind: 'page' | 'spread' | 'newSpread'; id: string; data: unknown; savedAt: number }
 
-const DEFAULT_SETTINGS: Settings = { autoCropCamera: true, autoCropImport: false, defaultFilter: 'original', captureMode: 'single', bookRtl: false, guideLines: false };
+const DEFAULT_SETTINGS: Settings = { autoCropCamera: true, autoCropImport: false, defaultFilter: 'original', captureMode: 'single', bookRtl: false };
 const SETTINGS_KEY = 'pdf-scanner.settings';
 
 type Listener = () => void;

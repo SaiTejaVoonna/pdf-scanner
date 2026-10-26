@@ -7,14 +7,17 @@ const MAP = {
   'arrow-left': 'arrow_back', 'arrow-up': 'arrow_upward', 'arrow-down': 'arrow_downward', close: 'close', check: 'check', plus: 'add', minus: 'remove',
   rotate: 'rotate_right', compress: 'compress', split: 'call_split', share: 'share', download: 'download', pdf: 'picture_as_pdf', edit: 'edit',
   warning: 'warning', search: 'search', tools: 'build', folder: 'folder', undo: 'undo', crop: 'crop', cloud: 'cloud', info: 'info',
+  tune: 'tune', wand: 'auto_fix_high', book: 'menu_book', single: 'crop_portrait', spread: 'auto_stories', bolt: 'bolt', 'check-circle': 'check_circle', drag: 'drag_handle', sun: 'wb_sunny', copy: 'content_copy', pages: 'filter_none',
 };
-const out = {};
+const out = {}, boxes = {};
 for (const [name, mat] of Object.entries(MAP)) {
   const url = `https://raw.githubusercontent.com/google/material-design-icons/master/symbols/web/${mat}/materialsymbolsrounded/${mat}_24px.svg`;
   const res = await fetch(url);
   if (!res.ok) throw new Error(`${mat}: ${res.status}`);
   const svg = await res.text();
   const d = [...svg.matchAll(/<path d="([^"]+)"/g)].map((m) => m[1]);
+  const vb = /viewBox="([^"]+)"/.exec(svg)?.[1] ?? '0 0 24 24';
+  if (vb !== '0 -960 960 960') boxes[name] = vb; // a few symbols are drawn on the 24 px grid
   if (!d.length) throw new Error(`${mat}: no path`);
   out[name] = d;
 }
@@ -30,13 +33,15 @@ export const ICON_PATHS = {
 ${body}
 } as const;
 
+export const ICON_BOX: Partial<Record<string, string>> = ${JSON.stringify(boxes)};
+
 export type IconName = keyof typeof ICON_PATHS;
 export const ICON_NAMES = Object.keys(ICON_PATHS) as IconName[];
 
 /** An <svg> icon; decorative (aria-hidden), the button or text around it carries the name. */
 export function icon(name: IconName, size = 24): SVGSVGElement {
   const svg = document.createElementNS(SVG_NS, 'svg');
-  svg.setAttribute('viewBox', '0 -960 960 960');
+  svg.setAttribute('viewBox', ICON_BOX[name] ?? '0 -960 960 960');
   svg.setAttribute('width', String(size));
   svg.setAttribute('height', String(size));
   svg.setAttribute('class', \`icon icon-\${name}\`);

@@ -1,5 +1,6 @@
 import { compressToTarget } from '../core/compress';
 import { safeFileName } from '../core/pdf';
+import { toolPage } from './toolPage';
 import { chips, download, formatBytes, h, openDialog, toast } from '../dom';
 import { reencodeJpeg } from '../imaging';
 
@@ -10,7 +11,7 @@ const SIZES = [
 type SizeId = (typeof SIZES)[number]['id'];
 
 /** Makes a scanned PDF smaller by re-encoding its photos. Text-only PDFs have nothing to shrink and are left as they are. */
-export function openCompress(): void {
+export function openCompress(start?: { file: File }): void {
   let file: File | null = null, data: Uint8Array | null = null, sizeId: SizeId = '1mb';
   let result: { bytes: Uint8Array; name: string } | null = null;
   openDialog((close) => {
@@ -21,12 +22,12 @@ export function openCompress(): void {
     const status = h('div', { class: 'hint', role: 'status' });
     const go = h('button', { class: 'btn primary', disabled: true }, 'Make smaller');
     const save = h('button', { class: 'btn primary', hidden: true }, 'Download');
-    picker.addEventListener('change', async () => {
-      const f = picker.files?.[0]; picker.value = '';
-      if (!f) return;
+    const load = async (f: File) => {
       file = f; data = new Uint8Array(await f.arrayBuffer()); result = null; save.hidden = true; status.textContent = '';
       info.textContent = `${f.name} · ${formatBytes(f.size)}`; go.disabled = false;
-    });
+    };
+    picker.addEventListener('change', async () => { const f = picker.files?.[0]; picker.value = ''; if (f) await load(f); });
+    if (start) void load(start.file);
     const target = (): number | null => {
       if (sizeId === 'custom') { const v = Math.round(Number(custom.value)); return Number.isFinite(v) && v >= 10 ? v * 1024 : null; }
       return SIZES.find((s) => s.id === sizeId)!.bytes;
@@ -49,10 +50,10 @@ export function openCompress(): void {
     });
     save.addEventListener('click', () => { if (result) download(result.bytes, result.name); });
     const sizeChips = chips(SIZES.map((s) => ({ id: s.id, label: s.label })), sizeId, (id) => { sizeId = id; customField.hidden = id !== 'custom'; });
-    return h('div', { class: 'dlg' }, h('h2', {}, 'Compress PDF'), picker,
+    return toolPage('Compress PDF', close, picker,
       h('div', { class: 'row' }, h('button', { class: 'btn', onclick: () => picker.click() }, 'Choose PDF…')), info,
       h('div', { class: 'field' }, h('span', {}, 'Make it no bigger than'), sizeChips), customField,
       h('p', { class: 'hint' }, 'Works on scanned PDFs (photos of pages). Text is not touched, so a PDF with no photos stays the same. Everything happens on this device.'),
-      status, h('div', { class: 'row end' }, h('button', { class: 'btn', onclick: close }, 'Close'), save, go));
-  }, 'Compress PDF');
+      status, h('div', { class: 'row end' }, save, go));
+  }, 'Compress PDF').classList.add('full');
 }
