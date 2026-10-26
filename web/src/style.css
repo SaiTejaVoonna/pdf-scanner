@@ -77,7 +77,7 @@ button { -webkit-tap-highlight-color: transparent; }
 .chip { min-height: 36px; padding: 0 14px; border-radius: 99px; border: 1px solid var(--gline); background: var(--glass); cursor: pointer; font-weight: 500; font-size: .9rem; }
 .chip[aria-checked='true'] { background: var(--acc); color: var(--on-acc); border-color: transparent; }
 .seg { display: flex; padding: 3px; border-radius: 12px; background: var(--fill); gap: 2px; }
-.seg .chip { flex: 1; border: 0; background: transparent; border-radius: 9px; min-height: 34px; color: var(--mut); font-weight: 600; }
+.seg .chip { flex: 1; border: 0; background: transparent; border-radius: 9px; min-height: 44px; color: var(--mut); font-weight: 600; }
 .seg .chip[aria-checked='true'] { background: var(--card); color: var(--text); box-shadow: 0 1px 3px rgba(0, 0, 0, .18); }
 .field, label.field { display: flex; flex-direction: column; gap: 4px; font-size: .78rem; color: var(--mut); }
 .field input[type='text'], .field input[type='number'], .field select, label.field input[type='text'], label.field input[type='number'] { min-height: 44px; padding: 0 12px; border-radius: 12px; border: 1px solid var(--gline); background: var(--glass); color: var(--text); font-size: 1rem; }
@@ -282,3 +282,10 @@ dialog .toasts { bottom: 24px; }
 .cont strong { white-space: nowrap; font-size: .98rem; }
 .cont .btn { padding: 0 14px; }
 @media (min-width: 720px) { .bar { left: 210px; } .toasts { left: 222px; } }
+.tools4 button.done { color: var(--acc); font-weight: 600; }
+.tools4 button.done i { background: var(--acc-soft); color: var(--acc); border-color: var(--acc); }
+
+/* one set of sizes: buttons 50, inputs 46, cards 16 */
+.btn { min-height: 50px; }
+.field input[type='text'], .field input[type='number'], .field select, label.field input[type='text'], label.field input[type='number'] { min-height: 46px; }
+.qcard, .tool-tile { border-radius: 16px; }

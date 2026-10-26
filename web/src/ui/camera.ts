@@ -76,9 +76,9 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     let text = base, warn = false;
     if (auto) {
       if (liveState === 'cooldown') text = 'Captured. Turn the page';
-      else if (spread && spreadSeen === 'one') { text = 'Fold not confirmed. Put the fold on the line, or capture anyway'; warn = true; }
+      else if (spread && spreadSeen === 'one') { text = 'Line up the fold'; warn = true; }
       else if (why) { text = why; warn = true; }
-      else if (liveState === 'steady') text = spread ? 'Both pages found. Hold steady…' : 'Hold steady…';
+      else if (liveState === 'steady') text = 'Hold steady';
     }
     hint.textContent = text;
     pill.dataset.tone = warn ? 'warn' : auto && (liveState === 'steady' || liveState === 'cooldown') ? 'ok' : 'idle';
@@ -146,10 +146,10 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
         flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
         const added = state.pages.slice(before).map((p) => p.id);
         if (sharp < MIN_SHARP_ABS && added.length) toast('That photo looks blurry.', { label: 'Remove', run: () => removePages(added) });
-        else if (opts.mode?.get() !== 'spread' || opts.single) toast(`Page ${shots} saved. Take the next one, or tap Done.`);
+        else if (opts.mode?.get() !== 'spread' || opts.single) toast(`Page ${shots} saved.`);
         paint();
         if (opts.single) dialog.close();
-      } catch { toast('Could not capture the photo. Please try again.'); }
+      } catch { toast('Capture failed. Try again.'); }
       finally { busy = false; shutter.disabled = false; }
     };
     capturePage = capture;
@@ -209,7 +209,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       shutter.style.setProperty('--p', String(res.state === 'steady' ? res.progress : 0));
       overlay.dataset.state = res.state;
       if (res.fire) void capturePage();
-    }, () => { auto = false; live = null; paintAuto(); toast('Auto-capture is not available on this device. Use the shutter button.'); });
+    }, () => { auto = false; live = null; paintAuto(); toast('Auto-capture is not available here.'); });
     live.mode = opts.mode?.get() ?? 'single';
     live.anchors = false;
     live.start();
@@ -221,7 +221,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
     if (opts.onImport) msg.append(h('button', { class: 'btn', type: 'button', onclick: () => { dialog.close(); opts.onImport!(); } }, 'Import photos'));
   };
 
-  if (!navigator.mediaDevices?.getUserMedia) { fail('This browser cannot open the camera here (it needs a secure https page).'); return; }
+  if (!navigator.mediaDevices?.getUserMedia) { fail('The camera needs a secure (https) page.'); return; }
   const startStream = () => navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false })
     .then((s) => {
       stream?.getTracks().forEach((t) => t.stop());
@@ -233,7 +233,7 @@ export function openCamera(onShot: (blob: Blob, meta: { foldOnGuide: boolean; an
       flashBtn.hidden = !caps?.torch;
       startLive();
     })
-    .catch((e: DOMException) => fail(e.name === 'NotAllowedError' ? 'Camera access was denied. Allow it in the browser settings, or use the phone camera.' : 'The camera could not be started.'));
+    .catch((e: DOMException) => fail(e.name === 'NotAllowedError' ? 'Camera access was denied. Allow it in your browser settings.' : 'The camera could not be started.'));
   // Switching to another app can stop the camera; when the person comes back, the preview is started again instead of staying frozen.
   const onVisible = () => {
     if (document.visibilityState !== 'visible' || !dialog.open || !stream) return;

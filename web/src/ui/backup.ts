@@ -20,6 +20,6 @@ export async function backupEverything(): Promise<void> {
       for (const e of d.exports) { const b = pdfBlob(e.id); if (b) entries.push({ name: `${folder}/${safeFileName(e.name)}.pdf`, data: new Uint8Array(await b.arrayBuffer()) }); }
     }
     download(zipStore(entries), `PDF Scanner backup ${new Date().toISOString().slice(0, 10)}.zip`, 'application/zip');
-    toast(`Backup ready (${docs.length} document${docs.length === 1 ? '' : 's'}). Check your downloads.`);
-  } catch (e) { toast(`Backup failed: ${(e as Error).message}`); }
+    toast('Backup saved.');
+  } catch (e) { toast('Backup failed.'); }
 }

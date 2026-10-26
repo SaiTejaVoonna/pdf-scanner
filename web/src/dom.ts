@@ -70,7 +70,7 @@ export async function shareFile(blob: Blob, filename: string): Promise<void> {
     if (typeof navigator.share === 'function' && navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], title: filename }); return; }
   } catch (e) { if ((e as DOMException).name === 'AbortError') return; }
   download(blob, filename, blob.type);
-  toast('Sharing files is not supported here, so the PDF was saved instead.');
+  toast('Sharing is not available here. Saved instead.');
 }
 
 export function chips<T extends string>(items: { id: T; label: string }[], current: T, onPick: (id: T) => void, disabled = false): HTMLElement {

@@ -9,7 +9,7 @@ export function openSplit(): void {
   let file: File | null = null, data: Uint8Array | null = null, count = 0, mode: 'keep' | 'each' = 'keep';
   openDialog((close) => {
     const picker = h('input', { type: 'file', accept: 'application/pdf,.pdf', class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true' });
-    const info = h('small', {}, 'Choose the PDF to split');
+    const info = h('small', {}, 'Choose a PDF');
     const pages = h('input', { type: 'text', placeholder: 'For example 1-3, 5', inputmode: 'numeric', 'aria-label': 'Pages to keep' });
     const pagesField = h('label', { class: 'field' }, 'Pages to keep', pages);
     const status = h('div', { class: 'hint', role: 'status' });
@@ -21,7 +21,7 @@ export function openSplit(): void {
         const bytes = new Uint8Array(await f.arrayBuffer());
         count = await pageCount(bytes); file = f; data = bytes;
         info.textContent = `${f.name} · ${count} page${count === 1 ? '' : 's'} · ${formatBytes(f.size)}`; go.disabled = false; status.textContent = '';
-      } catch { toast(`${f.name} is password protected or not a readable PDF.`); }
+      } catch { toast(`${f.name}: not a readable PDF.`); }
     });
     go.addEventListener('click', async () => {
       if (!file || !data) return;
@@ -38,7 +38,7 @@ export function openSplit(): void {
           for (let i = 0; i < count; i++) { status.textContent = `Page ${i + 1} of ${count}…`; files.push({ name: `${base}-${String(i + 1).padStart(String(count).length, '0')}.pdf`, data: await extractPages(data, [i]) }); }
           download(zipStore(files), `${base}-pages.zip`, 'application/zip'); status.textContent = `${count} files saved in a ZIP.`;
         }
-      } catch { status.textContent = 'This PDF could not be split.'; }
+      } catch { status.textContent = 'Could not split this PDF.'; }
       finally { go.disabled = false; }
     });
     const modeChips = chips([{ id: 'keep' as const, label: 'Keep some pages' }, { id: 'each' as const, label: 'Every page on its own' }], mode, (id) => { mode = id; pagesField.hidden = id !== 'keep'; });

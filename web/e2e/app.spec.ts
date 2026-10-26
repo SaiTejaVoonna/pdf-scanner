@@ -117,7 +117,7 @@ test('selection mode applies bulk actions to the selected pages only', async ({ 
 
 test('unreadable files are reported and do not break the app', async ({ page }) => {
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'notes.png', mimeType: 'image/png', buffer: Buffer.from('not an image') }]);
-  await expect(page.getByText('notes.png could not be read as an image.')).toBeVisible();
+  await expect(page.getByText('notes.png is not a readable image.')).toBeVisible();
   await expect(page.getByText('No PDFs yet')).toBeVisible(); // no empty document is left behind
 });
 
@@ -189,7 +189,7 @@ test('combines PDFs in order without re-rendering them', async ({ page }) => {
     { name: 'bad.pdf', mimeType: 'application/pdf', buffer: Buffer.from('nope') },
   ]);
   // The error toast must be visible even though a modal dialog is open.
-  await expect(page.getByText(/bad.pdf is password protected or not a readable PDF/)).toBeVisible();
+  await expect(page.getByText(/bad.pdf: not a readable PDF/)).toBeVisible();
   await expect(dlg.locator('li')).toHaveCount(2);
   await dlg.getByRole('button', { name: 'Move a.pdf down' }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), dlg.getByRole('button', { name: 'Combine & download' }).click()]);
@@ -319,7 +319,7 @@ test('make-PDF sheet shows page count, thumbnails and quality cards; Keep scanni
   await page.getByRole('button', { name: /Make PDF \(3\)/ }).click();
   const dlg = page.getByRole('dialog', { name: 'Export PDF' });
   await expect(dlg.getByRole('heading', { name: /^Make PDF/ })).toBeVisible();
-  await expect(dlg.getByText('3 pages, saved on this device')).toBeVisible();
+  await expect(dlg.getByText('3 pages', { exact: true })).toBeVisible();
   await expect(dlg.getByRole('list', { name: 'Pages in the PDF' }).locator('li')).toHaveCount(3);
   await expect(dlg.getByRole('radio')).toHaveCount(4);
   await expect(dlg.getByRole('button', { name: 'Create PDF' })).toBeInViewport();

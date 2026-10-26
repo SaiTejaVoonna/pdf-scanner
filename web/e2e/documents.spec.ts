@@ -48,17 +48,17 @@ test('editing a finished PDF is flagged until it is made again, and making it ag
   await importN(page, 2);
   await makePdf(page);
   await page.getByRole('button', { name: 'Back to documents' }).click();
-  await expect(page.getByText('Edited, save to update')).toHaveCount(0);
+  await expect(page.getByText('Edited', { exact: true })).toHaveCount(0);
   await page.getByRole('list', { name: 'PDFs' }).getByRole('button', { name: /^Open / }).click();
   await page.getByRole('button', { name: 'Page 1 menu' }).click();
   await page.getByRole('dialog', { name: 'Page 1 menu' }).getByRole('button', { name: 'Delete page' }).click();
   await page.getByRole('button', { name: 'Back to documents' }).click();
-  await expect(page.getByText('Edited, save to update')).toBeVisible();
+  await expect(page.getByText('Edited', { exact: true })).toBeVisible();
   await page.getByRole('list', { name: 'PDFs' }).getByRole('button', { name: /^Open / }).click();
   await makePdf(page);
   await page.getByRole('button', { name: 'Back to documents' }).click();
   await expect(page.getByRole('list', { name: 'PDFs' }).locator('li')).toHaveCount(1);
-  await expect(page.getByText('Edited, save to update')).toHaveCount(0);
+  await expect(page.getByText('Edited', { exact: true })).toHaveCount(0);
 });
 
 test('a draft can be discarded and brought back with Undo', async ({ page }) => {

@@ -17,7 +17,7 @@ export function openCompress(start?: { file: File }): void {
   let result: { bytes: Uint8Array; name: string } | null = null;
   openDialog((close) => {
     const picker = h('input', { type: 'file', accept: 'application/pdf,.pdf', class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true' });
-    const info = h('small', {}, 'Choose the PDF to make smaller');
+    const info = h('small', {}, 'Choose a PDF');
     const custom = h('input', { type: 'number', min: '10', step: '10', value: '300', 'aria-label': 'Largest size in KB' });
     const customField = h('label', { class: 'field', hidden: true }, 'Largest size (KB)', custom);
     const status = h('div', { class: 'hint', role: 'status' });
@@ -36,27 +36,27 @@ export function openCompress(start?: { file: File }): void {
     };
     go.addEventListener('click', async () => {
       if (!file || !data) return;
-      if (sizeId === 'custom' && target() === null) { toast('Enter a size of at least 10 KB.'); return; }
+      if (sizeId === 'custom' && target() === null) { toast('Enter at least 10 KB.'); return; }
       go.disabled = true; save.hidden = true; status.textContent = 'Working…';
       try {
-        const r = await compressToTarget(data, target(), reencodeJpeg, (i, n) => { status.textContent = `Trying a stronger setting (${i + 1} of ${n})…`; });
+        const r = await compressToTarget(data, target(), reencodeJpeg, (i, n) => { status.textContent = `Compressing… ${i + 1}/${n}`; });
         const name = `${safeFileName(file.name.replace(/\.pdf$/i, ''), 'document')}-smaller.pdf`;
-        if (r.images === 0) status.textContent = 'This PDF has no photos to shrink (it is mostly text or drawings), so it was left as it is.';
-        else if (r.bytes.length >= data.length) status.textContent = 'This PDF is already as small as it can go without hurting the pages.';
+        if (r.images === 0) status.textContent = 'No photos to shrink in this PDF.';
+        else if (r.bytes.length >= data.length) status.textContent = 'Already as small as it can be.';
         else {
           result = { bytes: r.bytes, name }; save.hidden = false;
           ba.hidden = false; ba.replaceChildren(h('div', {}, h('small', {}, 'Now'), h('b', {}, formatBytes(data.length))), h('span', { class: 'arrow' }, icon('compress', 22)), h('div', { class: 'new' }, h('small', {}, 'After'), h('b', {}, formatBytes(r.bytes.length))));
-          status.textContent = `${formatBytes(data.length)} → ${formatBytes(r.bytes.length)}${r.reached ? '' : '. This is as small as the strongest setting can make it, so it did not reach your size.'}`;
+          status.textContent = `${formatBytes(data.length)} → ${formatBytes(r.bytes.length)}${r.reached ? '' : ' · could not reach your size'}`;
         }
-      } catch { status.textContent = 'This PDF could not be read (it may be password protected).'; }
+      } catch { status.textContent = 'Could not read this PDF.'; }
       finally { go.disabled = false; }
     });
     save.addEventListener('click', () => { if (result) download(result.bytes, result.name); });
     const sizeChips = chips(SIZES.map((s) => ({ id: s.id, label: s.label })), sizeId, (id) => { sizeId = id; customField.hidden = id !== 'custom'; });
     return toolPage('Compress PDF', close, picker,
       fileCard('pdf', 'PDF', info, () => picker.click(), 'Change'),
-      h('div', { class: 'field' }, h('span', {}, 'Make it no bigger than'), sizeChips), customField,
-      h('p', { class: 'hint' }, 'Works on scanned PDFs (photos of pages). Text is not touched, so a PDF with no photos stays the same. Everything happens on this device.'),
+      h('div', { class: 'field' }, h('span', {}, 'No bigger than'), sizeChips), customField,
+      h('p', { class: 'hint' }, 'Works on scanned PDFs.'),
       ba, status, h('div', { class: 'row end' }, save, go));
   }, 'Compress PDF').classList.add('full');
 }

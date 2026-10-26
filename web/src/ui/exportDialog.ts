@@ -33,7 +33,7 @@ export function openExport(): void {
     const target = h('input', { type: 'number', min: '0.05', step: '0.1', inputmode: 'decimal', placeholder: 'e.g. 2', 'aria-describedby': 'size-hint' });
     const progress = h('progress', { max: '1', value: '0', hidden: true, 'aria-label': 'Export progress' });
     const status = h('div', { class: 'hint', role: 'status' });
-    const sizeHint = h('div', { class: 'hint', id: 'size-hint', role: 'status' }, 'Calculating file sizes…');
+    const sizeHint = h('div', { class: 'hint', id: 'size-hint', role: 'status' }, 'Calculating…');
     const dl = h('button', { class: 'btn primary' }, 'Create PDF');
     const share = h('button', { class: 'btn' }, icon('share', 20), 'Share');
     const cancel = h('button', { class: 'btn', style: 'border-color:transparent;background:transparent', onclick: close }, 'Keep scanning');
@@ -56,11 +56,11 @@ export function openExport(): void {
     });
     const applyTarget = () => {
       const mb = parseFloat(target.value);
-      if (!Number.isFinite(mb) || mb <= 0) { sizeHint.textContent = Object.keys(estimates).length === QUALITIES.length ? 'Estimates are approximate; the final size is shown after export.' : sizeHint.textContent; return; }
-      if (Object.keys(estimates).length < QUALITIES.length) { sizeHint.textContent = 'Still calculating file sizes…'; return; }
+      if (!Number.isFinite(mb) || mb <= 0) { sizeHint.textContent = Object.keys(estimates).length === QUALITIES.length ? '' : sizeHint.textContent; return; }
+      if (Object.keys(estimates).length < QUALITIES.length) { sizeHint.textContent = 'Still calculating…'; return; }
       const pick = pickQualityForTarget(estimates, mb * 1048576);
       if (pick) { select(pick); sizeHint.textContent = `${QUALITIES.find((q) => q.id === pick)!.label} fits under ${mb} MB (≈ ${formatBytes(estimates[pick]!)}).`; }
-      else { select('tiny'); sizeHint.textContent = `Even Tiny is about ${formatBytes(estimates.tiny!)}, more than ${mb} MB. Remove pages or split the document.`; }
+      else { select('tiny'); sizeHint.textContent = `Even Tiny is about ${formatBytes(estimates.tiny!)}.`; }
     };
     target.addEventListener('input', applyTarget);
 
@@ -87,15 +87,15 @@ export function openExport(): void {
             if (c !== full) c.width = c.height = 0;
           }
           full.width = full.height = 0;
-          sizeHint.textContent = `Calculating file sizes… ${i + 1}/${sample.length}`;
+          sizeHint.textContent = `Calculating… ${i + 1}/${sample.length}`;
         }
         if (closed || !estimating) return;
         const scale = count / Math.max(1, sample.length);
         for (const q of QUALITIES) estimates[q.id] = (total[q.id] ?? 0) * scale + pdfOverheadBytes(count);
         drawSizes();
-        sizeHint.textContent = 'Estimates are approximate; the final size is shown after export.';
+        sizeHint.textContent = '';
         applyTarget();
-      } catch { if (!closed) sizeHint.textContent = 'Could not estimate sizes; the final size is shown after export.'; }
+      } catch { if (!closed) sizeHint.textContent = 'Could not estimate sizes.'; }
     })();
 
     async function build(): Promise<{ bytes: Uint8Array; file: string }> {
@@ -123,10 +123,10 @@ export function openExport(): void {
         if (action === 'share') {
           const f = new File([bytes as BlobPart], file, { type: 'application/pdf' });
           if (navigator.canShare({ files: [f] })) await navigator.share({ files: [f], title: file });
-          else { download(bytes, file); toast('Sharing files is not supported here, so the PDF was downloaded instead.'); }
-        } else { download(bytes, file); toast(`PDF ready (${formatBytes(bytes.length)}). Check your downloads.`); }
+          else { download(bytes, file); toast('Sharing is not available here. Saved instead.'); }
+        } else { download(bytes, file); }
       } catch (e) {
-        if ((e as DOMException).name !== 'AbortError') { toast(`Export failed: ${(e as Error).message}`); status.textContent = 'Export failed.'; }
+        if ((e as DOMException).name !== 'AbortError') { toast('Could not make the PDF.'); status.textContent = 'Export failed.'; }
       } finally { busy = false; progress.hidden = true; [dl, share, input, target].forEach((el) => ((el as HTMLButtonElement).disabled = false)); }
     }
     dl.addEventListener('click', () => void run('download'));
@@ -135,7 +135,7 @@ export function openExport(): void {
     const n = state.pages.length;
     status.textContent = '';
     return [
-      h('h2', {}, 'Make PDF', h('small', {}, `${n} page${n === 1 ? '' : 's'}, saved on this device`)),
+      h('h2', {}, 'Make PDF', h('small', {}, `${n} page${n === 1 ? '' : 's'}`)),
       saved,
       (form.append(strip,
         h('label', { class: 'field' }, 'File name', input),
@@ -143,8 +143,8 @@ export function openExport(): void {
         h('details', { class: 'more' }, h('summary', {}, 'More options'),
           h('div', { class: 'stack' },
             h('div', {}, h('div', { class: 'hint' }, 'Page size'), chips(PAGE_SIZES, size, (id) => { size = id; })),
-            h('label', { class: 'field' }, 'Keep under (MB), optional', target),
-            h('p', { class: 'hint' }, 'We try to pick the best quality that fits. The final size is shown after the PDF is made, and if nothing fits you are told.')))), form),
+            h('label', { class: 'field' }, 'Keep under (MB)', target),
+            ))), form),
       progress, status,
       h('div', { class: 'actions' }, share, dl),
       h('div', { class: 'stack', style: 'margin-top:4px' }, cancel),

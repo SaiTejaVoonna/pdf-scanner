@@ -70,7 +70,7 @@ test('a photo with no findable fold is flagged and cannot be applied until the u
   await bookMode(page);
   await importSpread(page, spread('nofold.png', { fold: 0 }), false);
   const ed = review(page);
-  await expect(ed.getByText(/could not find the fold/)).toBeVisible();
+  await expect(ed.getByText(/Could not find the fold/)).toBeVisible();
   await expect(ed.getByRole('button', { name: 'Apply' })).toBeDisabled();
   await ed.getByRole('button', { name: 'Confirm split' }).click();
   await expect(ed.getByRole('button', { name: 'Apply' })).toBeEnabled();
@@ -254,7 +254,7 @@ test('when the browser is out of storage the user is told, nothing is half-added
   await page.goto('/');
   await page.evaluate(() => { (window as unknown as { __full: boolean }).__full = true; });
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'p.png', mimeType: 'image/png', buffer: spreadPng(400, 500, { fold: 0 }) }]);
-  await expect(page.getByText(/no space left/)).toBeVisible();
+  await expect(page.getByText(/Storage is full/)).toBeVisible();
   await expect(pagesList(page)).toHaveCount(1); // still in memory
   await page.getByRole('button', { name: /Make PDF/ }).click();
   const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('dialog', { name: 'Export PDF' }).getByRole('button', { name: 'Create PDF' }).click()]);
@@ -266,7 +266,7 @@ test('when the browser is out of storage the user is told, nothing is half-added
   await page.getByRole('dialog', { name: 'Page 1 menu' }).getByRole('button', { name: 'Select' }).click();
   await page.getByRole('button', { name: 'Done' }).click();
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'q.png', mimeType: 'image/png', buffer: spreadPng(400, 500, { fold: 0 }) }]);
-  await expect(page.getByText(/no space left/)).toBeHidden();
+  await expect(page.getByText(/Storage is full/)).toBeHidden();
 });
 
 test('a new app version shows an update banner and never reloads over an open edit', async ({ page }) => {

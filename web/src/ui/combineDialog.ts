@@ -10,7 +10,7 @@ export function openCombine(): void {
   const items: Item[] = [];
   openDialog((close) => {
     const list = h('ul', { class: 'list' });
-    const status = h('div', { class: 'hint', role: 'status' }, 'Add two or more PDFs, put them in order, then combine.');
+    const status = h('div', { class: 'hint', role: 'status' }, 'Add two or more PDFs.');
     const nameInput = h('input', { type: 'text', value: 'Combined', maxlength: '100', 'aria-label': 'File name' });
     const go = h('button', { class: 'btn primary', disabled: true }, 'Combine & download');
     const picker = h('input', { type: 'file', accept: 'application/pdf,.pdf', multiple: true, class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true' });
@@ -26,7 +26,7 @@ export function openCombine(): void {
     picker.addEventListener('change', async () => {
       for (const file of Array.from(picker.files ?? [])) {
         try { items.push({ file, pages: await pageCount(new Uint8Array(await file.arrayBuffer())) }); }
-        catch { toast(`${file.name} is password protected or not a readable PDF, so it was skipped.`); }
+        catch { toast(`Skipped ${file.name}: not a readable PDF.`); }
       }
       picker.value = ''; draw();
     });
@@ -36,11 +36,11 @@ export function openCombine(): void {
         const bytes = await combinePdfs(await Promise.all(items.map(async (i) => new Uint8Array(await i.file.arrayBuffer()))));
         const name = `${safeFileName(nameInput.value, 'Combined')}.pdf`;
         download(bytes, name); status.textContent = `${name} · ${formatBytes(bytes.length)}`; toast('Combined PDF ready.');
-      } catch (e) { toast(`Could not combine: ${(e as Error).message}`); status.textContent = 'Failed.'; }
+      } catch (e) { toast('Could not combine these PDFs.'); status.textContent = 'Failed.'; }
       finally { go.disabled = items.length < 2; }
     });
     return toolPage('Combine PDFs', close, picker,
-      fileCard('pdf', 'PDFs', 'Add two or more PDFs to join', () => picker.click(), 'Add'),
+      fileCard('pdf', 'PDFs', 'Add two or more', () => picker.click(), 'Add'),
       h('label', { class: 'field' }, 'File name', nameInput), list, status, h('div', { class: 'row end' }, go));
   }, 'Combine PDFs').classList.add('full');
 }

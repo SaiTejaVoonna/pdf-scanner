@@ -35,7 +35,7 @@ export function openViewer(startId: string): void {
       const url = URL.createObjectURL(await canvasToBlob(await renderPage(p, 2400), 'image/jpeg', 0.9));
       if (mine !== token) { URL.revokeObjectURL(url); return; }
       urls.push(url); img.src = url; scroller.scrollTo(0, 0);
-    } catch { if (mine === token) toast('This page could not be shown.'); }
+    } catch { if (mine === token) toast('Could not show this page.'); }
   }
   function go(d: number) {
     const n = index + d;

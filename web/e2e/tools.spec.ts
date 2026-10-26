@@ -52,7 +52,7 @@ test('Compress PDF makes a scanned PDF smaller, keeps every page, and says so ho
   const text = await PDFDocument.create(); text.addPage([100, 100]);
   await dlg.locator('input[type=file]').setInputFiles({ name: 'text.pdf', mimeType: 'application/pdf', buffer: Buffer.from(await text.save()) });
   await dlg.getByRole('button', { name: 'Make smaller' }).click();
-  await expect(dlg.getByRole('status')).toContainText('no photos to shrink');
+  await expect(dlg.getByRole('status')).toContainText('No photos to shrink');
 });
 
 test('Split PDF keeps the chosen pages, rejects pages that do not exist, and can save every page in a ZIP', async ({ page }) => {

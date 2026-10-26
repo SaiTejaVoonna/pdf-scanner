@@ -13,7 +13,7 @@ const CORNER_NAMES = ['Top left corner', 'Top right corner', 'Bottom right corne
 /** Page editor: Crop (draggable, keyboard-adjustable corners, auto-detect) and Enhance (filter, rotate). */
 export function openEditor(page: PageModel, resume?: PageDraftData): void {
   const blob = blobOf(page.id);
-  if (!blob) { toast('This page image is missing.'); return; }
+  if (!blob) { toast('Page image is missing.'); return; }
   let corners: Quad = cloneQuad(resume?.corners ?? page.corners);
   let rotation = resume?.rotation ?? page.rotation;
   let filter: FilterName = resume?.filter ?? page.filter;
@@ -37,7 +37,7 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
 
   const body = (close: () => void) => {
     save = h('button', { class: 'txt-btn strong', type: 'button', onclick: () => {
-      if (!isValidCrop(corners)) { toast('The corners must form a convex shape that covers part of the page.'); return; }
+      if (!isValidCrop(corners)) { toast('Corners must form a four-sided shape.'); return; }
       editPages([page.id], (p) => ({ ...p, corners: cloneQuad(corners), rotation, filter, check: undefined }));
       saved = true; clearDraft();
       close();
@@ -60,20 +60,25 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
   }
 
   let screenSeq = 0; // a newer render supersedes an older one still waiting on the image decode
-  const toolBtn = (ic: IconName, label: string, aria: string, on: boolean, run: () => void) =>
-    h('button', { type: 'button', class: on ? 'on' : '', 'aria-label': aria, 'aria-pressed': String(on), onclick: run }, h('i', {}, icon(ic, 22)), label);
+  /** The tool is the current mode (`on`, filled) or has just been applied (`done`, outlined with a tick). */
+  const toolBtn = (ic: IconName, label: string, aria: string, on: boolean, run: () => void, done = false) =>
+    h('button', { type: 'button', class: on ? 'on' : done ? 'done' : '', 'aria-label': aria, 'aria-pressed': String(on || done), onclick: run }, h('i', {}, icon(done ? 'check' : ic, 22)), label);
   function paintTools() {
     tools.replaceChildren(
       toolBtn('crop', 'Crop', 'Crop', tab === 'crop', () => setTab('crop')),
       toolBtn('rotate', 'Rotate', 'Rotate right', false, () => { rotation = (rotation + 90) % 360; touch(); if (tab !== 'enhance') setTab('enhance'); else { void drawResult?.(); } paintThumbs(); }),
-      toolBtn('wand', 'Auto', 'Auto-detect', false, async () => {
+      toolBtn('wand', autoBusy ? 'Auto…' : 'Auto', 'Auto-detect', false, async () => {
+        if (autoBusy) return;
+        autoBusy = true; paintTools();
         try {
           const f = await findCorners(blob!);
-          if (f.quad) { corners = f.quad; touch(); if (tab === 'crop') redrawCorners?.(); else void drawResult?.(); paintThumbs(); if (f.confidence !== 'high') toast('Check the corners: this outline does not clearly look like a written page.'); } else toast('No page edges found. Adjust the corners manually.');
-        } catch { toast('Auto-detect did not work. Adjust the corners manually.'); }
-      }),
+          if (f.quad) { corners = f.quad; autoDone = true; touch(); if (tab === 'crop') redrawCorners?.(); else void drawResult?.(); paintThumbs(); if (f.confidence !== 'high') toast('Check the corners.'); } else toast('No page found. Move the corners.');
+        } catch { toast('Auto-detect failed. Move the corners.'); }
+        finally { autoBusy = false; paintTools(); }
+      }, autoDone),
       toolBtn('tune', 'Look', 'Look', tab === 'enhance', () => setTab('enhance')));
   }
+  let autoDone = false, autoBusy = false; // Auto stays marked until the corners are moved by hand
   let redrawCorners: (() => void) | null = null;
   let drawResult: (() => Promise<void>) | null = null;
   const thumbToken = { n: 0 };
@@ -143,12 +148,12 @@ export function openEditor(page: PageModel, resume?: PageDraftData): void {
       poly.setAttribute('d', `M0,0H${w}V${h2}H0Z M${pts.join(' L')}Z`);
       handles.forEach((el, i) => { el.style.left = `${corners[i].x * w}px`; el.style.top = `${corners[i].y * h2}px`; });
     };
-    const move = (i: number, p: Pt) => { corners[i] = { x: clamp01(p.x), y: clamp01(p.y) }; touch(); draw(); };
+    const move = (i: number, p: Pt) => { corners[i] = { x: clamp01(p.x), y: clamp01(p.y) }; touch(); draw(); if (autoDone) { autoDone = false; paintTools(); } };
     draw();
 
     redrawCorners = draw;
     stage.append(overlayBtns);
-    overlayBtns.replaceChildren(h('button', { class: 'pill-btn', type: 'button', onclick: () => { corners = fullQuad(); touch(); draw(); void paintThumbs(); } }, 'Full image'));
+    overlayBtns.replaceChildren(h('button', { class: 'pill-btn', type: 'button', onclick: () => { corners = fullQuad(); autoDone = false; paintTools(); touch(); draw(); void paintThumbs(); } }, 'Full image'));
   }
 
   let renderToken = 0;

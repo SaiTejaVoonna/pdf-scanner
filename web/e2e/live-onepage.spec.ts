@@ -15,7 +15,7 @@ test.use({ launchOptions: { executablePath, args: args(video) } });
 
 test('warns that only one page is seen and never auto-captures', async ({ page }) => {
   const cam = await openSpreadCamera(page);
-  await expect(cam.getByText(/Fold not confirmed/)).toBeVisible({ timeout: 20_000 });
+  await expect(cam.getByText(/Line up the fold/)).toBeVisible({ timeout: 20_000 });
   await page.waitForTimeout(6000);
   await expect(cam.getByRole('button', { name: 'Done', exact: true })).toBeVisible();
   await expect(cam.getByRole('button', { name: /Done ·/ })).toHaveCount(0);

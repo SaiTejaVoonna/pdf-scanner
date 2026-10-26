@@ -41,7 +41,7 @@ export function openResize(): void {
 
   openDialog((close) => {
     const list = h('ul', { class: 'list' });
-    const status = h('div', { class: 'hint', role: 'status' }, 'Add photos, pick a size, and optionally a file-size limit.');
+    const status = h('div', { class: 'hint', role: 'status' }, '');
     const resultList = h('ul', { class: 'result-list', 'aria-label': 'Resized images' });
     const picker = h('input', { type: 'file', accept: 'image/*', multiple: true, class: 'visually-hidden', tabindex: '-1', 'aria-hidden': 'true' });
     const custom = h('input', { type: 'number', min: '64', max: '10000', step: '1', value: '1000', id: 'rs-custom', 'aria-label': 'Longest side in pixels' });
@@ -64,7 +64,7 @@ export function openResize(): void {
     picker.addEventListener('change', async () => {
       for (const file of Array.from(picker.files ?? [])) {
         try { const b = await decode(file); items.push({ file, w: b.width, h: b.height }); b.close(); }
-        catch { toast(`${file.name} could not be read as an image, so it was skipped.`); }
+        catch { toast(`Skipped ${file.name}: not an image.`); }
       }
       picker.value = ''; draw();
     });
@@ -120,8 +120,8 @@ export function openResize(): void {
           else { blob = await canvasToBlob(canvas, type, exact ? 0.15 : 0.4); note = 'could not reach the limit'; }
         }
         if (min !== null && blob.size < min) {
-          if (format === 'jpeg') { blob = new Blob([padJpeg(new Uint8Array(await blob.arrayBuffer()), min) as BlobPart], { type }); note = [note, 'padded with harmless metadata to reach the minimum'].filter(Boolean).join('; '); }
-          else note = [note, 'PNG cannot be padded to the minimum'].filter(Boolean).join('; ');
+          if (format === 'jpeg') { blob = new Blob([padJpeg(new Uint8Array(await blob.arrayBuffer()), min) as BlobPart], { type }); note = [note, 'padded to the minimum size'].filter(Boolean).join('; '); }
+          else note = [note, 'PNG cannot reach the minimum'].filter(Boolean).join('; ');
         }
         return { name: outputName(it.file.name, format === 'png' ? 'png' : 'jpg', taken), blob, w, h: hh, before: it.file.size, note };
       } finally { bmp.close(); }
@@ -130,16 +130,16 @@ export function openResize(): void {
     go.addEventListener('click', async () => {
       const side = mode === 'side' ? sideLimit() : null;
       const exact = mode === 'exact' ? exactSize() : null;
-      if (mode === 'side' && sizeId === 'custom' && side === null) { toast('Enter a size of at least 16 pixels.'); return; }
-      if (mode === 'exact' && exact === null) { toast('Enter a width and height (at least 16 pixels), and a DPI when using millimetres.'); return; }
+      if (mode === 'side' && sizeId === 'custom' && side === null) { toast('Enter at least 16 pixels.'); return; }
+      if (mode === 'exact' && exact === null) { toast('Enter a width and height, and a DPI for millimetres.'); return; }
       const max = kb(maxKb), min = kb(minKb);
-      if (max !== null && min !== null && min > max) { toast('The smallest size cannot be bigger than the largest.'); return; }
+      if (max !== null && min !== null && min > max) { toast('Smallest cannot be bigger than largest.'); return; }
       go.disabled = true; zipBtn.hidden = true; results = []; resultList.replaceChildren();
       const taken = new Set<string>();
       for (let i = 0; i < items.length; i++) {
         status.textContent = `Resizing ${i + 1} of ${items.length}…`;
         try { results.push(await resizeOne(items[i], side, exact, max, min, taken)); }
-        catch { toast(`${items[i].file.name} could not be resized.`); }
+        catch { toast(`Could not resize ${items[i].file.name}.`); }
       }
       const missed = results.filter((r) => r.note?.includes('could not reach the limit')).length;
       status.textContent = results.length ? `Done: ${results.length} image${results.length > 1 ? 's' : ''} resized.${missed ? ` ${missed} could not reach the size limit.` : ''}` : 'Nothing was resized.';
@@ -169,11 +169,11 @@ export function openResize(): void {
     const modeChips = chips([{ id: 'side' as const, label: 'Longest side' }, { id: 'exact' as const, label: 'Exact size' }], mode, (id) => { mode = id; sideBox.hidden = id !== 'side'; exactBox.hidden = id !== 'exact'; });
     const formatChips = chips([{ id: 'jpeg' as const, label: 'JPEG (smaller)' }, { id: 'png' as const, label: 'PNG' }], format, (id) => { format = id; });
     return toolPage('Resize photo', close, picker,
-      fileCard('image', 'Photos', 'Add the photos to resize', () => picker.click(), 'Add'),
+      fileCard('image', 'Photos', 'Choose photos', () => picker.click(), 'Add'),
       list, modeChips, sideBox, exactBox,
       h('div', { class: 'field' }, h('span', {}, 'Format'), formatChips),
       h('div', { class: 'row size-row' }, h('label', { class: 'field' }, 'Largest file (KB)', maxKb), h('label', { class: 'field' }, 'Smallest file (KB)', minKb)),
-      h('div', { class: 'hint', id: 'rs-hint' }, 'For upload forms with limits. Quality is lowered just enough; in "Longest side" mode the picture is also made smaller if needed. An exact size is never changed. A smallest size is reached by adding harmless metadata to a JPEG.'),
+      h('div', { class: 'hint', id: 'rs-hint' }, 'Quality is lowered to fit the largest size.'),
       status, resultList,
       h('div', { class: 'row end' }, zipBtn, go));
   }, 'Resize photo').classList.add('full');

@@ -74,16 +74,16 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
     function warnings(): string[] {
       const out: string[] = [];
       if (!confirmed && o.mode !== 'edit') out.push(o.uncertain && !o.outlineGuessed
-        ? 'I could not find the fold between the pages. Drag the two centre handles onto it, or tap Confirm split if the middle is right.'
-        : 'I could not find the page edges. Move the corners onto the pages, then confirm the split.');
-      else if (!confirmed) out.push('Confirm the split to continue.');
-      if (!valid()) out.push('The corners must form two convex pages; move a handle.');
+        ? 'Could not find the fold. Drag the orange handles onto it.'
+        : 'Could not find the page edges. Move the corners.');
+      else if (!confirmed) out.push('Confirm the split.');
+      if (!valid()) out.push('Move a handle: the corners do not form two pages.');
       if (analysis && valid()) {
         // One short line however many edges are touched; the edges themselves are listed in the tooltip.
         const touched: string[] = [];
         const names = ['left', 'right'];
         halves().forEach((q, k) => boundaryInk(analysis!, q).forEach((v, side) => { if (v > WARN_INK) touched.push(`${SIDE_NAMES[side]} edge of the ${names[k]} page`); }));
-        if (touched.length) out.push(`Writing touches ${touched.length === 1 ? 'an edge' : `${touched.length} edges`}: move ${touched.length === 1 ? 'that handle' : 'those handles'} outward.|${touched.join(', ')}`);
+        if (touched.length) out.push(`Writing touches ${touched.length === 1 ? 'an edge' : `${touched.length} edges`}.|${touched.join(', ')}`);
       }
       return out;
     }
@@ -95,11 +95,12 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       apply.disabled = !valid() || (!confirmed && o.mode !== 'edit');
       paintTools();
     }
-    const toolBtn = (ic: IconName, label: string, aria: string, on: boolean, run: () => void) =>
-      h('button', { type: 'button', class: on ? 'on' : '', 'aria-label': aria, 'aria-pressed': String(on), onclick: run }, h('i', {}, icon(ic, 22)), label);
+    let autoDone = false; // Auto stays marked until a handle is moved by hand
+    const toolBtn = (ic: IconName, label: string, aria: string, on: boolean, run: () => void, done = false) =>
+      h('button', { type: 'button', class: on ? 'on' : done ? 'done' : '', 'aria-label': aria, 'aria-pressed': String(on || done), onclick: run }, h('i', {}, icon(done ? 'check' : ic, 22)), label);
     function paintTools() {
       tools.replaceChildren(
-        ...[toolBtn('wand', 'Auto', 'Auto-detect', false, autoDetect),
+        ...[toolBtn('wand', 'Auto', 'Auto-detect', false, autoDetect, autoDone),
         toolBtn('rotate', 'Rotate', 'Rotate spread', false, rotateSpread),
         toolBtn(independent ? 'spread' : 'pages', independent ? 'Link pages' : 'Each page', independent ? 'Link pages to the spread' : 'Adjust each page', independent, toggleIndependent),
         confirmed || o.mode === 'edit' ? null : toolBtn('check-circle', 'Confirm', 'Confirm split', false, confirmSplit)].filter(Boolean) as HTMLElement[]);
@@ -148,7 +149,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
         shade.setAttribute('d', `M0,0H${w}V${hh}H0Z ${poly(l)} ${poly(r)}`);
         handles.forEach((hd) => { const p = hd.pos(); hd.el.style.left = `${p.x * w}px`; hd.el.style.top = `${p.y * hh}px`; });
       };
-      const changed = () => { draw(); saveDraft(); };
+      const changed = () => { draw(); saveDraft(); autoDone = false; };
       const done = () => { refresh(); };
       const addHandle = (label: string, pos: () => Pt, move: (p: Pt) => void, nudge: (dx: number, dy: number) => void, gutter = false) => {
         const el = h('button', { class: `handle${gutter ? ' gutter' : ''}`, type: 'button', 'aria-label': `${label}. Use arrow keys to move.` });
@@ -204,15 +205,15 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
       if (!analysis) return;
       const d = detectSpread(analysis);
       geo = { outer: d.outer, tTop: d.tTop, tBottom: d.tBottom };
-      independent = false; confirmed = !d.uncertain; layout(); refresh(); saveDraft();
-      toast(d.uncertain ? 'Found the pages but not the fold. Place the fold handles and confirm.' : 'Detected the spread.');
+      independent = false; confirmed = !d.uncertain; layout(); autoDone = true; refresh(); saveDraft();
+      toast(d.uncertain ? 'Fold not found. Place it, then confirm.' : 'Spread found.');
     };
     const rotateSpread = () => {
       if (!analysis) return;
       const outer = turnOuter(geo.outer, 1);
       const g = findGutter(analysis, outer);
       geo = { outer, tTop: g.tTop, tBottom: g.tBottom };
-      independent = false; confirmed = g.confident; layout(); refresh(); saveDraft();
+      independent = false; confirmed = g.confident; layout(); autoDone = false; refresh(); saveDraft();
     };
 
     const finish = (ok: boolean) => {
@@ -262,7 +263,7 @@ export function openSpreadEditor(o: SpreadEditorOptions): Promise<boolean> {
         const d = g.getImageData(0, 0, c.width, c.height);
         analysis = { data: d.data, width: c.width, height: c.height };
         layout(); refresh();
-      } catch { toast('This image could not be opened.'); finish(false); }
+      } catch { toast('Could not open this image.'); finish(false); }
     })();
     paintFilters();
     refresh();

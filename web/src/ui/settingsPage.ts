@@ -37,20 +37,20 @@ export function buildSettings(): HTMLElement {
     h('div', { class: 'group set' },
       labelled('#3552d9', 'wand', 'Auto-crop camera photos', 'Crop the page when you take it', s.autoCropCamera, (v) => updateSettings({ autoCropCamera: v })),
       labelled('#6b6bd6', 'image', 'Auto-crop imported images', 'Crop photos you import', s.autoCropImport, (v) => updateSettings({ autoCropImport: v })),
-      labelled('#2fa84f', 'camera', 'Auto-capture', 'Take the photo when the page is steady', getAuto(), (v) => setAuto(v)),
+      labelled('#2fa84f', 'camera', 'Auto-capture', 'Take the photo for you', getAuto(), (v) => setAuto(v)),
       h('div', { class: 'row' }, h('span', { class: 'ico', style: 'background:#8e8e93' }, icon('tune', 18)), h('div', { class: 'grow' }, h('b', {}, 'Auto-capture speed'), speed)),
-      labelled('#e08a1e', 'book', 'Book reads right to left', 'The right page of a spread comes first', s.bookRtl, (v) => updateSettings({ bookRtl: v })),
+      labelled('#e08a1e', 'book', 'Book reads right to left', 'Right page comes first', s.bookRtl, (v) => updateSettings({ bookRtl: v })),
       h('div', { class: 'row' }, h('span', { class: 'ico', style: 'background:#3aa0c8' }, icon('tune', 18)), h('div', { class: 'grow' }, h('b', {}, 'Filter for new pages'), filter))),
     h('div', { class: 'lab' }, 'Your files'),
     h('div', { class: 'group set' },
-      row('#2fa84f', 'lock', 'Stays on this device', kept ? 'Your browser promises to keep your scans' : 'Nothing is uploaded. Install the app so the browser keeps your scans'),
-      row('#3aa0c8', 'cloud', 'Back up everything', 'Save a ZIP of all your PDFs and scans', null, () => void backupEverything()),
-      row('#8e8e93', 'trash', 'Recently deleted', trash ? `${trash} item${trash === 1 ? '' : 's'}, kept for 30 days` : 'Nothing here', null, () => openTrash())),
+      row('#2fa84f', 'lock', 'Stays on this device', kept ? 'Your browser keeps your scans' : 'Nothing is uploaded'),
+      row('#3aa0c8', 'cloud', 'Back up everything', 'Save everything as a ZIP', null, () => void backupEverything()),
+      row('#8e8e93', 'trash', 'Recently deleted', trash ? `${trash} item${trash === 1 ? '' : 's'}` : 'Nothing here', null, () => openTrash())),
     h('div', { class: 'lab' }, 'About'),
     h('div', { class: 'group set' },
       row('#8e8e93', 'info', 'Credits and licences', 'Open-source parts we use', null, () => openSheet(() => [
         h('h2', {}, 'Credits'),
-        h('p', { class: 'hint' }, 'Icons: Material Symbols by Google (Apache License 2.0). PDF files: pdf-lib (MIT). The page-corner model is trained on generated pages; see docs/THIRD_PARTY.md.'),
+        h('p', { class: 'hint' }, 'Icons: Material Symbols (Apache 2.0). PDFs: pdf-lib (MIT).'),
       ], 'Credits')),
-      row('#8e8e93', 'document', `PDF Scanner ${__APP_VERSION__}`, 'Open source. Works offline. Your documents never leave this device.')));
+      row('#8e8e93', 'document', `PDF Scanner ${__APP_VERSION__}`, 'Open source. Works offline.')));
 }
