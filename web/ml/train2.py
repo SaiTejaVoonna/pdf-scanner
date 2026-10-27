@@ -58,12 +58,19 @@ def report(name, d):
     for label, green in (('presence', p > 0.5), ('presence+mask', (p > 0.5) & (ag > 0.9))):
         print(f"  {name} [{label}]: n={pos.sum()} IoU>=0.9 {100*(iou[pos]>=0.9).mean():.0f}%  >=0.8 {100*(iou[pos]>=0.8).mean():.0f}%  mean {iou[pos].mean():.2f} | green {100*green[pos].mean():.0f}%  FALSE-GREEN {100*(green[pos]&(iou[pos]<0.8)).mean():.0f}%  green on no-page {100*green[~pos].mean() if (~pos).any() else 0:.0f}%", flush=True)
 
-t0 = time.time(); start = 0
+SAVE_EVERY = 120  # batches (about 2 minutes): a restart of the machine loses at most this much work
+def save(ep, batch, tot, nb):
+    torch.save({'net': net.state_dict(), 'opt': opt.state_dict(), 'sched': sched.state_dict(), 'ep': ep, 'batch': batch, 'tot': tot, 'nb': nb}, 'ckpt2.tmp')
+    os.replace('ckpt2.tmp', 'ckpt2.pt')  # never leave a half-written checkpoint
+t0 = time.time(); start = 0; skip = 0; tot0 = nb0 = 0
 if os.path.exists('ckpt2.pt'):
-    ck = torch.load('ckpt2.pt'); net.load_state_dict(ck['net']); opt.load_state_dict(ck['opt']); sched.load_state_dict(ck['sched']); start = ck['ep']; print('resumed at', start, flush=True)
+    ck = torch.load('ckpt2.pt'); net.load_state_dict(ck['net']); opt.load_state_dict(ck['opt']); sched.load_state_dict(ck['sched'])
+    start, skip, tot0, nb0 = ck['ep'], ck.get('batch', 0), ck.get('tot', 0), ck.get('nb', 0); print('resumed at epoch', start, 'batch', skip, flush=True)
 for ep in range(start, EPOCHS):
-    perm = np.random.permutation(len(X)); tot = 0; nb = 0
-    for i in range(0, len(perm) - 63, 64):
+    perm = np.random.RandomState(1000 + ep).permutation(len(X)); tot, nb = (tot0, nb0) if ep == start else (0, 0)
+    for bi, i in enumerate(range(0, len(perm) - 63, 64)):
+        if ep == start and bi < skip: continue
+        if bi and bi % SAVE_EVERY == 0: save(ep, bi, tot, nb)
         idx = perm[i:i + 64]; xb, yb, pb = X[idx].copy(), Y[idx].copy(), P[idx].copy()
         nr = int(round(64 * SHARE))
         if nr:
@@ -78,7 +85,7 @@ for ep in range(start, EPOCHS):
         if pos.any(): loss = loss + F.smooth_l1_loss(q[pos], yt[pos], beta=0.01) * 20 + var[pos].mean() * 2
         opt.zero_grad(); loss.backward(); opt.step(); sched.step(); tot += loss.item(); nb += 1
     print(f'epoch {ep+1}/{EPOCHS} loss {tot/nb:.4f} time {time.time()-t0:.0f}s', flush=True)
-    torch.save({'net': net.state_dict(), 'opt': opt.state_dict(), 'sched': sched.state_dict(), 'ep': ep + 1}, 'ckpt2.pt')
+    save(ep + 1, 0, 0, 0)
     if (ep + 1) % 2 == 0 or ep + 1 == EPOCHS:
         report('synthetic val', v); report('REAL exam', ex)
         if RVAL: report('held-back real', RVAL)
