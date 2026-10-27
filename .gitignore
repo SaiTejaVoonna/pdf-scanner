@@ -64,3 +64,4 @@ web/test-results/
 web/playwright-report/
 *.tsbuildinfo
 bench/photos/
+__pycache__/
