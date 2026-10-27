@@ -13,6 +13,12 @@ if os.environ.get('REAL'):
     d = os.environ['REAL']; c = json.load(open(f'{d}/corners.json'))
     RX = np.stack([cv2.resize(cv2.cvtColor(cv2.imread(f'{d}/{k}.jpg'), cv2.COLOR_BGR2RGB), (192, 192), interpolation=cv2.INTER_AREA) for k in c])
     RY = np.stack([gen.canonical(np.array(q, np.float32)).reshape(-1) for q in c.values()]).astype(np.float32)
+def load_real(d):
+    c = json.load(open(f'{d}/corners.json'))
+    x = np.stack([cv2.resize(cv2.cvtColor(cv2.imread(f'{d}/{k}.jpg'), cv2.COLOR_BGR2RGB), (192, 192), interpolation=cv2.INTER_AREA) for k in c])
+    y = np.stack([gen.canonical(np.array(q, np.float32)).reshape(-1) for q in c.values()]).astype(np.float32)
+    return {'X': x, 'Y': y, 'P': np.ones(len(x), np.float32)}
+RVAL = load_real(os.environ['REAL_VAL']) if os.environ.get('REAL_VAL') else None
 SHARE = float(os.environ.get('REAL_SHARE', '0.25')) if len(RX) else 0
 print('train', X.shape, 'real', RX.shape, flush=True)
 mean, std, HM = 0.5, 0.25, 48
@@ -74,5 +80,7 @@ for ep in range(start, EPOCHS):
     print(f'epoch {ep+1}/{EPOCHS} loss {tot/nb:.4f} time {time.time()-t0:.0f}s', flush=True)
     torch.save({'net': net.state_dict(), 'opt': opt.state_dict(), 'sched': sched.state_dict(), 'ep': ep + 1}, 'ckpt2.pt')
     if (ep + 1) % 2 == 0 or ep + 1 == EPOCHS:
-        report('synthetic val', v); report('REAL exam', ex); torch.save(net.state_dict(), 'net2.pt')
+        report('synthetic val', v); report('REAL exam', ex)
+        if RVAL: report('held-back real', RVAL)
+        torch.save(net.state_dict(), 'net2.pt')
 torch.save(net.state_dict(), 'net2.pt')
