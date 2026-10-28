@@ -1,0 +1,21 @@
+const { chromium } = require('playwright');
+const OUT = __dirname + '/explore/', DOCS = __dirname + '/docs/';
+(async () => {
+const b = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium' });
+const ctx = await b.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+const p = await ctx.newPage();
+await p.addInitScript(() => { try { localStorage.setItem('pdf-scanner.tip-keep', '1'); } catch {} });
+await p.goto('http://localhost:4173/'); await p.waitForTimeout(800);
+let n = 30; const shot = async (name) => { await p.waitForTimeout(600); await p.screenshot({ path: `${OUT}${++n}-${name}.png` });
+  const btns = await p.evaluate(() => [...document.querySelectorAll('button,[role=radio]')].filter((x) => x.getBoundingClientRect().height > 0).map((x) => (x.getAttribute('role') || '') + ':' + (x.getAttribute('aria-label') || x.textContent.trim())).filter(Boolean));
+  console.log(`[${name}]`, btns.join(' | ').slice(0, 600)); };
+await p.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [`${DOCS}photo-report.jpg`]);
+await p.getByRole('list', { name: 'Pages' }).locator('li').first().waitFor();
+await p.getByRole('button', { name: 'Add pages' }).click(); await shot('add');
+await p.getByText('Book spread', { exact: true }).click(); await shot('add-spread');
+await p.getByRole('button', { name: 'Close' }).click().catch(() => p.keyboard.press('Escape'));
+await p.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [`${DOCS}photo-spread.jpg`]);
+await p.waitForTimeout(3500); await shot('after-spread-import');
+await p.getByRole('button', { name: 'Apply' }).click(); await p.waitForTimeout(2500); await shot('spread-applied');
+await b.close();
+})();

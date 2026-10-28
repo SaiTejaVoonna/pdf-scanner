@@ -65,3 +65,16 @@ web/playwright-report/
 *.tsbuildinfo
 bench/photos/
 __pycache__/
+
+# Promo video: renders, third-party audio (licensed for use, not redistribution) and regenerable assets
+promo/out/
+promo/reel/out/
+promo/reel/public/music/
+promo/reel/public/sfx/
+promo/reel/public/shots/
+promo/reel/public/pdf/
+promo/capture/final/
+promo/capture/explore/
+promo/capture/docs/
+.claude/skills/video-shotcraft/
+promo/reel/public/voice/

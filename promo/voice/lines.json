@@ -1,0 +1,30 @@
+[
+ {
+  "id": "hook",
+  "text": "Got a photo of a page that looks like this?"
+ },
+ {
+  "id": "import",
+  "text": "Open PDF Scanner and add the photo."
+ },
+ {
+  "id": "crop",
+  "text": "Tap Auto to find the edges. Drag a corner if it needs a nudge."
+ },
+ {
+  "id": "look",
+  "text": "Choose a look. The Enhanced filter makes it bright and clear."
+ },
+ {
+  "id": "pages",
+  "text": "Add more pages. Even a book spread becomes two pages."
+ },
+ {
+  "id": "export",
+  "text": "Choose a size, and your PDF is saved."
+ },
+ {
+  "id": "outro",
+  "text": "Free, works offline, and your pages stay on your phone."
+ }
+]
