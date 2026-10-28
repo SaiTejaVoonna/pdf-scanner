@@ -1,153 +1,105 @@
 # PDF Scanner
 
-[![Android CI](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/android.yml/badge.svg)](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/android.yml)
-[![Download APK](https://img.shields.io/badge/Download-beta%20APK-2ea44f?logo=android&logoColor=white)](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk)
-![Status: beta](https://img.shields.io/badge/status-beta%201.0.0-orange)
+### Try it: **[saitejavoonna.github.io/pdf-scanner](https://saitejavoonna.github.io/pdf-scanner/)**
 
-A free, offline Android app for turning photos and PDFs into clean PDFs. No accounts, no ads, no
-analytics, no uploads: it has no internet permission at all.
+Open the link on your phone, then *Add to Home Screen*. That's the whole install.
 
-> **Beta (`1.0.0-beta.1`).** It works end to end, but it is young. Expect rough edges, and please report
-> them. See [docs/ROADMAP.md](docs/ROADMAP.md) for what is done and what is planned.
+A free scanner that turns photos of paper into clean PDFs, plus a few PDF tools I kept needing. It runs entirely in
+your browser. No account, no ads, no watermark, and your pages never leave your phone. It also works offline once
+it has loaded once.
 
-## Two versions, same principles
+[![Web app](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/web.yml/badge.svg)](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/web.yml)
+[![Android](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/android.yml/badge.svg)](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/android.yml)
+![Status](https://img.shields.io/badge/status-prototype-orange)
 
-| | Android app (`app/`) | Web app (`web/`) |
-| --- | --- | --- |
-| Runs on | Android 8.0+ | Any modern browser: iPhone, Android, desktop. Installable, works offline |
-| Get it | [Download the APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk) | Run it locally (`web/README.md`) or enable GitHub Pages with one setting (see [docs/RELEASING.md](docs/RELEASING.md)); it then lives at `https://saitejavoonna.github.io/pdf-scanner/` |
-| Combine PDFs | By importing their pages as images | Keeps text and vectors (no re-rendering) |
-| File size | Quality presets | Quality presets with the **estimated size in MB** shown, plus "keep under N MB" |
-| Camera | In-app CameraX | In-page live camera, or the phone's own camera app |
-| Open books | Not supported | **Book spread** mode: one photo becomes a left and a right page (see below) |
+| PDFs | Pages | Edit a page | Make PDF | Tools | Settings |
+| --- | --- | --- | --- | --- | --- |
+| ![PDFs](docs/screenshots/ui-home.png) | ![Pages](docs/screenshots/ui-pages.png) | ![Edit](docs/screenshots/ui-edit-page.png) | ![Make PDF](docs/screenshots/ui-make-pdf.png) | ![Tools](docs/screenshots/ui-tools.png) | ![Settings](docs/screenshots/ui-settings.png) |
 
-The web app is the newer of the two and shares the same page-detection approach. It has fewer features so far
-(no library of saved documents: one working document at a time). See [web/README.md](web/README.md).
+<sub>Screenshots are taken from the real app by `web/e2e/screenshots.mjs`, with made-up sample pages.</sub>
 
-## Web app: book spreads
-Switch **Single page / Book spread** above the Scan button. A spread photo opens a review screen with the four outer
-corners and two fold handles that slide along the top and bottom edges (so the split can tilt); "Adjust each page" gives
-every page its own four corners. The photo's pages are added **left, then right**, so 3 spreads make 6 pages. A fold the
-app cannot find is shown as an uncertain middle and the spread cannot be applied until you move or confirm it; writing that
-touches a crop edge is flagged. One shared source photo per spread, edits are non-destructive, and a spread can be edited,
-retaken (other pages and their order are kept) or have one side deleted. Not included: OCR and flattening curved pages.
+## What it does
 
-## Download
+**Scan**
+- Live camera with a page outline and optional auto-capture, or pick photos from your gallery.
+- Auto-crop finds the page and straightens it. If it's a bit off, drag a corner.
+- Looks: Original, Enhanced (removes shadows, whitens the paper), Grayscale, Black & white.
+- Book spreads: one photo of an open book becomes a left and a right page.
+- Unfinished scans are saved as a draft, so you can close the app and carry on later.
 
-**[Download the latest beta APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk)**
-(rebuilt on every push; no sign-in needed). Open the file on your phone and allow *Install unknown apps* when
-asked. It is a debug-signed build for testing, not a Play Store release.
-
-## Screenshots
-
-Web app (captured from the real build in headless Chromium; Android screenshots are not added yet):
-
-| Pages (single + spreads) | Review a book spread | Fold not found: confirm first | Selection |
-| --- | --- | --- | --- |
-| ![Pages](docs/screenshots/web-pages-light.png) | ![Spread](docs/screenshots/web-spread-review-light.png) | ![Uncertain](docs/screenshots/web-spread-uncertain-light.png) | ![Selection](docs/screenshots/web-selection-light.png) |
-
-| Crop | Enhance | Export | Camera (spread guide) |
-| --- | --- | --- | --- |
-| ![Crop](docs/screenshots/web-crop-light.png) | ![Enhance](docs/screenshots/web-enhance-light.png) | ![Export](docs/screenshots/web-export-light.png) | ![Camera](docs/screenshots/web-camera-spread-light.png) |
-
-More: [each-page adjust](docs/screenshots/web-spread-each-page-light.png), [page menu](docs/screenshots/web-page-menu-light.png), [preview](docs/screenshots/web-preview-light.png), [resize](docs/screenshots/web-resize-light.png), [dark pages](docs/screenshots/web-pages-dark.png), [dark home](docs/screenshots/web-home-empty-dark.png). The photos in the spread shots are synthetic.
-
-## What it does today
-
-**Scan and import**
-- Capture pages with the camera (CameraX, flash toggle), or import photos with the system Photo Picker.
-- Import existing **PDFs** and add their pages to a document. This is how you **combine, split and reorder**
-  PDFs: import several, reorder, delete the pages you do not want, export.
-- Several pages per document; unfinished scans are kept as drafts and can be resumed.
-
-**Crop, clean up and edit**
-- **Auto-crop is optional.** Settings has separate switches for camera photos (on by default) and imported
-  images (off by default). A page can always be cropped by hand with draggable corners and perspective
-  correction, or reset to the full image.
-- **Per page or many at once:** long-press a page to select; tap more; then auto-crop, remove crop, rotate or
-  apply a filter to all selected pages, or delete them.
-- Filters: **Original**, **Enhanced** (removes shadows and uneven lighting, whitens paper, keeps colour),
-  **Grayscale**, **Black & white** (adaptive threshold). Rotate left/right.
-
-**Export and share**
-- Real multipage PDF: custom file name, page size (**A4**, **US Letter**, or match each image), and a
-  **quality** preset (High, Balanced, Small file) to control file size.
-- Save anywhere with the system file picker, or share through a `FileProvider` link with a temporary grant.
+**Make the PDF**
+- Pick a quality and see the estimated file size before you save (High, Balanced, Small file, Tiny).
+- Or set a limit ("keep under 1 MB") and it picks the best quality that fits.
 
 **Tools**
-- **Resize images**: pick photos, choose a longest side (2048 / 1280 / 800 / original), JPEG quality or PNG,
-  and save copies to a folder you choose. Originals are never touched.
+- Compress PDF, Resize photo (by pixels or file size), Combine PDFs, Split PDF.
+- Combining keeps text and vectors as they are. Nothing gets re-rendered into a blurry image.
 
-**Library**
-- Search, rename, delete with confirmation, share. Dark mode and TalkBack labels throughout.
+**Not there yet:** OCR / searchable text, sync, password-protected PDFs. Auto-crop is good, not perfect: busy
+backgrounds and glare can still fool it, which is why you can always fix corners by hand.
 
-## Not implemented yet
+## Privacy
 
-OCR / searchable PDFs, folders in the library, password-protected PDFs (they are skipped on import), PDF
-password protection on export, Google Drive or any cloud sync, custom page sizes, a Play Store release. See the
-[roadmap](docs/ROADMAP.md).
+Everything happens on your device. The app has no server and makes no requests to other sites. Scans are kept in your
+browser's storage, and Settings has *Back up everything* because browsers can clear site data.
 
-## Requirements
+## How the page detection works
 
-| Tool | Version |
-| --- | --- |
-| JDK | 17 or newer |
-| Android SDK | Platform 35, Build-Tools 35 (Android Studio installs these) |
-| Device | Android 8.0 (API 26) or newer. A camera is optional; import works without one |
+Two parts working together:
+1. Classic computer vision: edges, straight lines, then every plausible four-sided shape is scored by how well it sits on
+   real edges.
+2. A small neural network (about 1 MB, runs in the browser) that predicts the four corners.
 
-## Build and run
+The app combines the two, and the outline only turns green when it's confident. Details and measurements:
+[docs/PAGE_DETECTION.md](docs/PAGE_DETECTION.md) and [docs/ML_EVALUATION.md](docs/ML_EVALUATION.md). A bigger
+model is in training and only ships if it beats the current one on real photos.
+
+## Android
+
+There is a native Android version in `app/` (Kotlin, Jetpack Compose, no internet permission at all). It's an early
+beta and behind the web app. A proper Android release is coming. Meanwhile you can try the
+[debug APK](https://github.com/SaiTejaVoonna/pdf-scanner/releases/download/latest-debug/pdf-scanner-debug.apk).
+
+## Run it yourself
 
 ```bash
-echo "sdk.dir=$ANDROID_HOME" > local.properties   # once; Android Studio does this for you
-./gradlew assembleDebug                            # app/build/outputs/apk/debug/app-debug.apk
-./gradlew installDebug                             # install on a connected device or emulator
-./gradlew testDebugUnitTest lintDebug              # tests and lint
+cd web
+npm ci
+npm run dev      # http://localhost:5173
+npm test         # 128 unit tests
+npm run e2e      # 57 browser tests (Playwright)
 ```
 
-Open the folder in Android Studio and press Run if you prefer. `./gradlew assembleRelease` produces an
-**unsigned, non-installable** APK (it only proves the minified build compiles). Publishing on Google Play would
-need a properly signed AAB with an owner-managed key, which is not set up here.
+Android: `./gradlew assembleDebug`. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
-## Privacy, permissions and network
-
-- Permissions: **`CAMERA`** only, requested when you open the scanner. **No `INTERNET` permission**, so the app
-  cannot send data anywhere, and nothing is downloaded after install.
-- Photos come from the system Photo Picker and PDFs/folders from the system file picker, so the app never needs
-  broad storage access.
-- Scans live in app-private storage and are excluded from cloud backup and device transfer. Shared PDFs are
-  temporary copies in the cache, exposed through a narrowly scoped `FileProvider`, and cleared when stale.
-- If camera permission is denied (or there is no camera) the scanner explains how to grant it and offers
-  *Import photos* instead.
-
-## How page detection works (and where it fails)
-
-Auto-crop uses no Google services and no native libraries: Canny edges, a Hough transform for straight
-lines, then every plausible quadrilateral is scored by how well its sides sit on real edges, how much of
-the image it covers, and whether there is a real brightness/colour step across each side. It declines to guess
-rather than return a bad crop. Details: [docs/PAGE_DETECTION.md](docs/PAGE_DETECTION.md).
-
-It is still a heuristic. Busy backgrounds, overlapping papers or heavy glare can fool it, which is why manual
-corners, "remove crop" and the switch to turn auto-crop off always exist.
-
-## Project layout
+## What's in the repo
 
 ```
-app/src/main/java/com/saiteja/pdfscanner/
-├── ui/        Compose screens and ViewModels (home, camera, document, edit, tools), theme, navigation
-├── domain/    Pure Kotlin models and logic (geometry, page order, file names, image sizing)
-├── data/      Room database, repository, settings, on-disk file store
-├── imaging/   Edge detection, perspective warp, filters, import/render, PDF page import, resizer
-└── pdf/       PDF writer and exporter
+web/      The web app (TypeScript, Vite, pdf-lib). This is what the link above runs.
+  ml/     Training code for the corner model (PyTorch)
+  bench/  Benchmarks on real photos
+app/      The native Android app (Kotlin)
+docs/     Design notes, screenshots, logo drafts
+promo/    The Instagram Reel: Remotion source, screen captures, voiceover
 ```
 
-More in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Tests mirror this layout in `app/src/test/`
-([docs/TESTING.md](docs/TESTING.md)). The web app lives in `web/` (see [web/README.md](web/README.md)).
+## Credits
 
-## Contributing
+Made by **Sai Teja Voonna** ([@SaiTejaVoonna](https://github.com/SaiTejaVoonna)).
 
-Welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md). Releases: [docs/RELEASING.md](docs/RELEASING.md).
+I came up with the idea, decided what goes in and what stays out, designed how it looks and feels, and tested every
+version on my own phone with real pages. I built it with [Claude Code](https://claude.com/claude-code) as my AI pair
+programmer, which wrote much of the code with me. The promo Reel was made the same way.
+
+Thanks to these open-source projects and datasets:
+- [pdf-lib](https://github.com/Hopding/pdf-lib) (MIT) for everything PDF
+- [Material Symbols](https://github.com/google/material-design-icons) (Apache 2.0) for the icons
+- The [Mendeley document corners dataset](https://data.mendeley.com/datasets/x3nm4cxr83) (CC BY 4.0), used to train the next corner model
+- [Remotion](https://www.remotion.dev/), [Kokoro TTS](https://huggingface.co/hexgrad/Kokoro-82M) and Mixkit sounds, for the Reel
+
+Full list: [docs/THIRD_PARTY.md](docs/THIRD_PARTY.md). What changed and when: [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 
-**No license has been selected yet.** The owner intends this to be open source; until a license file is added,
-default copyright applies and others have no permission to reuse the code.
+No license yet, so default copyright applies: you can look and try the app, but not reuse the code. I plan to pick an
+open-source license soon.

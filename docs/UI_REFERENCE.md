@@ -1,6 +1,6 @@
 # UI reference: calm glass
 
-The build reference for the next UI pass. Mocks: `docs/mocks/ref-*.png` (built by `docs/mocks/build_mocks_ref.py`). Style rules: `ref-8-style.png`.
+The build reference for the next UI pass. Mocks: `docs/design/ref-*.png`. Style rules: `ref-8-style.png`.
 
 | Mock | Screen | Today's code |
 |---|---|---|
@@ -17,7 +17,7 @@ PDF menu items Make smaller / Share / Back up, and removal of the camera "Lines"
 
 ## Built (October 2026) and how close it is to the mocks
 
-Screens of the real app: `docs/screenshots/ui-*.png` (made by `web/e2e/screenshots.mjs`), next to the mocks `docs/mocks/ref-*.png`.
+Screens of the real app: `docs/screenshots/ui-*.png` (made by `web/e2e/screenshots.mjs`), next to the mocks `docs/design/ref-*.png`.
 
 | Mock | Status | Differences from the mock |
 |---|---|---|

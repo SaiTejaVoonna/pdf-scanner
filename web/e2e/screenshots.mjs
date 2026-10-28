@@ -1,4 +1,4 @@
-// Screenshots of the real app for the UI review (compare with docs/mocks/ref-*.png): `node e2e/screenshots.mjs`
+// Screenshots of the real app for the UI review (compare with docs/design/ref-*.png): `node e2e/screenshots.mjs`
 // Needs `npm run build`, a preview server on :4173 and CHROMIUM_PATH. Writes docs/screenshots/ui-*.png
 import { chromium } from '@playwright/test';
 import { PDFDocument } from 'pdf-lib';
