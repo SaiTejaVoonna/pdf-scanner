@@ -85,11 +85,13 @@ promo/    The Instagram Reel: Remotion source, screen captures, voiceover
 
 ## Credits
 
-Made by **Sai Teja Voonna** ([@SaiTejaVoonna](https://github.com/SaiTejaVoonna)).
+Concept and direction by **Sai Teja Voonna** ([@SaiTejaVoonna](https://github.com/SaiTejaVoonna)).
+Code by [Claude Code](https://claude.com/claude-code), Anthropic's AI coding agent.
 
-I came up with the idea, decided what goes in and what stays out, designed how it looks and feels, and tested every
-version on my own phone with real pages. I built it with [Claude Code](https://claude.com/claude-code) as my AI pair
-programmer, which wrote much of the code with me. The promo Reel was made the same way.
+This is an AI-assisted build, and I want to be upfront about the split. The idea is mine, and so are the calls: what
+the app should do, what to cut, how it should look and feel, and what wasn't good enough yet. I tried it on my phone,
+sent real photos of pages to test with, and asked for changes until it felt right. Claude wrote the code, the tests and
+the docs, trained the corner model, and made the promo Reel, all from my prompts and feedback.
 
 Thanks to these open-source projects and datasets:
 - [pdf-lib](https://github.com/Hopding/pdf-lib) (MIT) for everything PDF
