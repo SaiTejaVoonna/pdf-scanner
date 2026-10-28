@@ -5,7 +5,7 @@
 Open the link on your phone, then *Add to Home Screen*. That's the whole install.
 
 A free scanner that turns photos of paper into clean PDFs, plus a few PDF tools I kept needing. It runs entirely in
-your browser. No account, no ads, no watermark, and your pages never leave your phone. It also works offline once
+your browser. No account, no watermark, and your pages never leave your phone. It also works offline once
 it has loaded once.
 
 [![Web app](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/web.yml/badge.svg)](https://github.com/SaiTejaVoonna/pdf-scanner/actions/workflows/web.yml)
