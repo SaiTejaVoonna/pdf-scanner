@@ -76,13 +76,16 @@ export const Tap: React.FC<{ x: number; y: number; at: number }> = ({ x, y, at }
   );
 };
 
+type Line = { id: string; from: number; sec: number };
+type Words = Record<string, { w: string; s: number; e: number }[]>;
 /** Word-by-word captions for the voice line that is playing (timings measured from the generated voice). */
-export const Captions: React.FC<{ top: number }> = ({ top }) => {
+export const Captions: React.FC<{ top: number; voice?: readonly Line[]; wordsFor?: Words }> = ({ top, voice = VOICE, wordsFor = words as Words }) => {
   const f = useCurrentFrame();
-  const line = VOICE.find((v) => f >= v.from - 4 && f <= v.from + v.sec * 30 + 12);
+  // The latest line that has started wins, so a quick next line replaces the previous caption instead of waiting for it to fade.
+  const line = [...voice].reverse().find((v) => f >= v.from - 4 && f <= v.from + v.sec * 30 + 12);
   if (!line) return null;
   const t = (f - line.from) / 30;
-  const ws = (words as Record<string, { w: string; s: number; e: number }[]>)[line.id];
+  const ws = wordsFor[line.id];
   const enter = interpolate(f, [line.from - 4, line.from + 4], [0, 1], clamp);
   const leave = interpolate(f, [line.from + line.sec * 30 + 4, line.from + line.sec * 30 + 12], [1, 0], clamp);
   return (

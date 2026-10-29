@@ -65,3 +65,46 @@ voice start frames, taps, sound effects) and `reel/src/Reel.tsx`.
 
 Skills used: video-shotcraft and remotion-dev/skills (installed per project; `skills-lock.json` reinstalls them with
 `npx skills experimental_install`). video-shotcraft is not committed because it bundles third-party audio.
+
+# Reel 2: scanner first, then size and tools (35 s, the app is not named)
+
+Composition `Reel2` (`reel/src/v2/`), same 1080x1920 at 30 fps, same music and sound effects. Two renders again:
+`out/reel2.mp4` (with music) and `out/reel2-no-music.mp4`.
+
+| Time | Line (voice and captions) |
+|---|---|
+| 0.2 s | Need this page as a PDF? |
+| 2.6 s | Open the app. Snap it, or add a photo. |
+| 5.2 s | It finds the page and straightens it. |
+| 7.9 s | One tap… and it looks properly scanned. |
+| 11.0 s | More pages? Keep going. Even a book spread splits into two. |
+| 15.0 s | Form says under 200 KB? Pick the size. Done. No watermark. |
+| 21.5 s | There's Compress, Resize, Combine and Split too. |
+| 25.7 s | No account needed. Your pages never leave your phone. Even offline. |
+| 31.0 s | Free. Android app coming soon. Link's below. |
+
+What was checked in the app before recording (`capture/final2/facts.json`):
+- The live camera is the app's own: Chromium's fake camera plays `capture/cam/report.y4m` (a phone-style view of the sample
+  report, `capture/make_cam.py`), and the green outline and auto-capture are the app's real behaviour, recorded frame by frame.
+- The 5-page PDF: the app estimated High 769 KB, Balanced 460 KB, Small file 267 KB, Tiny 165 KB. Tiny was picked and the saved
+  file is 144 KB, so "under 200 KB" is true for this document. A different document can come out bigger.
+- Resize photo with "Largest file 50 KB": 579 KB became 49 KB.
+- No watermark: the reel shows page 1 of that exported PDF as it is.
+- Ads are not claimed either way (they may come later). The app's name is not shown or spoken.
+
+Caption suggestion:
+
+Photo → clean PDF in seconds. Under 200 KB for those upload forms. No watermark, no account. Works offline.
+Android app coming soon. Link in bio 📲
+
+Rebuild:
+```
+cd promo/capture && python3 -I make_docs.py && python3 -I make_cam.py
+ffmpeg -loop 1 -i cam/report-cam.jpg -vf "crop=w=1300:h=2817:x='25+14*sin(2*PI*t/3)':y='54+12*cos(2*PI*t/2.5)',scale=720:1560,format=yuv420p" -t 6 -r 30 cam/report.y4m
+(cd ../../web && npm run build && npx vite preview --port 4173 &)
+node capture2.cjs && node capture-cam-video.cjs      # screens, sizes, the exported PDF; camera frames
+cd ../voice/v2 && python speak.py <kokoro dir> && python words.py   # voice, then a word-by-word check and caption timings
+cd ../../reel && ./prepare-assets2.sh
+npx remotion render Reel2 out/reel2-raw.mp4 && npx remotion render Reel2 out/reel2-nomusic-raw.mp4 --props=props-nobgm.json
+```
+Audio is levelled the same way as Reel 1.

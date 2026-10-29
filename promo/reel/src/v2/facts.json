@@ -1,0 +1,26 @@
+{
+ "qualities": [
+  {
+   "name": "High",
+   "size": "≈ 769 KB"
+  },
+  {
+   "name": "Balanced",
+   "size": "≈ 460 KB"
+  },
+  {
+   "name": "Small file",
+   "size": "≈ 267 KB"
+  },
+  {
+   "name": "Tiny",
+   "size": "≈ 165 KB"
+  }
+ ],
+ "picked": {
+  "name": "Tiny",
+  "size": "≈ 165 KB"
+ },
+ "pdfBytes": 147230,
+ "resize": "photo-plants-resized.jpg\n960×1280 · 579 KB → 49 KB\nSave"
+}

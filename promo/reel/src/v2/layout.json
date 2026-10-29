@@ -1,0 +1,92 @@
+{
+ "scan": {
+  "x": 108,
+  "y": 776,
+  "width": 87,
+  "height": 48
+ },
+ "done": {
+  "x": 271.3125,
+  "y": 758,
+  "width": 96.6875,
+  "height": 44
+ },
+ "page1": {
+  "x": 16,
+  "y": 71,
+  "width": 173,
+  "height": 230.65625
+ },
+ "look": {
+  "x": 291.75,
+  "y": 689.78125,
+  "width": 90,
+  "height": 60.109375
+ },
+ "enhanced": {
+  "x": 126.796875,
+  "y": 759.890625,
+  "width": 52.609375,
+  "height": 70.109375
+ },
+ "addPages": {
+  "x": 14,
+  "y": 776,
+  "width": 54,
+  "height": 54
+ },
+ "importImages": {
+  "x": 25,
+  "y": 649,
+  "width": 340,
+  "height": 50
+ },
+ "makePdf": {
+  "x": 78,
+  "y": 776,
+  "width": 298,
+  "height": 54
+ },
+ "quality": {
+  "x": 25,
+  "y": 615.8125,
+  "width": 340,
+  "height": 45.59375
+ },
+ "create": {
+  "x": 25,
+  "y": 715,
+  "width": 340,
+  "height": 50
+ },
+ "tCompress": {
+  "x": 16,
+  "y": 61.796875,
+  "width": 173,
+  "height": 124
+ },
+ "tResize": {
+  "x": 201,
+  "y": 61.796875,
+  "width": 173,
+  "height": 124
+ },
+ "tCombine": {
+  "x": 16,
+  "y": 197.796875,
+  "width": 173,
+  "height": 124
+ },
+ "tSplit": {
+  "x": 201,
+  "y": 197.796875,
+  "width": 173,
+  "height": 124
+ },
+ "resizeGo": {
+  "x": 20,
+  "y": 601.875,
+  "width": 350,
+  "height": 50
+ }
+}

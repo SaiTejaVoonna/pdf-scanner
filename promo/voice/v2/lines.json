@@ -1,0 +1,73 @@
+[
+ {
+  "id": "hook",
+  "text": "Need this page as a PDF?",
+  "say": "Need this page as a P D F?",
+  "speed": 0.95
+ },
+ {
+  "id": "open",
+  "text": "Open the app. Snap it, or add a photo."
+ },
+ {
+  "id": "find",
+  "text": "It finds the page and straightens it."
+ },
+ {
+  "id": "tap",
+  "text": "One tap…",
+  "say": "One tap..."
+ },
+ {
+  "id": "scanned",
+  "text": "and it looks properly scanned."
+ },
+ {
+  "id": "pages",
+  "text": "More pages? Keep going. Even a book spread splits into two.",
+  "speed": 1.06
+ },
+ {
+  "id": "form",
+  "text": "Form says under 200 KB?",
+  "say": "Form says under two hundred KB?"
+ },
+ {
+  "id": "pick",
+  "text": "Pick the size."
+ },
+ {
+  "id": "done",
+  "text": "Done.",
+  "speed": 0.95
+ },
+ {
+  "id": "nowm",
+  "text": "No watermark.",
+  "speed": 0.88
+ },
+ {
+  "id": "tools",
+  "text": "There's Compress, Resize, Combine and Split too.",
+  "speed": 1.08
+ },
+ {
+  "id": "private",
+  "text": "No account needed. Your pages never leave your phone.",
+  "speed": 0.92
+ },
+ {
+  "id": "offline",
+  "text": "Even offline.",
+  "speed": 0.88
+ },
+ {
+  "id": "free",
+  "text": "Free.",
+  "speed": 0.9
+ },
+ {
+  "id": "end",
+  "text": "Android app coming soon. Link's below."
+ }
+]
