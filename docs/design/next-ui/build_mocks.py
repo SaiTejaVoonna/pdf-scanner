@@ -1,0 +1,119 @@
+"""Mock screens for the next UI: home with form shortcuts, grouped Tools, one result screen, ID card mode.
+Run: python3 build_mocks.py && node render.cjs  -> next-ui.png and one PNG per screen. Mocks only: nothing here is built yet."""
+I = lambda d, c='currentColor', w=22: f'<svg width="{w}" height="{w}" viewBox="0 0 24 24" fill="none" stroke="{c}" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">{d}</svg>'
+IC = {
+ 'doc': '<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v4h4M10 12h5M10 16h5"/>',
+ 'cam': '<path d="M4 8h3l1.5-2h7L17 8h3v11H4z"/><circle cx="12" cy="13.5" r="3.2"/>',
+ 'tools': '<path d="M14.5 6.5a4 4 0 0 0 5 5L11 20a2.1 2.1 0 0 1-3-3z"/><path d="M5 5l4 4"/>',
+ 'gear': '<circle cx="12" cy="12" r="3"/><path d="M12 3v3M12 18v3M3 12h3M18 12h3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"/>',
+ 'search': '<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>',
+ 'id': '<rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="8.5" cy="11.5" r="2"/><path d="M13 10h5M13 14h5M5.5 15.5c.8-1.4 5.2-1.4 6 0"/>',
+ 'book': '<path d="M12 6c-2-1.5-5-2-8-1.5v13c3-.5 6 0 8 1.5 2-1.5 5-2 8-1.5v-13c-3-.5-6 0-8 1.5zM12 6v13"/>',
+ 'squeeze': '<path d="M4 12h16M12 3v5M9.5 5.5 12 8l2.5-2.5M12 21v-5M9.5 18.5 12 16l2.5 2.5"/>',
+ 'photo': '<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>',
+ 'face': '<rect x="5" y="3" width="14" height="18" rx="2.5"/><circle cx="12" cy="10" r="2.6"/><path d="M8 17.5c1-2.6 7-2.6 8 0"/>',
+ 'merge': '<path d="M6 4v5c0 3 6 3 6 6v5M18 4v5c0 3-6 3-6 6"/><path d="M9.5 17.5 12 20l2.5-2.5"/>',
+ 'split': '<path d="M12 4v6M12 10c0 4-6 3-6 8M12 10c0 4 6 3 6 8"/><path d="M3.8 15.8 6 18l2.2-2.2M15.8 15.8 18 18l2.2-2.2"/>',
+ 'order': '<path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3"/>',
+ 'num': '<path d="M7 3h7l4 4v14H7z"/><path d="M11 17v-5l-1.3 1"/>',
+ 'lock': '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5"/>',
+ 'unlock': '<rect x="5" y="10.5" width="14" height="10" rx="2.5"/><path d="M8 10.5V8a4 4 0 0 1 7.5-1.8"/>',
+ 'sign': '<path d="M4 18c3-6 4-10 6-10s0 8 2 8 2-4 3.5-4 1 3 4.5 3M4 21h16"/>',
+ 'redact': '<path d="M5 7h14M5 17h9"/><rect x="5" y="10.5" width="14" height="3.4" rx="1" fill="currentColor"/>',
+ 'text': '<path d="M5 6h14M5 10h14M5 14h9"/><path d="M15 17.5h5M17.5 15v5"/>',
+ 'share': '<path d="M12 15V4M8 7.5 12 4l4 3.5M6 12v7h12v-7"/>',
+ 'check': '<path d="M5 12.5l4.5 4.5L19 7.5"/>',
+ 'chev': '<path d="M9 6l6 6-6 6"/>',
+ 'back': '<path d="M15 6l-6 6 6 6"/>',
+ 'flip': '<path d="M4 9a8 8 0 0 1 14-3l2 2M20 15a8 8 0 0 1-14 3l-2-2M20 4v4h-4M4 20v-4h4"/>',
+}
+ic = lambda k, c='currentColor', w=22: I(IC[k], c, w)
+GROUPS = {'scan': '#3552d9', 'small': '#8a5cf0', 'org': '#2fa84f', 'safe': '#e08a1e'}
+
+CSS = '''
+*{box-sizing:border-box} body{margin:0;background:#dcdad4;font:16px/1.35 -apple-system,'SF Pro Text',Inter,system-ui,sans-serif;color:#1c1c1e}
+.row{display:flex;gap:44px;padding:48px 44px 30px;align-items:flex-start}
+.col{display:flex;flex-direction:column;align-items:center;gap:16px}
+.cap{font-size:19px;font-weight:700}.sub{font-size:14.5px;color:#55565c;max-width:390px;height:40px;text-align:center;margin-top:-10px}
+.phone{width:390px;height:844px;border-radius:46px;position:relative;overflow:hidden;background:#f4f3f0;box-shadow:0 0 0 10px #101012,0 40px 80px rgba(20,25,50,.3);
+ background-image:radial-gradient(110% 45% at 0% 0%,#d6e3ff 0%,transparent 62%),radial-gradient(90% 40% at 100% 6%,#fde6d4 0%,transparent 58%)}
+.phone.dark{background:#0b0b0d;background-image:none;color:#fff}
+h1{font-size:34px;font-weight:800;letter-spacing:-.8px;margin:0;padding:62px 18px 10px}
+.lab{font-size:13px;font-weight:650;color:#6b6b70;padding:16px 20px 8px;display:flex;justify-content:space-between}
+.lab a{color:#3552d9;font-weight:600}
+.search{margin:2px 16px 4px;height:42px;border-radius:13px;background:rgba(120,120,128,.14);display:flex;align-items:center;gap:8px;padding:0 12px;color:#6b6b70;font-size:16px}
+.card{margin:0 16px;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);border-radius:20px;box-shadow:0 6px 20px rgba(40,60,120,.08)}
+.li{display:flex;align-items:center;gap:12px;padding:11px 14px;border-top:1px solid #ecebe7}.li:first-child{border-top:0}
+.li b{font-weight:600;font-size:15.5px;display:block}.li small{color:#6b6b70;font-size:12.5px}
+.thumb{width:38px;height:48px;border-radius:6px;background:#fff;border:1px solid #dddcd7;flex:none;position:relative;overflow:hidden}
+.thumb:before{content:'';position:absolute;left:6px;right:6px;top:8px;height:2px;background:#b9b9be;box-shadow:0 6px #cfcfd3,0 12px #cfcfd3,0 18px #cfcfd3,0 24px #cfcfd3}
+.chips{display:flex;gap:10px;padding:0 16px;overflow:hidden}
+.short{flex:none;width:150px;height:126px;border-radius:20px;padding:13px;display:flex;flex-direction:column;justify-content:space-between;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);box-shadow:0 6px 20px rgba(40,60,120,.08)}
+.short b{font-size:14px;line-height:1.2;display:block;margin-bottom:2px}.short small{font-size:12px;color:#6b6b70}
+.icb{width:38px;height:38px;border-radius:12px;display:grid;place-items:center;color:#fff;flex:none}
+.grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;padding:0 16px}
+.tile{min-width:0;height:92px;border-radius:18px;padding:11px 10px;display:flex;flex-direction:column;justify-content:space-between;background:rgba(255,255,255,.72);border:1px solid rgba(255,255,255,.9);box-shadow:0 4px 14px rgba(40,60,120,.07)}
+.tile b{font-size:12.8px;font-weight:650;line-height:1.15}.tile .icb{width:34px;height:34px;border-radius:11px}
+.new{font-size:9.5px;font-weight:800;letter-spacing:.5px;color:#3552d9;background:rgba(53,82,217,.12);border-radius:99px;padding:2px 6px;margin-left:4px;vertical-align:1px}
+.dock{position:absolute;left:14px;right:14px;bottom:16px;height:60px;border-radius:99px;display:flex;align-items:center;padding:0 6px;background:rgba(255,255,255,.8);border:1px solid rgba(255,255,255,.9);box-shadow:0 8px 24px rgba(40,60,120,.14)}
+.tab{flex:1;height:48px;border-radius:99px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10.8px;font-weight:500;color:#6b6b70;gap:1px}
+.tab.on{color:#3552d9;background:rgba(53,82,217,.1)}.tab.go{color:#1c1c1e}.tab.go svg{color:#3552d9}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:56px 14px 10px;font-weight:650;font-size:17px}.nav span{width:40px;color:#3552d9;display:flex}
+.btn{height:52px;border-radius:99px;display:flex;align-items:center;justify-content:center;gap:8px;font-weight:650;font-size:16.5px}
+.pri{color:#fff;background:linear-gradient(160deg,#4a6cf0,#3552d9);box-shadow:0 8px 20px rgba(53,82,217,.35)}.sec{color:#3552d9;background:rgba(255,255,255,.8)}
+.big{font-size:40px;font-weight:800;letter-spacing:-1.2px}.was{color:#6b6b70;font-size:16px;text-decoration:line-through}
+.bar{height:10px;border-radius:99px;background:rgba(120,120,128,.16);overflow:hidden}.bar i{display:block;height:100%;border-radius:99px;background:#34c759}
+.pill{display:inline-flex;align-items:center;gap:6px;border-radius:99px;padding:7px 13px;font-size:13.5px;font-weight:650}
+.note{font-size:12.5px;color:#6b6b70;text-align:center}
+'''
+def dock(on):
+    t = [('doc', 'PDFs'), ('cam', 'Scan'), ('tools', 'Tools'), ('gear', 'Settings')]
+    return '<div class="dock">' + ''.join(f'<div class="tab {"on" if n == on else ""} {"go" if n == "Scan" else ""}">{ic(k)}<span>{n}</span></div>' for k, n in t) + '</div>'
+short = lambda k, col, title, note: f'<div class="short"><div class="icb" style="background:{col}">{ic(k, "#fff", 21)}</div><div><b>{title}</b><small>{note}</small></div></div>'
+tile = lambda k, col, name, new=False: f'<div class="tile"><div class="icb" style="background:{col}">{ic(k, "#fff", 19)}</div><b>{name}{"<span class=new>NEW</span>" if new else ""}</b></div>'
+li = lambda name, meta: f'<div class="li"><div class="thumb"></div><div style="flex:1"><b>{name}</b><small>{meta}</small></div><span style="color:#b4b4b9">{ic("chev", "currentColor", 18)}</span></div>'
+
+home = f'''<div class="phone"><h1>PDFs</h1><div class="search">{ic("search", "currentColor", 18)}Search</div>
+<div class="lab">For forms</div>
+<div class="chips">{short("squeeze", GROUPS["small"], "PDF under 200 KB", "Pick a limit")}{short("face", GROUPS["small"], "Photo under 50 KB", "Passport size")}{short("id", GROUPS["scan"], "ID card", "Front + back")}</div>
+<div class="lab">Continue</div>
+<div class="card"><div class="li"><div class="thumb"></div><div style="flex:1"><b>Physics notes</b><small>4 pages · draft, auto-saved</small></div><span class="pill" style="background:rgba(53,82,217,.1);color:#3552d9">Open</span></div></div>
+<div class="lab">Recent <a>See all</a></div>
+<div class="card">{li("Rent receipt", "1 page · 68 KB · today")}{li("Lab report", "2 pages · 135 KB · today")}{li("Biology notes ch4", "3 pages · 202 KB · yesterday")}</div>
+{dock("PDFs")}</div>'''
+
+tools = f'''<div class="phone"><h1>Tools</h1><div class="search">{ic("search", "currentColor", 18)}Search tools</div>
+<div class="lab">Scan</div><div class="grid">{tile("doc", GROUPS["scan"], "Document")}{tile("id", GROUPS["scan"], "ID card", True)}{tile("book", GROUPS["scan"], "Book")}</div>
+<div class="lab">Make smaller</div><div class="grid">{tile("squeeze", GROUPS["small"], "Compress PDF")}{tile("photo", GROUPS["small"], "Resize photo")}{tile("face", GROUPS["small"], "Passport photo", True)}</div>
+<div class="lab">Organise</div><div class="grid">{tile("merge", GROUPS["org"], "Combine")}{tile("split", GROUPS["org"], "Split")}{tile("order", GROUPS["org"], "Reorder", True)}</div>
+<div class="lab">Protect</div><div class="grid">{tile("unlock", GROUPS["safe"], "Remove password", True)}{tile("lock", GROUPS["safe"], "Add password", True)}{tile("sign", GROUPS["safe"], "Sign", True)}</div>
+{dock("Tools")}</div>'''
+
+result = f'''<div class="phone"><div class="nav"><span>{ic("back")}</span>Compress PDF<span></span></div>
+<div style="display:grid;place-items:center;padding:26px 0 8px"><div style="width:76px;height:76px;border-radius:50%;background:#34c759;display:grid;place-items:center;box-shadow:0 10px 26px rgba(52,199,89,.35)">{ic("check", "#fff", 40)}</div></div>
+<div style="text-align:center;font-size:20px;font-weight:700">Under 200 KB</div>
+<div class="card" style="margin-top:20px;padding:18px">
+ <div style="display:flex;align-items:baseline;gap:10px"><span class="big">147 KB</span><span class="was">1.2 MB</span></div>
+ <div class="bar" style="margin:12px 0 8px"><i style="width:73%"></i></div>
+ <div style="display:flex;justify-content:space-between;font-size:13px;color:#6b6b70"><span>Limit 200 KB</span><span>88% smaller</span></div></div>
+<div class="card" style="margin-top:12px"><div class="li"><div class="thumb"></div><div style="flex:1"><b>Physics notes.pdf</b><small>5 pages · no watermark</small></div></div></div>
+<div style="padding:22px 16px 0;display:grid;gap:10px"><div class="btn pri">{ic("share", "#fff", 20)}Share</div><div class="btn sec">Save to phone</div><div class="btn sec" style="background:transparent">Do another</div></div>
+<div class="note" style="position:absolute;left:0;right:0;bottom:30px">Done on this phone. Nothing was uploaded.</div></div>'''
+
+card = lambda label, tilt, done: f'''<div style="position:absolute;inset:0;display:grid;place-items:center"><div style="width:286px;height:180px;border-radius:14px;border:3px solid {"#34c759" if done else "#fff"};background:{"rgba(52,199,89,.18)" if done else "rgba(255,255,255,.06)"};transform:rotate({tilt}deg);display:grid;place-items:center;color:#fff;font-weight:650">{label}</div></div>'''
+idcard = f'''<div class="phone dark" style="background:linear-gradient(180deg,#3a2d20,#5a4630 45%,#2b2119)">
+<div style="position:absolute;top:56px;left:16px;right:16px;display:flex;justify-content:space-between;align-items:center"><span style="width:42px;height:42px;border-radius:50%;background:rgba(0,0,0,.4);display:grid;place-items:center">{ic("back", "#fff")}</span>
+ <span class="pill" style="background:rgba(0,0,0,.45)"><i style="width:8px;height:8px;border-radius:50%;background:#34c759;display:block"></i>Front saved · now the back</span><span style="width:42px"></span></div>
+<div style="position:absolute;left:0;right:0;top:150px;height:260px">{card("Front ✓", -2, True)}</div>
+<div style="position:absolute;left:0;right:0;top:400px;height:260px">{card("Fit the back here", 1.5, False)}</div>
+<div style="position:absolute;left:0;right:0;bottom:120px;text-align:center;font-size:13.5px;color:rgba(255,255,255,.8)">Both sides go on one A4 page</div>
+<div style="position:absolute;left:0;right:0;bottom:34px;display:flex;justify-content:center;align-items:center;gap:54px">
+ <span style="width:46px;height:46px;border-radius:50%;background:rgba(0,0,0,.4);display:grid;place-items:center">{ic("flip", "#fff")}</span>
+ <span style="width:74px;height:74px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center"><i style="width:58px;height:58px;border-radius:50%;background:#fff;display:block"></i></span>
+ <span class="pill" style="background:rgba(0,0,0,.5);height:44px">1 of 2</span></div></div>'''
+
+screens = [('home', home, 'Home', 'Form shortcuts on top, then your draft and recent PDFs'), ('tools', tools, 'Tools', 'Grouped by purpose, one colour per group'),
+           ('result', result, 'Result', 'The same finish screen for every tool'), ('idcard', idcard, 'ID card mode', 'Front and back on one page')]
+body = '<div class="row">' + ''.join(f'<div class="col" id="{k}"><div class="cap">{t}</div><div class="sub">{s}</div>{h}</div>' for k, h, t, s in screens) + '</div>'
+open('next-ui.html', 'w').write(f'<!doctype html><meta charset="utf-8"><title>Next UI mocks</title><style>{CSS}</style><body>{body}</body>')
+print('wrote next-ui.html')
