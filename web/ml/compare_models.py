@@ -12,11 +12,11 @@ def load_real(d):
     Y = np.stack([gen.canonical(np.array(q, np.float32)).reshape(-1) for q in c.values()]); return X, Y, np.ones(len(X))
 ex = np.load('exam.npz'); sets = {'real exam (877 pages + 123 no-page)': (ex['X'], ex['Y'], ex['P']), 'held-back Mendeley (60)': load_real('../mend_val')}
 old = CornerNet(); old.load_state_dict(torch.load('net_r1_ep2.pt')); old.eval()
-new = CornerNet2(); ck = torch.load('ckpt2.pt'); new.load_state_dict(ck['net']); new.eval()
+new = CornerNet2(); ck = torch.load('ckpt2.pt', map_location='cpu'); new.load_state_dict(ck['net']); new.eval()
 print('new model checkpoint: epoch', ck['ep'], 'batch', ck.get('batch'))
 for name, (X, Y, P) in sets.items():
     pos = P > 0
-    for label, net in (('shipped', old), ('v2-in-progress', new)):
+    for label, net in (('shipped', old), ('v2', new)):
         qs, ps, ms = [], [], []
         with torch.no_grad():
             for i in range(0, len(X), 100):
@@ -29,4 +29,4 @@ for name, (X, Y, P) in sets.items():
             m = np.concatenate(ms)
             ag = np.array([(lambda a, b: (a & b).sum() / max(1, (a | b).sum()))(poly(q[i], 48), m[i] > 0.5) for i in range(len(q))])
             green = green & (ag > 0.9)
-        print(f'{name:38s} {label:15s} IoU>=0.9 {100*(I[pos]>=0.9).mean():3.0f}%  >=0.8 {100*(I[pos]>=0.8).mean():3.0f}%  mean {I[pos].mean():.2f} | green {100*green[pos].mean():3.0f}%  FALSE-GREEN {100*(green[pos]&(I[pos]<0.8)).mean():3.0f}%' + (f'  green on no-page {100*green[~pos].mean():.0f}%' if (~pos).any() else ''))
+        print(f'{name:38s} {label:8s} IoU>=0.9 {100*(I[pos]>=0.9).mean():3.0f}%  >=0.8 {100*(I[pos]>=0.8).mean():3.0f}%  mean {I[pos].mean():.2f} | green {100*green[pos].mean():3.0f}%  FALSE-GREEN {100*(green[pos]&(I[pos]<0.8)).mean():3.0f}%' + (f'  green on no-page {100*green[~pos].mean():.0f}%' if (~pos).any() else ''))
