@@ -1,13 +1,15 @@
 """Trains CornerNet2 (model2.py). Same data and augmentation as train.py, plus the page-mask target, and optional real photos:
 REAL=dir with corners.json + <name>.jpg (licensed or the owner's own photos), mixed in at REAL_SHARE of every batch.
-Resumable (ckpt2.pt). Reports the real-photo exam every second epoch, with 'green' decided by the mask check."""
+Resumable (ckpt2.pt). Reports the real-photo exam every second epoch, with 'green' decided by the mask check.
+DATA=dir holds train_*.npz, val.npz and (optional) exam.npz; DEVICE=cuda trains on a GPU (see kaggle/)."""
 import glob, json, os, sys, time, numpy as np, torch, torch.nn.functional as F, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from model2 import CornerNet2; import gen
 torch.set_num_threads(int(os.environ.get('THREADS', '4'))); torch.manual_seed(0); np.random.seed(0)
 EPOCHS = int(sys.argv[1]) if len(sys.argv) > 1 else 12
-tr = [np.load(f) for f in sorted(glob.glob('train_*.npz'))]
+DATA = os.environ.get('DATA', '.'); DEV = torch.device(os.environ.get('DEVICE', 'cuda' if torch.cuda.is_available() else 'cpu'))
+tr = [np.load(f) for f in sorted(glob.glob(f'{DATA}/train_*.npz'))]
 X = np.concatenate([t['X'] for t in tr]); Y = np.concatenate([t['Y'] for t in tr]); P = np.concatenate([t['P'] for t in tr])
-v = np.load('val.npz'); ex = np.load('exam.npz')
+v = np.load(f'{DATA}/val.npz'); ex = np.load(f'{DATA}/exam.npz') if os.path.exists(f'{DATA}/exam.npz') else None
 RX, RY = np.zeros((0, 192, 192, 3), np.uint8), np.zeros((0, 8), np.float32)
 if os.environ.get('REAL'):
     d = os.environ['REAL']; c = json.load(open(f'{d}/corners.json'))
@@ -20,7 +22,7 @@ def load_real(d):
     return {'X': x, 'Y': y, 'P': np.ones(len(x), np.float32)}
 RVAL = load_real(os.environ['REAL_VAL']) if os.environ.get('REAL_VAL') else None
 SHARE = float(os.environ.get('REAL_SHARE', '0.25')) if len(RX) else 0
-print('train', X.shape, 'real', RX.shape, flush=True)
+print('train', X.shape, 'real', RX.shape, 'device', DEV, flush=True)
 mean, std, HM = 0.5, 0.25, 48
 prep = lambda x: ((torch.from_numpy(np.ascontiguousarray(x)).permute(0, 3, 1, 2).float() / 255) - mean) / std
 canon = lambda Yb: np.stack([gen.canonical(y.reshape(4, 2)).reshape(-1) for y in Yb]).astype(np.float32)
@@ -36,14 +38,14 @@ def poly_iou(a, b, S=96):
     cv2.fillPoly(ma, [(a.reshape(4, 2) * S).astype(np.int32)], 1); cv2.fillPoly(mb, [(b.reshape(4, 2) * S).astype(np.int32)], 1)
     return (ma & mb).sum() / max(1, (ma | mb).sum())
 
-net = CornerNet2(); opt = torch.optim.AdamW(net.parameters(), 3e-3, weight_decay=1e-4)
+net = CornerNet2().to(DEV); opt = torch.optim.AdamW(net.parameters(), 3e-3, weight_decay=1e-4)
 steps = EPOCHS * (len(X) // 64); sched = torch.optim.lr_scheduler.OneCycleLR(opt, 3e-3, total_steps=steps, pct_start=0.15)
 
 def predict(Xs):
     net.eval(); qs, ps, ms = [], [], []
     with torch.no_grad():
         for i in range(0, len(Xs), 128):
-            q, p, _, m = net(prep(Xs[i:i + 128])); qs.append(q.numpy()); ps.append(torch.sigmoid(p).numpy()); ms.append(torch.sigmoid(m).numpy())
+            q, p, _, m = net(prep(Xs[i:i + 128]).to(DEV)); qs.append(q.cpu().numpy()); ps.append(torch.sigmoid(p).cpu().numpy()); ms.append(torch.sigmoid(m).cpu().numpy())
     net.train(); return np.concatenate(qs), np.concatenate(ps), np.concatenate(ms)
 
 def agree(q, m):
@@ -64,7 +66,7 @@ def save(ep, batch, tot, nb):
     os.replace('ckpt2.tmp', 'ckpt2.pt')  # never leave a half-written checkpoint
 t0 = time.time(); start = 0; skip = 0; tot0 = nb0 = 0
 if os.path.exists('ckpt2.pt'):
-    ck = torch.load('ckpt2.pt'); net.load_state_dict(ck['net']); opt.load_state_dict(ck['opt']); sched.load_state_dict(ck['sched'])
+    ck = torch.load('ckpt2.pt', map_location=DEV); net.load_state_dict(ck['net']); opt.load_state_dict(ck['opt']); sched.load_state_dict(ck['sched'])
     start, skip, tot0, nb0 = ck['ep'], ck.get('batch', 0), ck.get('tot', 0), ck.get('nb', 0); print('resumed at epoch', start, 'batch', skip, flush=True)
 for ep in range(start, EPOCHS):
     perm = np.random.RandomState(1000 + ep).permutation(len(X)); tot, nb = (tot0, nb0) if ep == start else (0, 0)
@@ -80,14 +82,15 @@ for ep in range(start, EPOCHS):
         if np.random.rand() < 0.5: xb = xb[:, :, ::-1]; r = yb.reshape(-1, 4, 2); r[..., 0] = 1 - r[..., 0]; yb = canon(r.reshape(-1, 8))
         if np.random.rand() < 0.3: xb = xb[:, ::-1]; r = yb.reshape(-1, 4, 2); r[..., 1] = 1 - r[..., 1]; yb = canon(r.reshape(-1, 8))
         xt = prep(xb) * torch.empty(64, 1, 1, 1).uniform_(0.85, 1.15) + torch.empty(64, 3, 1, 1).uniform_(-0.1, 0.1)
-        q, p, var, m = net(xt); yt = torch.from_numpy(yb); pt = torch.from_numpy(pb); pos = pt > 0
-        loss = F.binary_cross_entropy_with_logits(p, pt) * 0.5 + F.binary_cross_entropy_with_logits(m, masks(yb, pb)) * 0.5
+        q, p, var, m = net(xt.to(DEV)); yt = torch.from_numpy(yb).to(DEV); pt = torch.from_numpy(pb).to(DEV); pos = pt > 0
+        loss = F.binary_cross_entropy_with_logits(p, pt) * 0.5 + F.binary_cross_entropy_with_logits(m, masks(yb, pb).to(DEV)) * 0.5
         if pos.any(): loss = loss + F.smooth_l1_loss(q[pos], yt[pos], beta=0.01) * 20 + var[pos].mean() * 2
         opt.zero_grad(); loss.backward(); opt.step(); sched.step(); tot += loss.item(); nb += 1
     print(f'epoch {ep+1}/{EPOCHS} loss {tot/nb:.4f} time {time.time()-t0:.0f}s', flush=True)
     save(ep + 1, 0, 0, 0)
     if (ep + 1) % 2 == 0 or ep + 1 == EPOCHS:
-        report('synthetic val', v); report('REAL exam', ex)
+        report('synthetic val', v)
+        if ex is not None: report('REAL exam', ex)
         if RVAL: report('held-back real', RVAL)
-        torch.save(net.state_dict(), 'net2.pt')
-torch.save(net.state_dict(), 'net2.pt')
+        torch.save({k: t.cpu() for k, t in net.state_dict().items()}, 'net2.pt')
+torch.save({k: t.cpu() for k, t in net.state_dict().items()}, 'net2.pt')
