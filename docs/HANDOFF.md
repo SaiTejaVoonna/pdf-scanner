@@ -21,8 +21,10 @@ Model-only results (`web/ml/kaggle/README.md`, `web/ml/compare_models.py`):
 | | v2 | 93% | 3% |
 
 Steps, in order:
-1. **Export.** `web/ml/export_weights.py` handles the v1 network only. Extend it for `web/ml/model2.py` (CornerNet2: 48x48 corner
-   heat maps, a page mask output, a presence score; BatchNorm folded in). Output about 3 MB, against about 1 MB now.
+1. **Export. Done (14 Nov).** `web/ml/export_weights.py` now handles both networks. The v2 file is `web/public/model/corners2.bin`
+   (2.77 MB, 2.57 MB gzipped, against 0.98 MB for v1) and the PyTorch outputs to match are in `web/tests/fixtures/model2-parity.json`
+   (corners, presence, var and the 48x48 mask). The app does not load the file yet. `run_folded()` in the script is the
+   layer-by-layer recipe for the TypeScript port; it reproduces the PyTorch model from the written file to within 1.2e-05.
 2. **Run it in the browser.** `web/src/modelNet.ts` runs v1 in plain TypeScript. Add v2 next to it (do not replace v1 until v2 wins).
 3. **Parity.** `web/tests/modelNet.test.ts` compares the TypeScript output with PyTorch on a fixture. Do the same for v2. It must match.
 4. **Use the mask as the self-check.** In training, "green" means presence > 0.5 AND the corner outline overlaps the predicted
