@@ -2,8 +2,9 @@ import { expect, test } from '@playwright/test';
 import { existsSync } from 'node:fs';
 import { pagePng } from './helpers';
 import { firstPageCropped } from './persist';
+import { MODEL_FILE } from '../src/modelFile';
 
-const HAVE_MODEL = existsSync(new URL('../public/model/corners.bin', import.meta.url));
+const HAVE_MODEL = existsSync(new URL(`../public/${MODEL_FILE}`, import.meta.url));
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => { try { localStorage.setItem('pdf-scanner.auto', 'off'); localStorage.setItem('pdf-scanner.settings', JSON.stringify({ autoCropImport: true })); } catch { /* ignore */ } });
@@ -12,7 +13,7 @@ test.beforeEach(async ({ page }) => {
 test('an imported photo is cropped by the shared engine; the learned model is fetched only when first needed', async ({ page }) => {
   test.skip(!HAVE_MODEL, 'no model file in public/model');
   const asked: string[] = [];
-  page.on('request', (r) => { if (r.url().includes('/model/corners.bin')) asked.push(r.url()); });
+  page.on('request', (r) => { if (r.url().includes(`/${MODEL_FILE}`)) asked.push(r.url()); });
   await page.goto('/');
   await page.waitForTimeout(500);
   expect(asked, 'the model is not downloaded at start-up').toHaveLength(0);
@@ -23,7 +24,7 @@ test('an imported photo is cropped by the shared engine; the learned model is fe
 });
 
 test('the editor Auto-detect gives the same kind of answer as import (one engine) and still works without the model', async ({ page }) => {
-  await page.route('**/model/corners.bin', (r) => r.abort()); // pretend the model file is missing: the rules must carry on
+  await page.route(`**/${MODEL_FILE}`, (r) => r.abort()); // pretend the model file is missing: the rules must carry on
   await page.goto('/');
   await page.setInputFiles('input[type=file][multiple]:not([accept*=pdf])', [{ name: 'page.png', mimeType: 'image/png', buffer: pagePng() }]);
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(1);

@@ -1,11 +1,12 @@
 import { CornerNet } from './modelNet';
+import { MODEL_FILE } from './modelFile';
 
 /** The model file's bytes, fetched once on first use. Resolves null (the app then uses the rules alone) when it is missing or broken. */
 let bytes: Promise<ArrayBuffer | null> | null = null;
 export function loadModelBytes(): Promise<ArrayBuffer | null> {
   bytes ??= (async () => {
     try {
-      const res = await fetch(`${import.meta.env.BASE_URL}model/corners.bin`);
+      const res = await fetch(`${import.meta.env.BASE_URL}${MODEL_FILE}`);
       return res.ok ? await res.arrayBuffer() : null;
     } catch { return null; }
   })();

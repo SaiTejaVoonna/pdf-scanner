@@ -47,21 +47,78 @@ export function quadIou(a: Quad, b: Quad, n = 64): number {
 
 export type FindSource = 'rules' | 'agree' | 'model';
 export interface Combined extends PageFind { source: FindSource }
-/** What the learned model said about a photo: the outline and how likely it is that a page is there (0..1). */
-export interface ModelFind { quad: Quad; presence: number }
-export const MIN_PRESENCE = 0.5, AGREE_IOU = 0.8;
+/**
+ * What the learned model said about a photo: the outline and how likely it is that a page is there (0..1). Engine v2 also gives
+ * `maskOverlap`: how well the outline matches the model's own page mask (0..1), its check on itself. Engine v1 has no mask.
+ */
+export interface ModelFind { quad: Quad; presence: number; maskOverlap?: number }
+
+/**
+ * Overlap (0..1) of an outline with the model's page mask (`mask`: `hm` x `hm` logits, row by row; above 0 means "page"). This is
+ * `agree()` in web/ml/train2.py, which is what "green" meant in training, so it fills the outline the way that code does
+ * (OpenCV fillPoly): the corners are rounded to whole cells, and a cell counts when it lies inside that outline or on one of its
+ * edges. Checked against the Python version on real photos (bench/real-eval/README.md).
+ */
+export function maskOverlap(quad: Quad, mask: ArrayLike<number>, hm: number): number {
+  const cell = (v: number) => Math.floor(Math.round(v * hm * 8) / 8 + 0.5); // to an eighth of a cell first, as the Python code does
+  const px = quad.map((p) => cell(p.x)), py = quad.map((p) => cell(p.y));
+  const inQuad = new Uint8Array(hm * hm);
+  for (let j = 0; j < hm; j++) for (let i = 0; i < hm; i++) {
+    let pos = 0, neg = 0;
+    for (let k = 0; k < 4; k++) {
+      const n = (k + 1) % 4, c = (px[n] - px[k]) * (j - py[k]) - (py[n] - py[k]) * (i - px[k]);
+      if (c > 0) pos++; else if (c < 0) neg++;
+    }
+    if (pos === 0 || neg === 0) inQuad[j * hm + i] = 1;
+  }
+  // the edges, drawn as lines one cell wide: every cell within half a cell of the edge, measured across its shorter direction
+  const set = (i: number, j: number) => { if (i >= 0 && j >= 0 && i < hm && j < hm) inQuad[j * hm + i] = 1; };
+  for (let k = 0; k < 4; k++) {
+    const n = (k + 1) % 4, dx = px[n] - px[k], dy = py[n] - py[k];
+    if (dx === 0 && dy === 0) { set(px[k], py[k]); continue; }
+    if (Math.abs(dx) >= Math.abs(dy)) {
+      for (let i = Math.min(px[k], px[n]); i <= Math.max(px[k], px[n]); i++) { const y = py[k] + ((i - px[k]) / dx) * dy; for (let j = Math.ceil(y - 0.5); j <= Math.floor(y + 0.5); j++) set(i, j); }
+    } else {
+      for (let j = Math.min(py[k], py[n]); j <= Math.max(py[k], py[n]); j++) { const x = px[k] + ((j - py[k]) / dy) * dx; for (let i = Math.ceil(x - 0.5); i <= Math.floor(x + 0.5); i++) set(i, j); }
+    }
+  }
+  let both = 0, either = 0;
+  for (let c = 0; c < hm * hm; c++) {
+    const m = mask[c] > 0;
+    if (inQuad[c] && m) both++;
+    if (inQuad[c] || m) either++;
+  }
+  return both / Math.max(1, either);
+}
+
+export const MIN_PRESENCE = 0.5, AGREE_IOU = 0.8, MASK_OVERLAP = 0.9;
 
 /**
  * Two opinions on one photo: the rule-based finder (`rules`) and the learned model (`model`, or null when it is not available).
+ *
+ * Engine v2 (the model gives `maskOverlap`, its check on itself): the model leads.
+ *  - It sees a page (fairly sure, sensible shape): its outline is used. The result is 'high' only when the outline also matches
+ *    the model's own page mask by more than 90%, which is what "green" meant when the model was trained and measured; otherwise
+ *    it is 'medium' and the page is marked "Check".
+ *  - It sees no page: the rules' answer is kept as a fallback but is never 'high'.
+ *
+ * Engine v1 (no mask):
  *  - They agree (outlines overlap by 80% or more): keep the rules' outline, whose edges follow the pixels exactly.
  *  - They disagree, or the rules found nothing: the model leads, but only if it is fairly sure a page is there and the outline is
  *    a sensible shape that looks like a page; the result is never 'high', so the page is marked "Check".
- *  - No usable model answer: the rules alone, as before.
+ *
+ * No model at all: the rules alone.
  */
 export function combine(img: Img, rules: PageFind, model: ModelFind | null): Combined {
-  const usable = model && model.presence >= MIN_PRESENCE && isValidCrop(model.quad) && plausibleShape(model.quad, img.width, img.height, 3);
+  if (!model) return { ...rules, source: 'rules' };
+  const usable = model.presence >= MIN_PRESENCE && isValidCrop(model.quad) && plausibleShape(model.quad, img.width, img.height, 3);
+  const agrees = usable && !!rules.quad && quadIou(rules.quad, model.quad) >= AGREE_IOU;
+  if (model.maskOverlap !== undefined) {
+    if (!usable) return { quad: rules.quad, confidence: rules.confidence === 'high' ? 'medium' : rules.confidence, source: 'rules' };
+    return { quad: model.quad, confidence: model.maskOverlap > MASK_OVERLAP ? 'high' : 'medium', source: agrees ? 'agree' : 'model' };
+  }
   if (!usable) return { ...rules, source: 'rules' };
-  if (rules.quad && quadIou(rules.quad, model.quad) >= AGREE_IOU) return { quad: rules.quad, confidence: rules.confidence === 'low' ? 'medium' : rules.confidence, source: 'agree' };
+  if (agrees) return { quad: rules.quad, confidence: rules.confidence === 'low' ? 'medium' : rules.confidence, source: 'agree' };
   const like = pageLike(img, model.quad);
   if (like.ok || like.why === 'blank') return { quad: model.quad, confidence: 'medium', source: 'model' };
   return { ...rules, source: 'rules' };

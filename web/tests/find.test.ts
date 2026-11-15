@@ -34,7 +34,7 @@ describe('findPage: one way to find a page, with an honest confidence', () => {
   });
 });
 
-import { combine, quadIou } from '../src/core/find';
+import { combine, maskOverlap, quadIou } from '../src/core/find';
 import { prepareInput } from '../src/modelRun';
 
 const q = (x0: number, y0: number, x1: number, y1: number): Quad => [{ x: x0, y: y0 }, { x: x1, y: y0 }, { x: x1, y: y1 }, { x: x0, y: y1 }];
@@ -71,6 +71,47 @@ describe('combine: the rules and the model, two opinions', () => {
     expect(c.confidence).toBe('medium');
     const dark = createImg(320, 420); for (let i = 0; i < dark.data.length; i += 4) { dark.data[i] = 20; dark.data[i + 1] = 20; dark.data[i + 2] = 20; dark.data[i + 3] = 255; }
     expect(combine(dark, none, { quad: rulesQuad, presence: 0.99 })).toMatchObject({ source: 'rules', quad: null });
+  });
+});
+
+describe('maskOverlap: the outline against the model\'s own page mask', () => {
+  const hm = 48;
+  /** A mask that says "page" exactly in the cells from (x0, y0) to (x1, y1), both included. */
+  const box = (x0: number, y0: number, x1: number, y1: number): Float32Array => { const m = new Float32Array(hm * hm).fill(-5); for (let j = y0; j <= y1; j++) for (let i = x0; i <= x1; i++) m[j * hm + i] = 5; return m; };
+  it('is 1 when the mask fills the outline, edges included, and falls as they drift apart', () => {
+    const outline = q(12 / hm, 12 / hm, 36 / hm, 36 / hm);
+    expect(maskOverlap(outline, box(12, 12, 36, 36), hm)).toBe(1);
+    expect(maskOverlap(outline, box(12, 12, 36, 24), hm)).toBeCloseTo(13 / 25, 5); // the mask covers 13 of the outline's 25 rows
+    expect(maskOverlap(outline, box(0, 0, 5, 5), hm)).toBe(0);
+    expect(maskOverlap(outline, new Float32Array(hm * hm).fill(-5), hm)).toBe(0);
+  });
+  it('handles a slanted outline and one that touches the image edge', () => {
+    const slanted: Quad = [{ x: 0.25, y: 0.2 }, { x: 0.8, y: 0.25 }, { x: 0.75, y: 0.8 }, { x: 0.2, y: 0.75 }];
+    const v = maskOverlap(slanted, box(10, 10, 38, 38), hm);
+    expect(v).toBeGreaterThan(0.75); expect(v).toBeLessThan(1);
+    expect(maskOverlap(q(0, 0, 1, 1), box(0, 0, 47, 47), hm)).toBe(1);
+  });
+});
+
+describe('combine with engine v2: the model leads and checks itself against its mask', () => {
+  const img = written();
+  const rulesQuad: Quad = [{ x: 60 / 320, y: 60 / 420 }, { x: 260 / 320, y: 50 / 420 }, { x: 270 / 320, y: 350 / 420 }, { x: 55 / 320, y: 360 / 420 }];
+  const rules = { quad: rulesQuad, confidence: 'high' as const };
+  const other = q(0.3, 0.3, 0.95, 0.95);
+  it('is "high" only when the outline matches the mask by more than 90%, whatever the rules say', () => {
+    expect(combine(img, rules, { quad: other, presence: 0.9, maskOverlap: 0.95 })).toMatchObject({ quad: other, confidence: 'high', source: 'model' });
+    expect(combine(img, rules, { quad: other, presence: 0.9, maskOverlap: 0.9 })).toMatchObject({ quad: other, confidence: 'medium', source: 'model' });
+    expect(combine(img, { quad: null, confidence: 'low' }, { quad: other, presence: 0.9, maskOverlap: 0.97 })).toMatchObject({ quad: other, confidence: 'high', source: 'model' });
+  });
+  it('uses the model outline when the rules agree too, and says so', () => {
+    const near: Quad = rulesQuad.map((p) => ({ x: p.x + 0.01, y: p.y - 0.01 })) as Quad;
+    expect(combine(img, rules, { quad: near, presence: 0.9, maskOverlap: 0.95 })).toMatchObject({ quad: near, confidence: 'high', source: 'agree' });
+    expect(combine(img, rules, { quad: near, presence: 0.9, maskOverlap: 0.5 })).toMatchObject({ quad: near, confidence: 'medium', source: 'agree' });
+  });
+  it('falls back to the rules when the model sees no page, but never as "high"', () => {
+    expect(combine(img, rules, { quad: other, presence: 0.2, maskOverlap: 0.99 })).toMatchObject({ quad: rulesQuad, confidence: 'medium', source: 'rules' });
+    expect(combine(img, rules, { quad: q(0.1, 0.1, 0.11, 0.9), presence: 0.99, maskOverlap: 0.99 })).toMatchObject({ quad: rulesQuad, confidence: 'medium', source: 'rules' }); // a sliver is not a page
+    expect(combine(img, { quad: null, confidence: 'low' }, { quad: other, presence: 0.1, maskOverlap: 0 })).toMatchObject({ quad: null, confidence: 'low', source: 'rules' });
   });
 });
 

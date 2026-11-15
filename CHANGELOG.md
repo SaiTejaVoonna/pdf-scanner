@@ -1,5 +1,8 @@
 # Changelog
 
+## Unreleased (work branch, not in the live app)
+- Web, **engine v2**: a larger corner model (2.8 MB, against 1 MB) that also predicts which part of the photo is page and checks its own corners against that. On the 300-photo benchmark good crops (IoU >= 0.8) rise from 54% to 69% and false green falls from 6% to 2%; the page is found as often as before (94%). The model's inner loops were rewritten and run 2 to 2.5 times faster, so a photo takes about as long as before on a desktop (not yet measured on a phone). Engine v1 stays in the repository and one line switches back. 135 unit tests, 57 browser tests.
+
 ## 1.0.0-beta.1
 First beta.
 - Web, **calm glass UI** (the whole app rebuilt to the reference mocks, `docs/UI_REFERENCE.md`): a floating glass bar with PDFs, Tools and Settings tabs and a round Scan button (a sidebar on wide screens); large titles; Home with a search bar, the draft card and one grouped PDF list; Settings and Tools as tabs; bottom sheets for menus (PDF, page, Add pages, Import, Filter) and for Make PDF (with a "PDF saved" state); the open document with a glass bar, a floating Add / Make PDF bar, a selection bar and an "Edited" banner; the camera as a full-bleed picture with glass controls (the status pill is the Auto-capture switch, the flashlight shows where the browser allows it, the "Lines" chip is gone); Edit page with a tools row and live filter previews; full-screen tool pages with file cards; light and dark with a soft tint, and a solid fallback for slow phones and for "reduce transparency". 55 browser tests, 128 unit tests; screenshots in `docs/screenshots/ui-*.png`.

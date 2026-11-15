@@ -1,4 +1,4 @@
-# Handoff (13 Nov 2026)
+# Handoff (15 Nov 2026)
 
 State of the project for whoever picks it up next (a new session or a person). Everything below was checked in the repo or in
 a run, except where it says "not measured".
@@ -8,35 +8,43 @@ a run, except where it says "not measured".
   `main` is an older copy. The app is unchanged by anything in this note: nothing below has been shipped.
 - The app's name is not final. Do not show or say a name in the promo videos yet.
 
-## Next job: put engine v2 into the app
-The trained v2 model beats the shipped one **on its own**, but it is not in the app and has not been run through the app's pipeline.
+## Engine v2 is in the app on the work branch, not live
+Branch `claude/kind-mayer-b24yx0` holds the whole integration. The live app (branch `claude/amazing-babbage-qr2tmb`) is unchanged:
+**nothing is shipped until the owner says "push"**.
 
-Model-only results (`web/ml/kaggle/README.md`, `web/ml/compare_models.py`):
+Full-app benchmark, the same 300 photos, same machine (`web/bench/real-eval/README.md`, 15 Nov 2026):
 
-| Photos | Model | Good crops (IoU >= 0.8) | False green |
-|---|---|---|---|
-| Real exam (877 pages) | shipped | 59% | 36% |
-| | v2 | 72% | 2% |
-| Held-back Mendeley (60) | shipped | 48% | 48% |
-| | v2 | 93% | 3% |
+| | Found | IoU >= 0.8 | IoU >= 0.9 | Green | False green | Time per photo |
+|---|---|---|---|---|---|---|
+| Live now (rules + v1) | 94% | 54% | 36% | 24% | 6% | about 510 ms |
+| Work branch (rules + v2) | 94% | **69%** | **52%** | 52% | **2%** | about 530 ms |
 
-Steps, in order:
-1. **Export. Done (14 Nov).** `web/ml/export_weights.py` now handles both networks. The v2 file is `web/public/model/corners2.bin`
-   (2.77 MB, 2.57 MB gzipped, against 0.98 MB for v1) and the PyTorch outputs to match are in `web/tests/fixtures/model2-parity.json`
-   (corners, presence, var and the 48x48 mask). The app does not load the file yet. `run_folded()` in the script is the
-   layer-by-layer recipe for the TypeScript port; it reproduces the PyTorch model from the written file to within 1.2e-05.
-2. **Run it in the browser.** `web/src/modelNet.ts` runs v1 in plain TypeScript. Add v2 next to it (do not replace v1 until v2 wins).
-3. **Parity.** `web/tests/modelNet.test.ts` compares the TypeScript output with PyTorch on a fixture. Do the same for v2. It must match.
-4. **Use the mask as the self-check.** In training, "green" means presence > 0.5 AND the corner outline overlaps the predicted
-   mask by more than 0.9 (`agree()` in `web/ml/train2.py`). That is why false green fell from about a third to 2-3%. `combine()` in
-   `web/src/core/find.ts` must get the same check, or the gain is lost.
-5. **Full-app benchmark.** `web/bench/real-eval/README.md`. Baseline to beat, same 300 photos: found 94%, IoU >= 0.8 **54%**,
-   IoU >= 0.9 **36%**, false green **6%**, about 460 ms per photo. Ship only if v2 wins on good crops without raising false green,
-   and does not slow a phone noticeably (not measured yet: speed and download size of v2 on a phone-class device).
-6. Then `npm test` (128 unit tests) and `npm run e2e` (57 browser tests). Push to the live app only when the owner says "push".
+What was done (the six steps of the old plan):
+1. **Export.** `web/ml/export_weights.py` handles both networks; v2 is `web/public/model/corners2.bin` (2.77 MB, 2.57 MB gzipped,
+   against 0.98 MB for v1).
+2. **Runs in the browser.** `web/src/modelNet.ts` runs either file (the file says which engine it is). The inner loops were
+   rewritten and are 2 to 2.5 times faster for both engines; that is what pays for v2's extra work.
+3. **Parity.** `web/tests/modelNet.test.ts` checks v1 and v2 against PyTorch, the 48x48 mask included.
+4. **Mask self-check.** `maskOverlap()` and `combine()` in `web/src/core/find.ts`. With v2 the model leads: its outline is used
+   when it sees a page, and the page is "high" (green, no Check badge) only when the outline matches the model's own mask by more
+   than 0.9, as in training. When the model sees no page the rules' answer is kept but is never green. The TypeScript check was
+   compared with `agree()` from `train2.py` on the 300 photos: 1 of 300 lands on the other side of 0.9.
+5. **Benchmark.** The table above. v2 wins on good crops and false green falls.
+6. **Tests.** `npm test` 135 pass, `npm run e2e` 57 pass.
 
-Optional trial before step 2: write the model run and the straightening step in Rust (WebAssembly) and compare speed with
-TypeScript on the same photos. Not measured yet. Move the engine to Rust only if it is clearly faster.
+One line switches back to v1: `MODEL_FILE` in `web/src/modelFile.ts` (plus the same name in `web/public/sw.js`). v1's file stays in the repo.
+
+Still open before "push":
+- **Speed on a real phone is not measured.** In desktop Chromium with the CPU slowed 4 to 6 times, the v2 model step took 12 to 17%
+  longer than the live v1 step (the model is under half of the time per photo). A real mid-range Android phone should be tried.
+- **Download.** The first photo fetches 2.8 MB instead of 1 MB (once, then it is kept for offline use).
+- **ID cards are the weak group**: found 78% (86% live), though good crops rise from 16% to 37%. More real ID-card photos in training
+  would help.
+- The way rules and model are combined was chosen on these same 300 photos (among five simple variants), so the gain on other
+  photos may be a little smaller. The model-only results on the 877-page exam (README in `web/ml/kaggle/`) point the same way.
+
+Optional trial: write the model run and the straightening step in Rust (WebAssembly) and compare speed with TypeScript on the
+same photos. Not measured yet. Move the engine to Rust only if it is clearly faster.
 
 ## Where things are (these are NOT in git)
 - Trained v2 weights: the Kaggle run `saitejavoonna2026/page-corners-train-gpu` (private; download with

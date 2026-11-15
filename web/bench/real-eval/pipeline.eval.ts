@@ -3,14 +3,16 @@ import { it } from 'vitest';
 import { combine, findPage } from '../../src/core/find';
 import { runModel } from '../../src/modelRun';
 import { CornerNet } from '../../src/modelNet';
+import { MODEL_FILE } from '../../src/modelFile';
 
 /**
  * Runs the whole decision (rules + model + combine) on every prepared photo and writes result-pipeline.json in the format score.py reads
- * (`sure` = the page would be accepted as "high"). MODEL_BIN is the exported model (web/ml/export_weights.py).
+ * (`sure` = the page would be accepted as "high"). MODEL_BIN is the exported model
+ * (web/ml/export_weights.py); without it the model the app ships (src/model.ts MODEL_FILE) is used.
  */
 it('runs rules + model + combine on the prepared photos', () => {
   const dir = process.env.EVAL_DIR ?? '.';
-  const bin = readFileSync(process.env.MODEL_BIN ?? `${__dirname}/../../public/model/corners.bin`);
+  const bin = readFileSync(process.env.MODEL_BIN ?? `${__dirname}/../../public/${MODEL_FILE}`);
   const net = new CornerNet(bin.buffer.slice(bin.byteOffset, bin.byteOffset + bin.byteLength) as ArrayBuffer);
   const meta = JSON.parse(readFileSync(`${dir}/eval.json`, 'utf-8')) as { name: string; w: number; h: number }[];
   const buf = readFileSync(`${dir}/eval.rgba`);

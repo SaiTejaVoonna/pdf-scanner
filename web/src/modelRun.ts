@@ -1,6 +1,6 @@
 import type { Quad } from './core/geometry';
 import type { Img } from './core/image';
-import type { ModelFind } from './core/find';
+import { maskOverlap, type ModelFind } from './core/find';
 import type { CornerNet } from './modelNet';
 
 /** Box-averages `img` down to size x size (squashing the aspect ratio, as in training) and normalises it, channel-first. */
@@ -24,6 +24,8 @@ export function prepareInput(img: Img, size: number, mean: number, std: number):
 export function runModel(net: CornerNet, img: Img): ModelFind {
   const o = net.run(prepareInput(img, net.input, net.mean, net.std));
   const quad = [0, 1, 2, 3].map((k) => ({ x: Math.min(1, Math.max(0, o.corners[k * 2])), y: Math.min(1, Math.max(0, o.corners[k * 2 + 1])) })) as Quad;
-  return { quad, presence: 1 / (1 + Math.exp(-o.presenceLogit)) };
+  const find: ModelFind = { quad, presence: 1 / (1 + Math.exp(-o.presenceLogit)) };
+  if (o.mask) find.maskOverlap = maskOverlap(quad, o.mask, o.hm);
+  return find;
 }
 
