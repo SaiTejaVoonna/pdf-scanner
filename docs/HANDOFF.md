@@ -34,12 +34,19 @@ What was done (the six steps of the old plan):
 5. **Benchmark.** The table above. v2 wins on good crops and false green falls.
 6. **Tests.** `npm test` 137 pass, `npm run e2e` 57 pass (one of them checks that the WebAssembly kernels are really in use).
 
-## Engine v3: a training run for the cases v2 gets wrong (16 Nov 2026, in progress)
-v2 fails mostly on pages that are small in the photo (under 10% of it: good crops 0 to 29%), pages that fill the frame or are cut
-by its edge, and fingers over the page. `GEN_HARD=1` in `web/ml/gen.py` makes those. 12,000 such pictures are in the private Kaggle
-dataset `saitejavoonna2026/page-corners-hard` (with the v2 weights as the starting point), and the kernel
-`saitejavoonna2026/page-corners-train-v3` trains 24 rounds on the old data plus these. It replaces v2 only if it beats it on the
-same 300 photos. The architecture is unchanged, so the result drops into `corners2.bin` with `export_weights.py`.
+## Engine v3: trained, not adopted (16 Nov 2026)
+v2 fails mostly on pages that are small in the photo, pages that fill the frame or are cut by its edge, and fingers over the page.
+`GEN_HARD=1` in `web/ml/gen.py` makes those; 12,000 such pictures are in the private Kaggle dataset
+`saitejavoonna2026/page-corners-hard` (with the v2 weights as the starting point). The kernel
+`saitejavoonna2026/page-corners-train-v3` trained 24 rounds on the old data plus these (its output holds the v3 `net2.pt`).
+
+Result on the same 300 photos, whole pipeline: found 97% (v2 94%), IoU>=0.8 71% (69%), IoU>=0.9 57% (52%), green 57% (52%),
+but false green 4%, 12 photos (v2 2%, 5 photos). Photo by photo 21 got better and 16 got worse. A stricter mask threshold does not
+rescue it: at every threshold from 0.90 to 0.96 v3 has at least as many false greens as v2 for a similar green share. The rule was
+"replace only if it beats v2", and trust in green matters most, so **v2 stays in `corners2.bin`**. Gains were where the new data
+aimed (ID cards 37 to 47%, receipts 57 to 68%); pages under 5% of the photo are still almost never right (1 of 10).
+Next ideas, none started: make the mask check harder to fool (hard pictures with wrong-but-plausible outlines), a second look at
+small pages (crop and re-run), 224 px input, a pretrained backbone. `pipeline.eval.ts` now also writes each photo's mask overlap.
 
 Open models were looked at too (15 Nov): DocCornerNet LEAN (MIT, 1.9 MB) scores 84% on the 300 photos but was trained on that
 dataset's training half (research-only sources inside) and gets 67% on Mendeley pages, where v2 gets 87 to 93%; DocAligner's default

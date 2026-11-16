@@ -20,8 +20,8 @@ it('runs rules + model + combine on the prepared photos', () => {
   for (const m of meta) {
     const n = m.w * m.h * 4;
     const img = { width: m.w, height: m.h, data: new Uint8ClampedArray(buf.subarray(off, off + n)) }; off += n;
-    const c = combine(img, findPage(img), runModel(net, img));
-    out.push({ name: m.name, quad: c.quad, sure: c.confidence === 'high', conf: c.confidence, source: c.source });
+    const mf = runModel(net, img); const c = combine(img, findPage(img), mf);
+    out.push({ name: m.name, quad: c.quad, sure: c.confidence === 'high', conf: c.confidence, source: c.source, overlap: mf?.maskOverlap });
   }
   writeFileSync(`${dir}/result-pipeline.json`, JSON.stringify({ ms: Date.now() - t0, out }));
 });
