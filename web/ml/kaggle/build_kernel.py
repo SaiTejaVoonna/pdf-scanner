@@ -1,9 +1,12 @@
 """Builds the Kaggle script kernel that trains CornerNet2 on a GPU: kernel/train_kernel.py + kernel/kernel-metadata.json.
 The kernel carries the training sources inside it (model.py, model2.py, gen.py, train2.py) and reads the data from the private
 dataset <user>/page-corners-train (train_*.npz, val.npz, mend_train.zip, mend_val.zip).
-Run: KAGGLE_USER=<name> python3 build_kernel.py [EPOCHS]   then push with kapi (see README.md here)."""
+Run: KAGGLE_USER=<name> python3 build_kernel.py [EPOCHS]   then push with kapi (see README.md here).
+RUN=v3 names the kernel page-corners-train-v3 (the first run's output stays as it is). With EXTRA_DATASET=<user>/<name> the kernel
+also reads that dataset: its train_*.npz are added, and a net2.pt in it is the starting point (then LR is 1.5e-3)."""
 import base64, json, os, sys
 user = os.environ['KAGGLE_USER']; epochs = int(sys.argv[1]) if len(sys.argv) > 1 else 30
+run = os.environ.get('RUN', 'gpu'); extra = os.environ.get('EXTRA_DATASET')
 here = os.path.dirname(os.path.abspath(__file__)); os.makedirs(f'{here}/kernel', exist_ok=True)
 src = {f: base64.b64encode(open(f'{here}/../{f}', 'rb').read()).decode() for f in ['model.py', 'model2.py', 'gen.py', 'train2.py']}
 code = f'''import base64, glob, os, subprocess, sys, zipfile
@@ -17,13 +20,17 @@ for z in ('mend_train', 'mend_val'):
     if not p: zipfile.ZipFile(f'{{data}}/{{z}}.zip').extractall('/kaggle/working/real')
 real = lambda z: os.path.dirname((glob.glob(f'{{data}}/**/{{z}}/corners.json', recursive=True) + glob.glob(f'/kaggle/working/real/**/{{z}}/corners.json', recursive=True))[0])
 subprocess.run('nvidia-smi', shell=True)
-env = dict(os.environ, DATA=data, REAL=real('mend_train'), REAL_VAL=real('mend_val'), REAL_SHARE='0.25', DEVICE='cuda', THREADS='4')
+more = [os.path.dirname(p) for p in glob.glob('/kaggle/input/**/train_hard*.npz', recursive=True)]; init = glob.glob('/kaggle/input/**/net2.pt', recursive=True)
+extra = dict(EXTRA=':'.join(sorted(set(more)))) if more else {{}}
+if init: extra.update(INIT=init[0], LR='1.5e-3')
+print('extra', extra, flush=True)
+env = dict(os.environ, **extra, DATA=data, REAL=real('mend_train'), REAL_VAL=real('mend_val'), REAL_SHARE='0.25', DEVICE='cuda', THREADS='4')
 r = subprocess.run([sys.executable, '/kaggle/working/src/train2.py', '{epochs}'], env=env, cwd='/kaggle/working')
 sys.exit(r.returncode)
 '''
 open(f'{here}/kernel/train_kernel.py', 'w').write(code)
-json.dump({'id': f'{user}/page-corners-train-gpu', 'title': 'page-corners-train-gpu', 'code_file': 'train_kernel.py', 'language': 'python',
+json.dump({'id': f'{user}/page-corners-train-{run}', 'title': f'page-corners-train-{run}', 'code_file': 'train_kernel.py', 'language': 'python',
            'kernel_type': 'script', 'is_private': True, 'enable_gpu': True, 'enable_internet': False,
-           'dataset_sources': [f'{user}/page-corners-train'], 'competition_sources': [], 'kernel_sources': []},
+           'dataset_sources': [f'{user}/page-corners-train'] + ([extra] if extra else []), 'competition_sources': [], 'kernel_sources': []},
           open(f'{here}/kernel/kernel-metadata.json', 'w'), indent=1)
 print('built for', user, epochs, 'epochs')

@@ -86,6 +86,8 @@ class Pool:
         rng = random.Random(seed); self.items = []
         for i in range(n):
             r = rng.random()
+            if HARD:   # mostly the small things people hold up to a camera
+                r = 0.3 * r if r < 0.25 else 0.55 + 0.15 * (r - 0.25) / 0.25 if r < 0.5 else 0.7 + 0.15 * (r - 0.5) / 0.45 if r < 0.95 else 0.99
             if r < 0.55: self.items.append(('page', text_page(rng)))
             elif r < 0.7: self.items.append(('receipt', receipt(rng)))
             elif r < 0.85: self.items.append(('card', card(rng)))
@@ -100,6 +102,22 @@ class Pool:
         return self._tc[p]
 
 S = 192
+# GEN_HARD=1 makes the cases the first engine v2 run got wrong on real photos (bench/real-eval): a page or card that is small in
+# the picture, one that fills the picture or is cut by its edge, fingers over the page, grey photos, busy outdoor backgrounds.
+HARD = bool(os.environ.get('GEN_HARD'))
+SKIN = [(224, 172, 150), (198, 134, 110), (141, 85, 66), (241, 194, 170), (255, 219, 190), (110, 70, 55)]
+
+def fingers(img, quad, rng):
+    """Skin-coloured fingers that come in from outside and end on the page, as when the page is held."""
+    h = img.shape[0]; cen = quad.mean(0); col = np.array(rng.choice(SKIN), np.float32) * rng.uniform(0.75, 1.1)
+    for _ in range(rng.randint(1, 3)):
+        k = rng.randint(0, 3); t = rng.uniform(0.15, 0.85); edge = quad[k] * (1 - t) + quad[(k + 1) % 4] * t
+        inward = cen - edge; n = np.linalg.norm(inward) + 1e-6; inward /= n
+        tip = edge + inward * rng.uniform(0.05, 0.3) * n; base = edge - inward * rng.uniform(0.5, 1.5) * h
+        w = int(max(6, rng.uniform(0.035, 0.09) * h)); layer = img.copy()
+        cv2.line(layer, tuple(int(v) for v in base), tuple(int(v) for v in tip), tuple(float(c) for c in col), w, cv2.LINE_AA)
+        cv2.circle(layer, tuple(int(v) for v in tip), w // 2, tuple(float(c) for c in col), -1, cv2.LINE_AA)
+        img[:] = layer
 def hdri_view(pool, rng, size=384):
     if not pool.hdri: return None
     p = rng.choice(pool.hdri)
@@ -156,16 +174,19 @@ def sample(pool, rng, negative=False):
         kind, doc = rng.choice(pool.items)
         dh, dw = doc.shape[:2]
         ar = dw / dh
+        mode = rng.choice(['small', 'small', 'close', 'close', 'normal']) if HARD else 'normal'
+        lo, hi, min_area, margin = {'small': (0.12, 0.38, 0.012, 2), 'close': (0.9, 1.3, 0.05, -0.22 * H), 'normal': (0.35, 0.95, 0.05, 2)}[mode]
         for _ in range(30):
-            sc = rng.uniform(0.35, 0.95) * H
+            sc = rng.uniform(lo, hi) * H
             hh = sc if ar < 1.6 else sc / ar * 1.0; ww = hh * ar
-            if ww > H * 0.98: ww = H * 0.98; hh = ww / ar
-            cx = rng.uniform(ww / 2 + 4, H - ww / 2 - 4) if ww / 2 + 4 < H - ww / 2 - 4 else H / 2
-            cy = rng.uniform(hh / 2 + 4, H - hh / 2 - 4) if hh / 2 + 4 < H - hh / 2 - 4 else H / 2
+            if ww > H * 0.98 and mode != 'close': ww = H * 0.98; hh = ww / ar
+            cx = rng.uniform(ww / 2 + 4, H - ww / 2 - 4) if ww / 2 + 4 < H - ww / 2 - 4 else H / 2 + (rng.uniform(-0.12, 0.12) * H if mode == 'close' else 0)
+            cy = rng.uniform(hh / 2 + 4, H - hh / 2 - 4) if hh / 2 + 4 < H - hh / 2 - 4 else H / 2 + (rng.uniform(-0.12, 0.12) * H if mode == 'close' else 0)
             ang = rng.choice([0, 0, 0, 90, -90]) + rng.uniform(-28, 28) * (1 if rng.random() < 0.8 else 0.15)
             rect = cv2.boxPoints(((cx, cy), (ww, hh), ang)); j = 0.1 * min(ww, hh)
             q = rect + np.array([[rng.uniform(-j, j), rng.uniform(-j, j)] for _ in range(4)])
-            if (q > 2).all() and (q < H - 2).all() and cv2.contourArea(q.astype(np.float32)) > 0.05 * H * H and cv2.isContourConvex(q.astype(np.float32).reshape(-1, 1, 2)):
+            seen = cv2.contourArea(np.clip(q, 0, H).astype(np.float32))   # the part of the page that is in the picture
+            if (q > margin).all() and (q < H - margin).all() and seen > min_area * H * H and seen > 0.6 * cv2.contourArea(q.astype(np.float32)) and cv2.isContourConvex(q.astype(np.float32).reshape(-1, 1, 2)):
                 quad = q; break
         if quad is None: negative = True
     if not negative:
@@ -185,18 +206,20 @@ def sample(pool, rng, negative=False):
         bg = bg * (1 - rng.uniform(0.15, 0.5) * sh * (1 - mask))
         distractors(bg, rng)
         img = bg * (1 - mask) + warped * mask
+        if HARD and rng.random() < 0.4: fingers(img, q4, rng)
         # re-draw some distractors partly over the table only (not over the page): skip for simplicity
         quad = canonical(q4)
     else:
         distractors(bg, rng); img = bg
     img = cv2.resize(img, (S, S), interpolation=cv2.INTER_AREA)
-    if quad is not None: quad = quad * (S / H)
+    if quad is not None: quad = np.clip(quad * (S / H), 0, S)   # a corner outside the picture is marked at the picture's edge
     # camera effects
     if rng.random() < 0.5: img = cv2.GaussianBlur(img, (0, 0), rng.uniform(0.3, 1.4))
     if rng.random() < 0.15:
         k = rng.randint(3, 7); ker = np.zeros((k, k), np.float32); ker[k // 2, :] = 1; ker /= k; img = cv2.filter2D(img, -1, ker)
     img = img * rng.uniform(0.6, 1.2) + rng.uniform(-20, 20); img = img + np.array([rng.uniform(-12, 12) for _ in range(3)])
     img = img + np.random.RandomState(rng.randint(0, 1 << 30)).randn(S, S, 3) * rng.uniform(0, 7)
+    if HARD and rng.random() < 0.15: img = np.repeat(img.mean(-1, keepdims=True), 3, -1)   # a grey photo
     img = np.clip(img, 0, 255).astype(np.uint8)
     ok, enc = cv2.imencode('.jpg', img, [cv2.IMWRITE_JPEG_QUALITY, rng.randint(35, 95)]); img = cv2.imdecode(enc, 1)  # the channel order is kept as it came in (RGB)
     return np.ascontiguousarray(img), (quad / S if quad is not None else None)

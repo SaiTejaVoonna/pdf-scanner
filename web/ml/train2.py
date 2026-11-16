@@ -1,13 +1,14 @@
 """Trains CornerNet2 (model2.py). Same data and augmentation as train.py, plus the page-mask target, and optional real photos:
 REAL=dir with corners.json + <name>.jpg (licensed or the owner's own photos), mixed in at REAL_SHARE of every batch.
 Resumable (ckpt2.pt). Reports the real-photo exam every second epoch, with 'green' decided by the mask check.
-DATA=dir holds train_*.npz, val.npz and (optional) exam.npz; DEVICE=cuda trains on a GPU (see kaggle/)."""
+DATA=dir holds train_*.npz, val.npz and (optional) exam.npz; EXTRA=more dirs of train_*.npz (a:b); INIT=net2.pt and LR=1.5e-3
+carry on from an earlier model; DEVICE=cuda trains on a GPU (see kaggle/)."""
 import glob, json, os, sys, time, numpy as np, torch, torch.nn.functional as F, cv2
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__))); from model2 import CornerNet2; import gen
 torch.set_num_threads(int(os.environ.get('THREADS', '4'))); torch.manual_seed(0); np.random.seed(0)
 EPOCHS = int(sys.argv[1]) if len(sys.argv) > 1 else 12
 DATA = os.environ.get('DATA', '.'); DEV = torch.device(os.environ.get('DEVICE', 'cuda' if torch.cuda.is_available() else 'cpu'))
-tr = [np.load(f) for f in sorted(glob.glob(f'{DATA}/train_*.npz'))]
+tr = [np.load(f) for d in [DATA] + [x for x in os.environ.get('EXTRA', '').split(':') if x] for f in sorted(glob.glob(f'{d}/train_*.npz'))]   # EXTRA: more folders of train_*.npz
 X = np.concatenate([t['X'] for t in tr]); Y = np.concatenate([t['Y'] for t in tr]); P = np.concatenate([t['P'] for t in tr])
 v = np.load(f'{DATA}/val.npz'); ex = np.load(f'{DATA}/exam.npz') if os.path.exists(f'{DATA}/exam.npz') else None
 RX, RY = np.zeros((0, 192, 192, 3), np.uint8), np.zeros((0, 8), np.float32)
@@ -38,8 +39,11 @@ def poly_iou(a, b, S=96):
     cv2.fillPoly(ma, [(a.reshape(4, 2) * S).astype(np.int32)], 1); cv2.fillPoly(mb, [(b.reshape(4, 2) * S).astype(np.int32)], 1)
     return (ma & mb).sum() / max(1, (ma | mb).sum())
 
-net = CornerNet2().to(DEV); opt = torch.optim.AdamW(net.parameters(), 3e-3, weight_decay=1e-4)
-steps = EPOCHS * (len(X) // 64); sched = torch.optim.lr_scheduler.OneCycleLR(opt, 3e-3, total_steps=steps, pct_start=0.15)
+LR = float(os.environ.get('LR', '3e-3'))
+net = CornerNet2().to(DEV)
+if os.environ.get('INIT'): net.load_state_dict(torch.load(os.environ['INIT'], map_location=DEV)); print('starting from', os.environ['INIT'], flush=True)   # carry on from an earlier model (use a lower LR)
+opt = torch.optim.AdamW(net.parameters(), LR, weight_decay=1e-4)
+steps = EPOCHS * (len(X) // 64); sched = torch.optim.lr_scheduler.OneCycleLR(opt, LR, total_steps=steps, pct_start=0.15)
 
 def predict(Xs):
     net.eval(); qs, ps, ms = [], [], []
@@ -81,6 +85,7 @@ for ep in range(start, EPOCHS):
                 xb[:nr] = np.rot90(xb[:nr], 1, (1, 2)); r = yb[:nr].reshape(-1, 4, 2).copy(); yb[:nr] = canon(np.stack([r[..., 1], 1 - r[..., 0]], -1).reshape(-1, 8))
         if np.random.rand() < 0.5: xb = xb[:, :, ::-1]; r = yb.reshape(-1, 4, 2); r[..., 0] = 1 - r[..., 0]; yb = canon(r.reshape(-1, 8))
         if np.random.rand() < 0.3: xb = xb[:, ::-1]; r = yb.reshape(-1, 4, 2); r[..., 1] = 1 - r[..., 1]; yb = canon(r.reshape(-1, 8))
+        if np.random.rand() < 0.1: xb = np.repeat(xb.mean(-1, keepdims=True), 3, -1).astype(np.uint8)   # a batch of grey photos
         xt = prep(xb) * torch.empty(64, 1, 1, 1).uniform_(0.85, 1.15) + torch.empty(64, 3, 1, 1).uniform_(-0.1, 0.1)
         q, p, var, m = net(xt.to(DEV)); yt = torch.from_numpy(yb).to(DEV); pt = torch.from_numpy(pb).to(DEV); pos = pt > 0
         loss = F.binary_cross_entropy_with_logits(p, pt) * 0.5 + F.binary_cross_entropy_with_logits(m, masks(yb, pb).to(DEV)) * 0.5

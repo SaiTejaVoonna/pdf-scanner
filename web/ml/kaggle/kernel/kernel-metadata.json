@@ -1,6 +1,6 @@
 {
- "id": "saitejavoonna2026/page-corners-train-gpu",
- "title": "page-corners-train-gpu",
+ "id": "saitejavoonna2026/page-corners-train-v3",
+ "title": "page-corners-train-v3",
  "code_file": "train_kernel.py",
  "language": "python",
  "kernel_type": "script",
@@ -8,7 +8,8 @@
  "enable_gpu": true,
  "enable_internet": false,
  "dataset_sources": [
-  "saitejavoonna2026/page-corners-train"
+  "saitejavoonna2026/page-corners-train",
+  "saitejavoonna2026/page-corners-hard"
  ],
  "competition_sources": [],
  "kernel_sources": []
