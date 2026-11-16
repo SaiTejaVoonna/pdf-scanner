@@ -3,7 +3,7 @@ import type { Pt, Quad } from '../core/geometry';
 import { GUIDE_X, splitSpread } from '../core/spread';
 import { detectAnchored, pageLike, plausibleShape } from '../core/anchor';
 import { combine, findPage, type Combined, type Confidence, type FindSource } from '../core/find';
-import { CornerNet } from '../modelNet';
+import { CornerNet, fastKernels } from '../modelNet';
 import { runModel } from '../modelRun';
 import { luma } from '../core/image';
 import { sharpness } from './frame';
@@ -26,6 +26,7 @@ export interface LiveReply {
 export interface FinalRequest { kind: 'final'; id: number; mode: 'single' | 'spread'; anchored: boolean; foldOnGuide: boolean; width: number; height: number; data: ArrayBuffer }
 export interface FinalReply {
   kind: 'final'; id: number; quad: Quad | null; confidence?: Confidence; source?: FindSource;
+  /** The model ran on the WebAssembly kernels (false: the TypeScript loops; absent: no model). */ fast?: boolean;
   spread?: { outer: Quad; tTop: number; tBottom: number; uncertain: boolean; outlineGuessed: boolean };
   error?: string;
 }
@@ -74,7 +75,7 @@ function final(e: FinalRequest): void {
       const rules = findPage(img, { anchored });
       let f: Combined = { ...rules, source: 'rules' };
       try { if (net) f = combine(img, rules, runModel(net, img)); } catch { /* the rules stand alone */ }
-      post({ kind: 'final', id, quad: f.quad, confidence: f.confidence, source: f.source });
+      post({ kind: 'final', id, quad: f.quad, confidence: f.confidence, source: f.source, fast: net ? fastKernels() : undefined });
     }
   } catch (err) { post({ kind: 'final', id, quad: null, error: String(err) }); }
 }

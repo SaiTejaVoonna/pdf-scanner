@@ -48,3 +48,13 @@ Model step alone in desktop Chromium (median of 9 runs, CPU slowed with DevTools
 | Full speed | 205 ms | 80 ms | 225 ms |
 | 4x slower | 959 ms | 491 ms | 1118 ms |
 | 6x slower | 1622 ms | 629 ms | 1817 ms |
+
+### With the WebAssembly kernels (16 November 2026)
+The same v2 model and the same answers (found 94%, IoU >= 0.8 69%, IoU >= 0.9 52%, green 52%, false green 2%), 277 ms per photo
+in the full pipeline. Model step alone in desktop Chromium, median of 9 runs:
+
+| CPU | v1 as live | v2 TypeScript loops | v2 WebAssembly kernels |
+|---|---|---|---|
+| Full speed | 195 ms | 201 ms | 39 ms |
+| 4x slower | 812 ms | 988 ms | 174 ms |
+| 6x slower | 1163 ms | 1469 ms | 251 ms |

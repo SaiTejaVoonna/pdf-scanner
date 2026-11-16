@@ -5,7 +5,7 @@ import { loadModel } from './model';
 import { runModel } from './modelRun';
 
 /** The last answer (and which opinion it came from), for tests and debugging: `window.__engine`. */
-declare global { interface Window { __engine?: { last?: Combined } } }
+declare global { interface Window { __engine?: { last?: Combined & { fast?: boolean } } } }
 
 /**
  * Finds the page in a stored photo. Every caller (new photos, bulk Auto-crop, the editor's Auto-detect) comes through here, so
@@ -16,8 +16,8 @@ declare global { interface Window { __engine?: { last?: Combined } } }
 export async function findCorners(blob: Blob, o: { anchored?: boolean } = {}): Promise<Combined> {
   const img = await analysisImage(blob);
   const r = await detectInBackground(img, { mode: 'single', anchored: !!o.anchored, foldOnGuide: false });
-  let out: Combined;
-  if (r && r.confidence) out = { quad: r.quad, confidence: r.confidence, source: r.source ?? 'rules' };
+  let out: Combined & { fast?: boolean };
+  if (r && r.confidence) out = { quad: r.quad, confidence: r.confidence, source: r.source ?? 'rules', fast: r.fast };
   else {
     const rules = findPage(img, o);
     let model = null;

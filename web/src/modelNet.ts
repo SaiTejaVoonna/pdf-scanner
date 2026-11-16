@@ -4,7 +4,8 @@
  *  - engine v1 (web/ml/model.py): 0.2 M weights, about 1 MB. Four corner heat maps at 24 x 24 and a "there is a page" score.
  *  - engine v2 (web/ml/model2.py): 0.7 M weights, about 2.8 MB. Corner heat maps at 48 x 48, the same score, and a page mask
  *    (which cells are page) that the app uses to check the corners against (core/find.ts `combine`).
- * Both are MobileNet-style blocks with a soft-argmax read-out. Weights come from web/ml/export_weights.py (BatchNorm already
+ * Both are MobileNet-style blocks with a soft-argmax read-out. The heavy loops run in a 4 KB WebAssembly module where the browser
+ * allows it (see `convFast`), and in TypeScript otherwise. Weights come from web/ml/export_weights.py (BatchNorm already
  * folded in). tests/modelNet.test.ts checks every output of both against PyTorch.
  */
 export interface Manifest { input: number; hm: number; mean: number; std: number; arch?: number; tensors: { name: string; shape: number[]; offset: number }[] }
@@ -12,6 +13,8 @@ export interface NetOutput {
   /** tl, tr, br, bl as x,y in 0..1 */ corners: number[]; presenceLogit: number; var: number[];
   /** Engine v2 only: page-mask logits, `hm` x `hm`, row by row (above 0 means "this cell is page"). */ mask?: Float32Array; hm: number;
 }
+
+import { KERNELS_WASM } from './modelKernels';
 
 interface T { c: number; h: number; w: number; d: Float32Array }
 type W = { w: Float32Array; b: Float32Array; shape: number[] };
@@ -94,6 +97,37 @@ export class CornerNet {
 }
 
 /**
+ * The two loops that take nearly all of the time (1 x 1 and 3 x 3 convolutions) also exist as a 4 KB WebAssembly module that
+ * uses SIMD (src/modelKernels.c). It is used when the browser can run it and gives the same numbers to within rounding; otherwise
+ * the TypeScript loops below do the work. `setFastKernels(false)` forces the TypeScript loops (tests compare the two).
+ */
+interface Kernels {
+  memory: WebAssembly.Memory; __heap_base: WebAssembly.Global;
+  conv1(inp: number, w: number, b: number, out: number, ic: number, oc: number, ps: number, relu: number): void;
+  conv3(pd: number, w: number, b: number, out: number, icg: number, oc: number, ocg: number, pw: number, pp: number, oh: number, ow: number, stride: number, relu: number): void;
+}
+let kernels: Kernels | null | undefined, fastWanted = true;
+export function setFastKernels(on: boolean): void { fastWanted = on; }
+/** True when the WebAssembly kernels are in use. */
+export function fastKernels(): boolean { return fastWanted && !!loadKernels(); }
+function loadKernels(): Kernels | null {
+  if (kernels === undefined) {
+    try {
+      const bin = atob(KERNELS_WASM), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      kernels = new WebAssembly.Instance(new WebAssembly.Module(bytes)).exports as unknown as Kernels;
+    } catch { kernels = null; } // no WebAssembly, no SIMD, or a browser that will not compile on this thread
+  }
+  return kernels;
+}
+/** Room for `floats` numbers in the module's memory, starting at its free space; returns a view of all of it. */
+function room(k: Kernels, floats: number): { f: Float32Array; base: number } {
+  const base = (k.__heap_base.value as number + 15) & ~15, need = base + floats * 4;
+  if (k.memory.buffer.byteLength < need) k.memory.grow(Math.ceil((need - k.memory.buffer.byteLength) / 65536));
+  return { f: new Float32Array(k.memory.buffer), base };
+}
+
+/**
  * Convolution with zero padding k/2. `groups` 0 means depthwise (one group per channel). Optional ReLU6. The two shapes these
  * networks use have their own fast paths (1 x 1, and 3 x 3); anything else takes the general one.
  */
@@ -102,12 +136,30 @@ function conv(x: T, p: W, stride: number, groups: number, relu6: boolean): T {
   const g = groups === 0 ? x.c : groups;
   const pad = k >> 1;
   const oh = Math.floor((x.h + 2 * pad - k) / stride) + 1, ow = Math.floor((x.w + 2 * pad - k) / stride) + 1;
+  const fast = fastWanted && (k === 3 || (k === 1 && stride === 1 && g === 1)) ? loadKernels() : null;
+  if (fast) return convFast(fast, x, p, stride, g, relu6, oh, ow);
   const out = new Float32Array(oc * oh * ow);
   if (k === 1 && stride === 1 && g === 1) conv1(x, p, out);
   else if (k === 3) conv3(x, p, stride, g, out, oh, ow);
   else convAny(x, p, stride, g, out, oh, ow);
   if (relu6) for (let i = 0; i < out.length; i++) { const v = out[i]; out[i] = v < 0 ? 0 : v > 6 ? 6 : v; }
   return { c: oc, h: oh, w: ow, d: out };
+}
+
+/** The same convolution in the WebAssembly kernels: the input, weights and bias are copied in, the result is copied out. */
+function convFast(k: Kernels, x: T, p: W, stride: number, g: number, relu6: boolean, oh: number, ow: number): T {
+  const oc = p.shape[0], icg = p.shape[1], three = p.shape[2] === 3, pw = x.w + 2, pp = (x.h + 2) * pw;
+  const nIn = three ? x.c * pp : x.d.length, nOut = oc * oh * ow;
+  const { f, base } = room(k, nIn + p.w.length + p.b.length + nOut);
+  const i0 = base >> 2, w0 = i0 + nIn, b0 = w0 + p.w.length, o0 = b0 + p.b.length;
+  if (three) { // with a border of zeros, so all nine taps are read with no edge cases
+    f.fill(0, i0, i0 + nIn);
+    for (let c = 0; c < x.c; c++) for (let y = 0; y < x.h; y++) f.set(x.d.subarray((c * x.h + y) * x.w, (c * x.h + y + 1) * x.w), i0 + c * pp + (y + 1) * pw + 1);
+  } else f.set(x.d, i0);
+  f.set(p.w, w0); f.set(p.b, b0);
+  if (three) k.conv3(i0 * 4, w0 * 4, b0 * 4, o0 * 4, icg, oc, oc / g, pw, pp, oh, ow, stride, relu6 ? 1 : 0);
+  else k.conv1(i0 * 4, w0 * 4, b0 * 4, o0 * 4, x.c, oc, x.h * x.w, relu6 ? 1 : 0);
+  return { c: oc, h: oh, w: ow, d: f.slice(o0, o0 + nOut) };
 }
 
 /** 1 x 1, stride 1: each output plane is a weighted sum of the input planes, taken eight (then four) input planes at a time. */

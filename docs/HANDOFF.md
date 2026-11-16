@@ -17,26 +17,40 @@ Full-app benchmark, the same 300 photos, same machine (`web/bench/real-eval/READ
 | | Found | IoU >= 0.8 | IoU >= 0.9 | Green | False green | Time per photo |
 |---|---|---|---|---|---|---|
 | Live now (rules + v1) | 94% | 54% | 36% | 24% | 6% | about 510 ms |
-| Work branch (rules + v2) | 94% | **69%** | **52%** | 52% | **2%** | about 530 ms |
+| Work branch (rules + v2) | 94% | **69%** | **52%** | 52% | **2%** | **about 280 ms** |
 
 What was done (the six steps of the old plan):
 1. **Export.** `web/ml/export_weights.py` handles both networks; v2 is `web/public/model/corners2.bin` (2.77 MB, 2.57 MB gzipped,
    against 0.98 MB for v1).
-2. **Runs in the browser.** `web/src/modelNet.ts` runs either file (the file says which engine it is). The inner loops were
-   rewritten and are 2 to 2.5 times faster for both engines; that is what pays for v2's extra work.
+2. **Runs in the browser.** `web/src/modelNet.ts` runs either file (the file says which engine it is). Its two hot loops also
+   exist as a 4 KB WebAssembly module with SIMD (`web/src/modelKernels.c`, built by `web/scripts/build-kernels.sh` into
+   `modelKernels.ts`): about 6 times faster, same numbers, no library. Where a browser cannot run it the TypeScript loops do the work
+   (themselves 2 to 2.5 times faster than before).
 3. **Parity.** `web/tests/modelNet.test.ts` checks v1 and v2 against PyTorch, the 48x48 mask included.
 4. **Mask self-check.** `maskOverlap()` and `combine()` in `web/src/core/find.ts`. With v2 the model leads: its outline is used
    when it sees a page, and the page is "high" (green, no Check badge) only when the outline matches the model's own mask by more
    than 0.9, as in training. When the model sees no page the rules' answer is kept but is never green. The TypeScript check was
    compared with `agree()` from `train2.py` on the 300 photos: 1 of 300 lands on the other side of 0.9.
 5. **Benchmark.** The table above. v2 wins on good crops and false green falls.
-6. **Tests.** `npm test` 135 pass, `npm run e2e` 57 pass.
+6. **Tests.** `npm test` 137 pass, `npm run e2e` 57 pass (one of them checks that the WebAssembly kernels are really in use).
+
+## Engine v3: a training run for the cases v2 gets wrong (16 Nov 2026, in progress)
+v2 fails mostly on pages that are small in the photo (under 10% of it: good crops 0 to 29%), pages that fill the frame or are cut
+by its edge, and fingers over the page. `GEN_HARD=1` in `web/ml/gen.py` makes those. 12,000 such pictures are in the private Kaggle
+dataset `saitejavoonna2026/page-corners-hard` (with the v2 weights as the starting point), and the kernel
+`saitejavoonna2026/page-corners-train-v3` trains 24 rounds on the old data plus these. It replaces v2 only if it beats it on the
+same 300 photos. The architecture is unchanged, so the result drops into `corners2.bin` with `export_weights.py`.
+
+Open models were looked at too (15 Nov): DocCornerNet LEAN (MIT, 1.9 MB) scores 84% on the 300 photos but was trained on that
+dataset's training half (research-only sources inside) and gets 67% on Mendeley pages, where v2 gets 87 to 93%; DocAligner's default
+model is 79 MB. Neither is used. What they do differently and we do not yet: a pretrained backbone, 224 px input, more varied real data.
 
 One line switches back to v1: `MODEL_FILE` in `web/src/modelFile.ts` (plus the same name in `web/public/sw.js`). v1's file stays in the repo.
 
 Still open before "push":
-- **Speed on a real phone is not measured.** In desktop Chromium with the CPU slowed 4 to 6 times, the v2 model step took 12 to 17%
-  longer than the live v1 step (the model is under half of the time per photo). A real mid-range Android phone should be tried.
+- **Speed on a real phone is not measured.** In desktop Chromium the v2 model step takes 39 ms against 195 ms for the live v1 step,
+  and 251 ms against 1163 ms with the CPU slowed 6 times, so a phone should be faster than today, not slower. Still worth one try
+  on a mid-range Android phone.
 - **Download.** The first photo fetches 2.8 MB instead of 1 MB (once, then it is kept for offline use).
 - **ID cards are the weak group**: found 78% (86% live), though good crops rise from 16% to 37%. More real ID-card photos in training
   would help.

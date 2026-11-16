@@ -4,7 +4,7 @@ import type { FinalReply, FinalRequest } from './detect.worker';
 import { loadModelBytes } from '../model';
 import DetectWorker from './detect.worker?worker&inline';
 
-export type FinalResult = Pick<FinalReply, 'quad' | 'spread' | 'confidence' | 'source'>;
+export type FinalResult = Pick<FinalReply, 'quad' | 'spread' | 'confidence' | 'source' | 'fast'>;
 
 let worker: Worker | null = null;
 /** Resolves once the model (if there is one) has been handed to the worker, so no request is answered before it. */
@@ -21,7 +21,7 @@ function start(): Worker | null {
     worker.onmessage = (e: MessageEvent<FinalReply>) => {
       if (e.data.kind !== 'final') return;
       const done = waiting.get(e.data.id); waiting.delete(e.data.id);
-      done?.(e.data.error ? null : { quad: e.data.quad, spread: e.data.spread, confidence: e.data.confidence, source: e.data.source });
+      done?.(e.data.error ? null : { quad: e.data.quad, spread: e.data.spread, confidence: e.data.confidence, source: e.data.source, fast: e.data.fast });
     };
     worker.onerror = () => { waiting.forEach((d) => d(null)); waiting.clear(); worker?.terminate(); worker = null; };
   } catch { worker = null; }

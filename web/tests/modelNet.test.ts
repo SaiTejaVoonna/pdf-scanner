@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { CornerNet } from '../src/modelNet';
+import { CornerNet, fastKernels, setFastKernels } from '../src/modelNet';
 import { MODEL_FILE } from '../src/modelFile';
 
 const here = (p: string) => new URL(p, import.meta.url);
@@ -10,9 +10,10 @@ interface Fixture { corners: number[]; presenceLogit: number; var: number[]; mas
 /** The same deterministic input that web/ml/export_weights.py feeds PyTorch. */
 const parityInput = (size = 192): Float32Array => { const a = new Float32Array(3 * size * size); for (let i = 0; i < a.length; i++) a[i] = Math.sin(i * 0.001) * 1.5 + Math.cos(i * 0.0137); return a; };
 
-for (const [engine, bin, fix] of [['v1', '../public/model/corners.bin', './fixtures/model-parity.json'], ['v2', '../public/model/corners2.bin', './fixtures/model2-parity.json']] as const) {
-  describe.skipIf(!existsSync(here(bin)) || !existsSync(here(fix)))(`CornerNet (engine ${engine}) in TypeScript matches PyTorch`, () => {
+for (const fast of [true, false]) for (const [engine, bin, fix] of [['v1', '../public/model/corners.bin', './fixtures/model-parity.json'], ['v2', '../public/model/corners2.bin', './fixtures/model2-parity.json']] as const) {
+  describe.skipIf(!existsSync(here(bin)) || !existsSync(here(fix)))(`CornerNet (engine ${engine}, ${fast ? 'WebAssembly kernels' : 'TypeScript loops'}) matches PyTorch`, () => {
     it('gives the same corners, presence score and spread', () => {
+      setFastKernels(fast); expect(fastKernels()).toBe(fast);
       const net = load(bin);
       expect(net.arch).toBe(engine === 'v2' ? 2 : 1);
       const want = JSON.parse(readFileSync(here(fix), 'utf-8')) as Fixture;

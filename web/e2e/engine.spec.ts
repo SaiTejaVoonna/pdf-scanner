@@ -21,6 +21,7 @@ test('an imported photo is cropped by the shared engine; the learned model is fe
   await expect(page.getByRole('list', { name: 'Pages' }).locator('li')).toHaveCount(1);
   await firstPageCropped(page);
   expect(asked.length, 'the model is fetched once, on first use').toBeGreaterThanOrEqual(1);
+  expect(await page.evaluate(() => (window as unknown as { __engine?: { last?: { fast?: boolean } } }).__engine?.last?.fast), 'the model ran on the WebAssembly kernels').toBe(true);
 });
 
 test('the editor Auto-detect gives the same kind of answer as import (one engine) and still works without the model', async ({ page }) => {
