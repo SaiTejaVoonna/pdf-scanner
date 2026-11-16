@@ -87,7 +87,13 @@ same photos. Not measured yet. Move the engine to Rust only if it is clearly fas
 - UI: mocks are in `docs/design/next-ui/` (glass style and a "Notebook" direction). The Notebook mock was judged to look bad by the owner;
   nothing is chosen. Design skill: `.claude/skills/frontend-design`.
 - New tools planned: password remove/add, sign, ID card mode, passport photo, reorder, then OCR. Not started.
-- Android: the Kotlin app in `app/` is behind the web app. A Tauri wrap of the web app was proposed as a trial: not tried.
+- Android: **`webapp/` packs the web app as an Android app** (16 Nov 2026): a WebView that serves `web/dist` from the APK under
+  `https://appassets.androidplatform.net/`, with no INTERNET permission. `MainActivity.kt` connects the camera permission, the file
+  picker, the back button, sharing and saving (Downloads); `assets/shell.js` is the page side of that. Build: `npm run build` in
+  `web/`, then `./gradlew :webapp:assembleDebug`; CI job "Build web-app APK" uploads the APK. Its id is `com.saiteja.pdfscanner.web`,
+  so it installs next to the Kotlin app. **Not yet run on a phone or emulator** (none in the cloud session): the APK builds, lint
+  passes, and shell.js was tested in Chromium with a stand-in for Android. Not done: opening a PDF or photo sent from another app.
+  The Kotlin app in `app/` is behind the web app and unchanged.
 - Reels: `promo/` has two finished Reels (renders are in `promo/out`, not in git). The Mixkit music licence still needs the owner's check.
 - Repo: no licence chosen yet; the default branch is still the long `claude/...` name (owner to rename in GitHub settings).
 - Name and domain: StashScan was the favourite; stashscan.com is taken, stashscan.app looked free. Nothing bought, nothing renamed.

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Sheet of paper with a folded corner -->
+    <path
+        android:fillColor="#FFFFFFFF"
+        android:pathData="M36,28 L60,28 L74,42 L74,80 L36,80 Z" />
+    <path
+        android:fillColor="#FFB4C5FF"
+        android:pathData="M60,28 L74,42 L60,42 Z" />
+    <!-- Scan line -->
+    <path
+        android:fillColor="#FF2457D6"
+        android:pathData="M30,52 L80,52 L80,57 L30,57 Z" />
+    <path
+        android:fillColor="#FFB4C5FF"
+        android:pathData="M42,64 L68,64 L68,68 L42,68 Z" />
+    <path
+        android:fillColor="#FFB4C5FF"
+        android:pathData="M42,72 L58,72 L58,76 L42,76 Z" />
+</vector>

@@ -22,3 +22,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "PdfScanner"
 include(":app")
+include(":webapp")

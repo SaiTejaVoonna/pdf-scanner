@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PDF Scanner</string>
+    <string name="saved_to_downloads">Saved to Downloads: %1$s</string>
+    <string name="save_failed">Could not save the file</string>
+    <string name="share_title">Share</string>
+    <color name="window_background">#FFF4F3F0</color>
+    <color name="ic_launcher_background">#FF2457D6</color>
+    <bool name="light_bars">true</bool>
+    <style name="Theme.Shell" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/window_background</item>
+    </style>
+</resources>

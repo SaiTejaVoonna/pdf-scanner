@@ -1,6 +1,7 @@
 # Changelog
 
 ## Unreleased (work branch, not in the live app)
+- Android: new `webapp/` module packs the web app as an offline Android app (camera, file picker, share, save to Downloads, back button). Built and lint-clean; not yet tried on a phone.
 - Web, **engine v2**: a larger corner model (2.8 MB, against 1 MB) that also predicts which part of the photo is page and checks its own corners against that. On the 300-photo benchmark good crops (IoU >= 0.8) rise from 54% to 69% and false green falls from 6% to 2%; the page is found as often as before (94%). The model's two hot loops now run in a 4 KB WebAssembly module with SIMD (no library; TypeScript loops remain as the fallback), so the larger model takes about a fifth of the time the old one did in desktop Chromium (not yet measured on a phone). Engine v1 stays in the repository and one line switches back. 137 unit tests, 57 browser tests.
 
 ## 1.0.0-beta.1
